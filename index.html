@@ -67,6 +67,11 @@
   .copied{color:var(--green); text-align:center; font-size:13px; height:18px; margin-top:6px;}
   .newRoundBtn{width:100%; margin-top:8px; padding:13px 0; font-size:15px; border-radius:10px;
     border:1px solid var(--brass-dim); background:var(--panel2); color:var(--brass); font-weight:600;}
+  .scoreWrap{display:flex; gap:6px;}
+  .scoreWrap .btns{flex:1;}
+  .mini{width:44px; height:46px; font-size:20px; border-radius:9px;
+    border:1px solid #2c3a5c; background:var(--panel2); color:var(--cream);}
+  .scoreNow{color:var(--brass); font-weight:700; text-transform:none; font-size:14px;}
 </style>
 </head>
 <body>
@@ -86,12 +91,17 @@
   <div class="tip"><b>Game plan</b><span id="tipText"></span></div>
 
   <div class="row">
-    <div class="lbl">Score</div>
-    <div class="stepper">
-      <button onclick="bump('score',-1)">&minus;</button>
-      <div class="val" id="scoreVal">&ndash;</div>
-      <button onclick="bump('score',1)">+</button>
+    <div class="lbl">Score &mdash; <span class="scoreNow" id="scoreVal">&ndash;</span></div>
+    <div class="scoreWrap">
+      <div class="btns" id="scoreBtns"></div>
+      <button class="mini" onclick="bump('score',-1)">&minus;</button>
+      <button class="mini" onclick="bump('score',1)">+</button>
     </div>
+  </div>
+
+  <div class="row">
+    <div class="lbl">Penalty strokes</div>
+    <div class="btns" id="penBtns"></div>
   </div>
 
   <div class="row" id="firRow">
@@ -115,12 +125,8 @@
   </div>
 
   <div class="row">
-    <div class="lbl">Total putts</div>
-    <div class="stepper">
-      <button onclick="bump('putts',-1)">&minus;</button>
-      <div class="val" id="puttsVal">&ndash;</div>
-      <button onclick="bump('putts',1)">+</button>
-    </div>
+    <div class="lbl">Total putts &mdash; <span class="scoreNow" id="puttsVal">&ndash;</span></div>
+    <div class="btns" id="puttBtns"></div>
   </div>
 
   <div class="inlineWrap">
@@ -188,24 +194,30 @@ var COURSE=[
 
 var state=null, holes=[], cur=0;
 
-function blank(){return {fir:null,score:null,gir:null,ss:null,chip:null,putts:null,sixAtt:0,sixMade:0};}
+function blank(){return {fir:null,score:null,gir:null,ss:null,chip:null,putts:null,sixAtt:0,sixMade:0,pen:0};}
 function mk(){var a=[]; for(var i=0;i<18;i++)a.push(blank()); return a;}
 function today(){var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function load(){
   try{state=JSON.parse(localStorage.getItem(STORE));}catch(e){}
   if(!state||!state.holes||state.holes.length!==18){
-    state={date:today(),holes:mk(),history:(state&&state.history)||[]};
+    state={date:today(),holes:mk(),history:(state&&state.history)||[],dirty:false};
   }
+  if(state.dirty==null)state.dirty=false;
+  state.holes.forEach(function(h){if(h.pen==null)h.pen=0;});
   holes=state.holes;
 }
 function save(){try{localStorage.setItem(STORE,JSON.stringify(state));}catch(e){}}
+function touch(){state.dirty=true; save();}
 function newRound(){
   var played=holes.some(function(h){return h.score!==null;});
   if(played){
-    if(!confirm('Archive this round ('+state.date+') and start a new one? Make sure you hit Save to Drive first.'))return;
+    var msg=state.dirty
+      ? 'WARNING: this round has NOT been saved to Drive yet. Hit "Save to Drive" first, or archive it anyway?'
+      : 'Archive this round ('+state.date+') and start a new one?';
+    if(!confirm(msg))return;
     state.history.push({date:state.date,holes:holes});
   }
-  state.date=today(); state.holes=mk(); holes=state.holes; cur=0;
+  state.date=today(); state.holes=mk(); holes=state.holes; cur=0; state.dirty=false;
   save(); render();
   if(document.getElementById('summaryView').style.display==='block')toggleView();
 }
@@ -218,7 +230,7 @@ function seg(id,opts,field){
     if(holes[cur][field]===o.val)b.className='on';
     b.onclick=function(){
       holes[cur][field]=(holes[cur][field]===o.val)?null:o.val;
-      save(); render();
+      touch(); render();
     };
     el.appendChild(b);
   });
@@ -226,11 +238,10 @@ function seg(id,opts,field){
 
 function bump(field,d){
   var h=holes[cur];
-  if(field==='score'){h.score=Math.max(1,(h.score===null?COURSE[cur].par:h.score)+d);}
-  else if(field==='putts'){h.putts=Math.max(0,(h.putts===null?2:h.putts)+d);}
+  if(field==='score'){h.score=(h.score===null)?COURSE[cur].par:Math.max(1,h.score+d);}
   else if(field==='sixAtt'){h.sixAtt=Math.max(0,h.sixAtt+d); if(h.sixMade>h.sixAtt)h.sixMade=h.sixAtt;}
   else if(field==='sixMade'){h.sixMade=Math.min(h.sixAtt,Math.max(0,h.sixMade+d));}
-  save(); render();
+  touch(); render();
 }
 
 function move(d){cur=(cur+18+d)%18; render();}
@@ -242,12 +253,16 @@ function render(){
   document.getElementById('tipText').textContent=c.tip;
   var done=holes.filter(function(x){return x.score!==null;}).length;
   document.getElementById('doneLbl').textContent=state.date+' · '+done+'/18 holes';
+  seg('scoreBtns',[{label:'-1',val:c.par-1},{label:'E',val:c.par},{label:'+1',val:c.par+1},{label:'+2',val:c.par+2}],'score');
+  seg('penBtns',[{label:'0',val:0},{label:'1',val:1},{label:'2',val:2},{label:'3',val:3}],'pen');
+  seg('puttBtns',[{label:'0',val:0},{label:'1',val:1},{label:'2',val:2},{label:'3',val:3},{label:'4',val:4},{label:'5',val:5}],'putts');
   seg('firBtns',[{label:'Hit',val:'y'},{label:'Miss L',val:'l'},{label:'Miss R',val:'r'}],'fir');
   document.getElementById('firRow').className='row'+(c.par>3?'':' disabled');
   seg('girBtns',[{label:'Yes',val:true},{label:'No',val:false}],'gir');
   seg('ssBtns',[{label:'Yes',val:true},{label:'No',val:false}],'ss');
   seg('chipBtns',[{label:'≤ 6 ft',val:'in'},{label:'> 6 ft',val:'out'},{label:'n/a',val:'na'}],'chip');
-  document.getElementById('scoreVal').textContent=h.score===null?'–':h.score;
+  var sd=h.score===null?null:h.score-c.par;
+  document.getElementById('scoreVal').textContent=h.score===null?'–':h.score+' ('+(sd===0?'E':(sd>0?'+':'')+sd)+')';
   document.getElementById('puttsVal').textContent=h.putts===null?'–':h.putts;
   document.getElementById('sixAttVal').textContent=h.sixAtt;
   document.getElementById('sixMadeVal').textContent=h.sixMade;
@@ -262,16 +277,18 @@ function fmt(v,y,n){return v===null?'?':(v===true?y:(v===false?n:v));}
 function buildSummary(){
   var lines=['BAY OAKS '+state.date];
   var tS=0,tP=0,tPar=0,gir=0,girN=0,missed=0,chipIn=0,chipTried=0,ss=0,att=0,made=0;
-  var firHit=0,firL=0,firR=0,firN=0,out9=0,in9=0;
+  var firHit=0,firL=0,firR=0,firN=0,out9=0,in9=0,tPen=0;
   holes.forEach(function(h,i){
     var n=(i+1<10?'0':'')+(i+1);
+    var pn=(h.pen==null?0:h.pen); tPen+=pn;
     lines.push('H'+n+' P'+COURSE[i].par+' S'+(h.score===null?'?':h.score)
       +' FIR:'+(COURSE[i].par>3?(h.fir==='y'?'Y':h.fir==='l'?'L':h.fir==='r'?'R':'?'):'-')
       +' GIR:'+fmt(h.gir,'Y','N')
       +' SS:'+(h.gir===false?fmt(h.ss,'Y','N'):'-')
       +' CHIP6:'+(h.gir===false?(h.chip==='in'?'Y':h.chip==='out'?'N':h.chip==='na'?'NA':'?'):'-')
       +' PUTTS:'+(h.putts===null?'?':h.putts)
-      +' 36FT:'+h.sixMade+'/'+h.sixAtt);
+      +' P36:'+h.sixMade+'/'+h.sixAtt
+      +' PEN:'+pn);
     if(h.score!==null){tS+=h.score;tPar+=COURSE[i].par; if(i<9)out9+=h.score; else in9+=h.score;}
     if(h.putts!==null)tP+=h.putts;
     if(h.gir===true)gir++; if(h.gir!==null)girN++;
@@ -283,18 +300,19 @@ function buildSummary(){
   var diff=tS-tPar;
   lines.push('TOT S:'+tS+' ('+(diff>=0?'+':'')+diff+') FIR:'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+') GIR:'+gir+'/'+girN
     +' PUTTS:'+tP+' CHIP6:'+chipIn+'/'+chipTried+' SS:'+ss+'/'+missed
-    +' 36FT:'+made+'/'+att+' OUT:'+out9+' IN:'+in9);
+    +' P36:'+made+'/'+att+' PEN:'+tPen+' OUT:'+out9+' IN:'+in9);
   document.getElementById('exportText').textContent=lines.join('\n');
   var pct=function(a,b){return b?Math.round(100*a/b)+'%':'–';};
   document.getElementById('stats').innerHTML=
-    '<div class="stat">GHIN — Out / In / Total <b>'+out9+' / '+in9+' / '+tS+'</b></div>'
+    '<div class="stat">Out / In / Total <b>'+out9+' / '+in9+' / '+tS+'</b></div>'
     +'<div class="stat">Score <b>'+tS+' ('+(diff>=0?'+':'')+diff+')</b></div>'
     +'<div class="stat">Fairways <b>'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+')</b></div>'
     +'<div class="stat">GIR <b>'+gir+'/'+girN+'</b></div>'
     +'<div class="stat">First chip inside 6 ft <b>'+chipIn+'/'+chipTried+' ('+pct(chipIn,chipTried)+')</b></div>'
     +'<div class="stat">Short-sided on missed greens <b>'+ss+'/'+missed+'</b></div>'
     +'<div class="stat">Total putts <b>'+tP+'</b></div>'
-    +'<div class="stat">3–6 ft putts made <b>'+made+'/'+att+' ('+pct(made,att)+')</b></div>';
+    +'<div class="stat">3–6 ft putts made <b>'+made+'/'+att+' ('+pct(made,att)+')</b></div>'
+    +'<div class="stat">Penalty strokes <b>'+tPen+'</b></div>';
 }
 
 function toggleView(){
@@ -308,7 +326,7 @@ function toggleView(){
 function copyExport(){
   var t=document.getElementById('exportText').textContent;
   var msg=document.getElementById('copiedMsg');
-  function ok(){msg.textContent='Copied — paste it back to Claude.'; setTimeout(function(){msg.textContent='';},2500);}
+  function ok(){msg.textContent='Copied — paste it back to Claude.'; state.dirty=false; save(); setTimeout(function(){msg.textContent='';},2500);}
   function fallback(){
     var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
     ta.select(); try{document.execCommand('copy'); ok();}catch(e){msg.textContent='Long-press the text to copy.';}
@@ -327,10 +345,10 @@ function shareExport(){
   try{
     if(navigator.canShare&&window.File){
       var f=new File([t],fname,{type:'text/plain'});
-      if(navigator.canShare({files:[f]})){navigator.share({files:[f],title:fname}).catch(function(){}); return;}
+      if(navigator.canShare({files:[f]})){navigator.share({files:[f],title:fname}).then(function(){state.dirty=false; save();},function(){}); return;}
     }
   }catch(e){}
-  if(navigator.share){navigator.share({title:fname,text:t}).catch(function(){}); return;}
+  if(navigator.share){navigator.share({title:fname,text:t}).then(function(){state.dirty=false; save();},function(){}); return;}
   copyExport();
 }
 
