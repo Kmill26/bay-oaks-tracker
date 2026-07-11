@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<meta name="color-scheme" content="dark">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Bay Oaks — Short Game Diagnostic</title>
+<style>
+  :root{
+    --navy:#0b1220; --panel:#141e30; --panel2:#1b2740;
+    --brass:#c9973f; --brass-dim:#8a6a2f; --cream:#efe6d0;
+    --muted:#8b96ab; --green:#4caf7d; --red:#c05555;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{margin:0; background:var(--navy); color:var(--cream);
+    font-family:Roboto,"Google Sans",system-ui,-apple-system,sans-serif;
+    padding:12px 12px calc(90px + env(safe-area-inset-bottom)); max-width:480px; margin-inline:auto;
+    font-size:16px; touch-action:manipulation;}
+  h1{font-size:15px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--brass); text-align:center; margin:4px 0 12px; font-weight:600;}
+  .nav{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+  .nav button{background:var(--panel2); border:1px solid var(--brass-dim); color:var(--brass);
+    font-size:22px; width:56px; height:48px; border-radius:10px;}
+  .holeLbl{text-align:center;}
+  .holeLbl .num{font-size:28px; font-weight:700; color:var(--cream);}
+  .holeLbl .meta{font-size:12px; color:var(--muted); margin-top:2px;}
+  .holeLbl .done{font-size:11px; color:var(--muted);}
+  .tip{background:linear-gradient(180deg,#18233a,#141e30); border:1px solid var(--brass-dim);
+    border-radius:12px; padding:10px 12px; margin-bottom:10px; font-size:13.5px;
+    line-height:1.45; color:var(--cream);}
+  .tip b{color:var(--brass); font-size:11px; letter-spacing:.08em; text-transform:uppercase; display:block; margin-bottom:3px;}
+  .row{background:var(--panel); border:1px solid #263450; border-radius:12px;
+    padding:10px 12px; margin-bottom:10px;}
+  .row.disabled{opacity:.35; pointer-events:none;}
+  .lbl{font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:8px;}
+  .btns{display:flex; gap:8px;}
+  .btns button{flex:1; padding:12px 0; font-size:16px; border-radius:9px;
+    border:1px solid #2c3a5c; background:var(--panel2); color:var(--cream);}
+  .btns button.on{background:var(--brass); border-color:var(--brass); color:#1a1408; font-weight:700;}
+  .stepper{display:flex; align-items:center; gap:14px; justify-content:center;}
+  .stepper button{width:60px; height:48px; font-size:24px; border-radius:9px;
+    border:1px solid #2c3a5c; background:var(--panel2); color:var(--cream);}
+  .stepper .val{font-size:28px; font-weight:700; min-width:44px; text-align:center;}
+  .inlineWrap{display:flex; gap:10px; margin-bottom:10px;}
+  .inlineWrap .row{flex:1; margin-bottom:0; min-width:0; padding:10px 8px;}
+  .inlineWrap .stepper{gap:6px;}
+  .inlineWrap .stepper button{width:42px; height:44px; font-size:20px;}
+  .inlineWrap .stepper .val{font-size:22px; min-width:26px;}
+  .inlineWrap .lbl{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  body{overflow-x:hidden;}
+  .footer{position:fixed; bottom:0; left:0; right:0; background:var(--panel);
+    border-top:1px solid #263450; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); display:flex; gap:10px;
+    max-width:480px; margin-inline:auto;}
+  .footer button{flex:1; padding:13px 0; font-size:15px; border-radius:10px;
+    border:1px solid var(--brass-dim); background:var(--panel2); color:var(--brass); font-weight:600;}
+  #summaryView{display:none;}
+  pre{background:var(--panel); border:1px solid #263450; border-radius:12px;
+    padding:12px; font-size:11.5px; line-height:1.5; white-space:pre-wrap;
+    word-break:break-all; color:var(--cream);}
+  .stat{display:flex; justify-content:space-between; padding:9px 12px;
+    background:var(--panel); border:1px solid #263450; border-radius:10px; margin-bottom:8px; font-size:14px;}
+  .stat b{color:var(--brass);}
+  .copied{color:var(--green); text-align:center; font-size:13px; height:18px; margin-top:6px;}
+  .newRoundBtn{width:100%; margin-top:8px; padding:13px 0; font-size:15px; border-radius:10px;
+    border:1px solid var(--brass-dim); background:var(--panel2); color:var(--brass); font-weight:600;}
+</style>
+</head>
+<body>
+<h1>Bay Oaks &middot; Short Game Diagnostic</h1>
+
+<div id="holeView">
+  <div class="nav">
+    <button onclick="move(-1)">&#8592;</button>
+    <div class="holeLbl">
+      <div class="num">Hole <span id="holeNum">1</span></div>
+      <div class="meta" id="holeMeta"></div>
+      <div class="done" id="doneLbl"></div>
+    </div>
+    <button onclick="move(1)">&#8594;</button>
+  </div>
+
+  <div class="tip"><b>Game plan</b><span id="tipText"></span></div>
+
+  <div class="row">
+    <div class="lbl">Score</div>
+    <div class="stepper">
+      <button onclick="bump('score',-1)">&minus;</button>
+      <div class="val" id="scoreVal">&ndash;</div>
+      <button onclick="bump('score',1)">+</button>
+    </div>
+  </div>
+
+  <div class="row" id="firRow">
+    <div class="lbl">Fairway? (tee shot, par 4/5)</div>
+    <div class="btns" id="firBtns"></div>
+  </div>
+
+  <div class="row">
+    <div class="lbl">Green in regulation?</div>
+    <div class="btns" id="girBtns"></div>
+  </div>
+
+  <div class="row" id="ssRow">
+    <div class="lbl">Short-sided? (missed on the side the pin is on)</div>
+    <div class="btns" id="ssBtns"></div>
+  </div>
+
+  <div class="row" id="chipRow">
+    <div class="lbl">First greenside shot finished inside 6 ft?</div>
+    <div class="btns" id="chipBtns"></div>
+  </div>
+
+  <div class="row">
+    <div class="lbl">Total putts</div>
+    <div class="stepper">
+      <button onclick="bump('putts',-1)">&minus;</button>
+      <div class="val" id="puttsVal">&ndash;</div>
+      <button onclick="bump('putts',1)">+</button>
+    </div>
+  </div>
+
+  <div class="inlineWrap">
+    <div class="row">
+      <div class="lbl">Putts faced 3&ndash;6 ft</div>
+      <div class="stepper">
+        <button onclick="bump('sixAtt',-1)">&minus;</button>
+        <div class="val" id="sixAttVal">0</div>
+        <button onclick="bump('sixAtt',1)">+</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="lbl">&hellip;of those, made</div>
+      <div class="stepper">
+        <button onclick="bump('sixMade',-1)">&minus;</button>
+        <div class="val" id="sixMadeVal">0</div>
+        <button onclick="bump('sixMade',1)">+</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="summaryView">
+  <div id="stats"></div>
+  <pre id="exportText"></pre>
+  <div class="copied" id="copiedMsg"></div>
+  <button class="newRoundBtn" onclick="newRound()">Start New Round</button>
+</div>
+
+<div class="footer">
+  <button id="tabBtn" onclick="toggleView()">Summary</button>
+  <button onclick="copyExport()">Copy</button>
+  <button onclick="shareExport()">Save to Drive</button>
+</div>
+
+<script>
+var STORE='bayoaks-rounds-v6';
+
+// Bay Oaks CC (Arthur Hills, 1988). Par/HCP/yardages (Championship/Regular) from GolfPass scorecard.
+// Water in play on 14 of 18 holes (Horsepen Bayou + lakes) -- when in doubt, take the dry side.
+// Gameplan built for CHAMPIONSHIP tees + Kenny's carries: Dr 260(270 tot), 4h 210, 5i 195,
+// 6i 180, 7i 170, 8i 155, 9i 145, PW 135, GW 120 (benched -- ~5 swings in 4 yrs), 54=90-100,
+// 58=75. Driver miss: RIGHT (slice). Kenny's real scoring ladder: 58 / 54 / PW.
+// Lay-up targets: 75 (58), 95 (54), 135 (PW). 105-125 zone = hard 54 or smooth PW, clubs he trusts.
+var COURSE=[
+ {par:4,hcp:13,cy:387,ry:362,tip:"Driver up the left side, let the cut work back. Smooth PW from ~117. Clean par start -- don't chase a pin cold."},
+ {par:4,hcp:9, cy:387,ry:367,tip:"Driver left side, smooth PW ~117 to the fat side. Two-putt par and move."},
+ {par:3,hcp:15,cy:183,ry:166,tip:"6-iron, center of green. Inside 25 ft is a win here."},
+ {par:4,hcp:1, cy:432,ry:401,tip:"Hardest on the card. Driver left edge, 7-iron to ~162 center. Bogey costs you nothing against the field."},
+ {par:5,hcp:7, cy:515,ry:492,tip:"DANGER HOLE: lake right on every shot, and right is your miss. 4h-4h-54 (210/210/~95) never brings it in reach. Slice-proof beats two extra clubs of ego."},
+ {par:4,hcp:5, cy:392,ry:371,tip:"Driver left side, smooth PW ~122. Center green, two putts, walk."},
+ {par:5,hcp:3, cy:495,ry:447,tip:"225 left after driver -- don't chase it. 8-iron lay-up to ~70, full 58 in."},
+ {par:3,hcp:17,cy:172,ry:154,tip:"7-iron. Easiest par 3 out here -- commit to the club and swing."},
+ {par:4,hcp:11,cy:395,ry:388,tip:"Driver, smooth PW from ~125. Close the front nine clean -- this is the 'finish the hole' rep."},
+ {par:4,hcp:14,cy:375,ry:356,tip:"Driver leaves ~105 -- hard 54, your shot. Stock hole; take what it gives."},
+ {par:5,hcp:10,cy:495,ry:465,tip:"Driver + 8-iron to ~70-75, full 58 in. The wedge number beats 30 yards closer in a bad spot."},
+ {par:3,hcp:16,cy:162,ry:141,tip:"All carry over water. 7-iron covers it with room -- dead center, never at the pin."},
+ {par:4,hcp:4, cy:378,ry:335,tip:"HCP 4. Driver left side, hard 54 from ~108 to the middle. Short-siding starts here -- don't."},
+ {par:3,hcp:18,cy:135,ry:125,tip:"Stock PW. Inside 20 ft is the expectation, not the hope."},
+ {par:4,hcp:12,cy:338,ry:300,tip:"NO driver -- it leaves a 68-yd guess in your wedge gap. 4-hybrid, then smooth PW from ~128."},
+ {par:5,hcp:2, cy:543,ry:491,tip:"Longest hole, HCP 2. Driver, 5-iron, full 58 from ~78. Long holes give the slice room -- left edge targets all three swings."},
+ {par:4,hcp:8, cy:390,ry:350,tip:"DANGER HOLE: dogleg right, water right of green, right is your miss. Tee ball down the left half; smooth PW aimed LEFT half, never at a right pin. Bogey here beats double."},
+ {par:4,hcp:6, cy:420,ry:381,tip:"Water left of green -- your right miss is SAFE here. Driver, 8-iron to the center. Swing free and close it out."}
+];
+
+var state=null, holes=[], cur=0;
+
+function blank(){return {fir:null,score:null,gir:null,ss:null,chip:null,putts:null,sixAtt:0,sixMade:0};}
+function mk(){var a=[]; for(var i=0;i<18;i++)a.push(blank()); return a;}
+function today(){var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function load(){
+  try{state=JSON.parse(localStorage.getItem(STORE));}catch(e){}
+  if(!state||!state.holes||state.holes.length!==18){
+    state={date:today(),holes:mk(),history:(state&&state.history)||[]};
+  }
+  holes=state.holes;
+}
+function save(){try{localStorage.setItem(STORE,JSON.stringify(state));}catch(e){}}
+function newRound(){
+  var played=holes.some(function(h){return h.score!==null;});
+  if(played){
+    if(!confirm('Archive this round ('+state.date+') and start a new one? Make sure you hit Save to Drive first.'))return;
+    state.history.push({date:state.date,holes:holes});
+  }
+  state.date=today(); state.holes=mk(); holes=state.holes; cur=0;
+  save(); render();
+  if(document.getElementById('summaryView').style.display==='block')toggleView();
+}
+
+function seg(id,opts,field){
+  var el=document.getElementById(id); el.innerHTML='';
+  opts.forEach(function(o){
+    var b=document.createElement('button');
+    b.textContent=o.label;
+    if(holes[cur][field]===o.val)b.className='on';
+    b.onclick=function(){
+      holes[cur][field]=(holes[cur][field]===o.val)?null:o.val;
+      save(); render();
+    };
+    el.appendChild(b);
+  });
+}
+
+function bump(field,d){
+  var h=holes[cur];
+  if(field==='score'){h.score=Math.max(1,(h.score===null?COURSE[cur].par:h.score)+d);}
+  else if(field==='putts'){h.putts=Math.max(0,(h.putts===null?2:h.putts)+d);}
+  else if(field==='sixAtt'){h.sixAtt=Math.max(0,h.sixAtt+d); if(h.sixMade>h.sixAtt)h.sixMade=h.sixAtt;}
+  else if(field==='sixMade'){h.sixMade=Math.min(h.sixAtt,Math.max(0,h.sixMade+d));}
+  save(); render();
+}
+
+function move(d){cur=(cur+18+d)%18; render();}
+
+function render(){
+  var h=holes[cur], c=COURSE[cur];
+  document.getElementById('holeNum').textContent=cur+1;
+  document.getElementById('holeMeta').textContent='Par '+c.par+' · HCP '+c.hcp+' · '+c.cy+'/'+c.ry+' yds';
+  document.getElementById('tipText').textContent=c.tip;
+  var done=holes.filter(function(x){return x.score!==null;}).length;
+  document.getElementById('doneLbl').textContent=state.date+' · '+done+'/18 holes';
+  seg('firBtns',[{label:'Hit',val:'y'},{label:'Miss L',val:'l'},{label:'Miss R',val:'r'}],'fir');
+  document.getElementById('firRow').className='row'+(c.par>3?'':' disabled');
+  seg('girBtns',[{label:'Yes',val:true},{label:'No',val:false}],'gir');
+  seg('ssBtns',[{label:'Yes',val:true},{label:'No',val:false}],'ss');
+  seg('chipBtns',[{label:'≤ 6 ft',val:'in'},{label:'> 6 ft',val:'out'},{label:'n/a',val:'na'}],'chip');
+  document.getElementById('scoreVal').textContent=h.score===null?'–':h.score;
+  document.getElementById('puttsVal').textContent=h.putts===null?'–':h.putts;
+  document.getElementById('sixAttVal').textContent=h.sixAtt;
+  document.getElementById('sixMadeVal').textContent=h.sixMade;
+  var missed=(h.gir===false);
+  document.getElementById('ssRow').className='row'+(missed?'':' disabled');
+  document.getElementById('chipRow').className='row'+(missed?'':' disabled');
+  buildSummary();
+}
+
+function fmt(v,y,n){return v===null?'?':(v===true?y:(v===false?n:v));}
+
+function buildSummary(){
+  var lines=['BAY OAKS '+state.date];
+  var tS=0,tP=0,tPar=0,gir=0,girN=0,missed=0,chipIn=0,chipTried=0,ss=0,att=0,made=0;
+  var firHit=0,firL=0,firR=0,firN=0,out9=0,in9=0;
+  holes.forEach(function(h,i){
+    var n=(i+1<10?'0':'')+(i+1);
+    lines.push('H'+n+' P'+COURSE[i].par+' S'+(h.score===null?'?':h.score)
+      +' FIR:'+(COURSE[i].par>3?(h.fir==='y'?'Y':h.fir==='l'?'L':h.fir==='r'?'R':'?'):'-')
+      +' GIR:'+fmt(h.gir,'Y','N')
+      +' SS:'+(h.gir===false?fmt(h.ss,'Y','N'):'-')
+      +' CHIP6:'+(h.gir===false?(h.chip==='in'?'Y':h.chip==='out'?'N':h.chip==='na'?'NA':'?'):'-')
+      +' PUTTS:'+(h.putts===null?'?':h.putts)
+      +' 36FT:'+h.sixMade+'/'+h.sixAtt);
+    if(h.score!==null){tS+=h.score;tPar+=COURSE[i].par; if(i<9)out9+=h.score; else in9+=h.score;}
+    if(h.putts!==null)tP+=h.putts;
+    if(h.gir===true)gir++; if(h.gir!==null)girN++;
+    if(h.gir===false){missed++; if(h.ss===true)ss++;
+      if(h.chip==='in'){chipIn++;chipTried++;} if(h.chip==='out')chipTried++;}
+    if(COURSE[i].par>3&&h.fir!==null){firN++; if(h.fir==='y')firHit++; if(h.fir==='l')firL++; if(h.fir==='r')firR++;}
+    att+=h.sixAtt; made+=h.sixMade;
+  });
+  var diff=tS-tPar;
+  lines.push('TOT S:'+tS+' ('+(diff>=0?'+':'')+diff+') FIR:'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+') GIR:'+gir+'/'+girN
+    +' PUTTS:'+tP+' CHIP6:'+chipIn+'/'+chipTried+' SS:'+ss+'/'+missed
+    +' 36FT:'+made+'/'+att+' OUT:'+out9+' IN:'+in9);
+  document.getElementById('exportText').textContent=lines.join('\n');
+  var pct=function(a,b){return b?Math.round(100*a/b)+'%':'–';};
+  document.getElementById('stats').innerHTML=
+    '<div class="stat">GHIN — Out / In / Total <b>'+out9+' / '+in9+' / '+tS+'</b></div>'
+    +'<div class="stat">Score <b>'+tS+' ('+(diff>=0?'+':'')+diff+')</b></div>'
+    +'<div class="stat">Fairways <b>'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+')</b></div>'
+    +'<div class="stat">GIR <b>'+gir+'/'+girN+'</b></div>'
+    +'<div class="stat">First chip inside 6 ft <b>'+chipIn+'/'+chipTried+' ('+pct(chipIn,chipTried)+')</b></div>'
+    +'<div class="stat">Short-sided on missed greens <b>'+ss+'/'+missed+'</b></div>'
+    +'<div class="stat">Total putts <b>'+tP+'</b></div>'
+    +'<div class="stat">3–6 ft putts made <b>'+made+'/'+att+' ('+pct(made,att)+')</b></div>';
+}
+
+function toggleView(){
+  var s=document.getElementById('summaryView'), hv=document.getElementById('holeView');
+  var showSum=s.style.display!=='block';
+  s.style.display=showSum?'block':'none';
+  hv.style.display=showSum?'none':'block';
+  document.getElementById('tabBtn').textContent=showSum?'Holes':'Summary';
+}
+
+function copyExport(){
+  var t=document.getElementById('exportText').textContent;
+  var msg=document.getElementById('copiedMsg');
+  function ok(){msg.textContent='Copied — paste it back to Claude.'; setTimeout(function(){msg.textContent='';},2500);}
+  function fallback(){
+    var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
+    ta.select(); try{document.execCommand('copy'); ok();}catch(e){msg.textContent='Long-press the text to copy.';}
+    document.body.removeChild(ta);
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(ok,function(){fallback();});
+  }else fallback();
+  if(document.getElementById('summaryView').style.display!=='block')toggleView();
+}
+
+function shareExport(){
+  buildSummary();
+  var t=document.getElementById('exportText').textContent;
+  var fname='bay-oaks-round-'+state.date+'.txt';
+  try{
+    if(navigator.canShare&&window.File){
+      var f=new File([t],fname,{type:'text/plain'});
+      if(navigator.canShare({files:[f]})){navigator.share({files:[f],title:fname}).catch(function(){}); return;}
+    }
+  }catch(e){}
+  if(navigator.share){navigator.share({title:fname,text:t}).catch(function(){}); return;}
+  copyExport();
+}
+
+load(); render();
+if('serviceWorker' in navigator && location.protocol==='https:'){
+  navigator.serviceWorker.register('sw.js').catch(function(){});
+}
+</script>
+</body>
+</html>
