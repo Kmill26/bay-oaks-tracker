@@ -72,6 +72,11 @@
   .mini{width:44px; height:46px; font-size:20px; border-radius:9px;
     border:1px solid #2c3a5c; background:var(--panel2); color:var(--cream);}
   .scoreNow{color:var(--brass); font-weight:700; text-transform:none; font-size:14px;}
+  .noteBox{width:100%; background:var(--panel2); border:1px solid #2c3a5c; border-radius:9px;
+    color:var(--cream); font-family:inherit; font-size:16px; line-height:1.4; padding:10px;
+    resize:vertical; min-height:52px;}
+  .noteBox::placeholder{color:var(--muted); opacity:.8;}
+  .warn{color:var(--red); font-weight:700;}
 </style>
 </head>
 <body>
@@ -147,6 +152,12 @@
       </div>
     </div>
   </div>
+
+  <div class="row">
+    <div class="lbl">Shot notes</div>
+    <textarea class="noteBox" id="noteBox" rows="2" placeholder="e.g. Driver left side of fairway, 158 to center"
+      oninput="setNote(this.value)"></textarea>
+  </div>
 </div>
 
 <div id="summaryView">
@@ -194,7 +205,7 @@ var COURSE=[
 
 var state=null, holes=[], cur=0;
 
-function blank(){return {fir:null,score:null,gir:null,ss:null,chip:null,putts:null,sixAtt:0,sixMade:0,pen:0};}
+function blank(){return {fir:null,score:null,gir:null,ss:null,chip:null,putts:null,sixAtt:0,sixMade:0,pen:0,notes:''};}
 function mk(){var a=[]; for(var i=0;i<18;i++)a.push(blank()); return a;}
 function today(){var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function load(){
@@ -203,10 +214,18 @@ function load(){
     state={date:today(),holes:mk(),history:(state&&state.history)||[],dirty:false};
   }
   if(state.dirty==null)state.dirty=false;
-  state.holes.forEach(function(h){if(h.pen==null)h.pen=0;});
+  state.holes.forEach(function(h){if(h.pen==null)h.pen=0; if(h.notes==null)h.notes='';});
   holes=state.holes;
+  ensureDate();
 }
 function save(){try{localStorage.setItem(STORE,JSON.stringify(state));}catch(e){}}
+function pristine(){
+  return holes.every(function(h){
+    return h.score===null&&h.putts===null&&h.fir===null&&h.gir===null&&h.ss===null
+      &&h.chip===null&&h.sixAtt===0&&h.sixMade===0&&(h.pen||0)===0&&!(h.notes&&h.notes.trim());
+  });
+}
+function ensureDate(){if(state.date!==today()&&pristine()){state.date=today(); save();}}
 function touch(){state.dirty=true; save();}
 function newRound(){
   var played=holes.some(function(h){return h.score!==null;});
@@ -229,6 +248,7 @@ function seg(id,opts,field){
     b.textContent=o.label;
     if(holes[cur][field]===o.val)b.className='on';
     b.onclick=function(){
+      ensureDate();
       holes[cur][field]=(holes[cur][field]===o.val)?null:o.val;
       touch(); render();
     };
@@ -237,12 +257,15 @@ function seg(id,opts,field){
 }
 
 function bump(field,d){
+  ensureDate();
   var h=holes[cur];
   if(field==='score'){h.score=(h.score===null)?COURSE[cur].par:Math.max(1,h.score+d);}
   else if(field==='sixAtt'){h.sixAtt=Math.max(0,h.sixAtt+d); if(h.sixMade>h.sixAtt)h.sixMade=h.sixAtt;}
   else if(field==='sixMade'){h.sixMade=Math.min(h.sixAtt,Math.max(0,h.sixMade+d));}
   touch(); render();
 }
+
+function setNote(v){ensureDate(); holes[cur].notes=v; touch(); buildSummary();}
 
 function move(d){cur=(cur+18+d)%18; render();}
 
@@ -266,6 +289,8 @@ function render(){
   document.getElementById('puttsVal').textContent=h.putts===null?'–':h.putts;
   document.getElementById('sixAttVal').textContent=h.sixAtt;
   document.getElementById('sixMadeVal').textContent=h.sixMade;
+  var nb=document.getElementById('noteBox');
+  if(nb.value!==(h.notes||''))nb.value=h.notes||'';
   var missed=(h.gir===false);
   document.getElementById('ssRow').className='row'+(missed?'':' disabled');
   document.getElementById('chipRow').className='row'+(missed?'':' disabled');
@@ -273,6 +298,10 @@ function render(){
 }
 
 function fmt(v,y,n){return v===null?'?':(v===true?y:(v===false?n:v));}
+
+function unscoredHoles(){
+  var u=[]; holes.forEach(function(h,i){if(h.score===null)u.push(i+1);}); return u;
+}
 
 function buildSummary(){
   var lines=['BAY OAKS '+state.date];
@@ -289,6 +318,7 @@ function buildSummary(){
       +' PUTTS:'+(h.putts===null?'?':h.putts)
       +' P36:'+h.sixMade+'/'+h.sixAtt
       +' PEN:'+pn);
+    if(h.notes&&h.notes.trim())lines.push('H'+n+' NOTE: '+h.notes.trim().replace(/\s*\n+\s*/g,' / '));
     if(h.score!==null){tS+=h.score;tPar+=COURSE[i].par; if(i<9)out9+=h.score; else in9+=h.score;}
     if(h.putts!==null)tP+=h.putts;
     if(h.gir===true)gir++; if(h.gir!==null)girN++;
@@ -298,13 +328,19 @@ function buildSummary(){
     att+=h.sixAtt; made+=h.sixMade;
   });
   var diff=tS-tPar;
-  lines.push('TOT S:'+tS+' ('+(diff>=0?'+':'')+diff+') FIR:'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+') GIR:'+gir+'/'+girN
+  var un=unscoredHoles();
+  var scoredN=18-un.length;
+  var totLbl=un.length
+    ? 'TOT S:'+tS+'* (PARTIAL '+scoredN+'/18, '+(diff>=0?'+':'')+diff+' thru scored) UNSCORED:H'+un.join(',H')
+    : 'TOT S:'+tS+' ('+(diff>=0?'+':'')+diff+')';
+  lines.push(totLbl+' FIR:'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+') GIR:'+gir+'/'+girN
     +' PUTTS:'+tP+' CHIP6:'+chipIn+'/'+chipTried+' SS:'+ss+'/'+missed
     +' P36:'+made+'/'+att+' PEN:'+tPen+' OUT:'+out9+' IN:'+in9);
   document.getElementById('exportText').textContent=lines.join('\n');
   var pct=function(a,b){return b?Math.round(100*a/b)+'%':'–';};
   document.getElementById('stats').innerHTML=
-    '<div class="stat">Out / In / Total <b>'+out9+' / '+in9+' / '+tS+'</b></div>'
+    (un.length?'<div class="stat"><span class="warn">Unscored holes</span> <b class="warn">'+un.join(', ')+'</b></div>':'')
+    +'<div class="stat">Out / In / Total <b>'+out9+' / '+in9+' / '+tS+(un.length?'*':'')+'</b></div>'
     +'<div class="stat">Score <b>'+tS+' ('+(diff>=0?'+':'')+diff+')</b></div>'
     +'<div class="stat">Fairways <b>'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+')</b></div>'
     +'<div class="stat">GIR <b>'+gir+'/'+girN+'</b></div>'
@@ -323,7 +359,18 @@ function toggleView(){
   document.getElementById('tabBtn').textContent=showSum?'Holes':'Summary';
 }
 
-function copyExport(){
+function guardPartial(){
+  var un=unscoredHoles();
+  if(!un.length)return true;
+  if(confirm('Holes '+un.join(', ')+' have no score. Export a PARTIAL round anyway?'))return true;
+  cur=un[0]-1;
+  if(document.getElementById('summaryView').style.display==='block')toggleView();
+  render();
+  return false;
+}
+
+function copyExport(skipGuard){
+  if(!skipGuard&&!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
   var msg=document.getElementById('copiedMsg');
   function ok(){msg.textContent='Copied — paste it back to Claude.'; state.dirty=false; save(); setTimeout(function(){msg.textContent='';},2500);}
@@ -340,6 +387,7 @@ function copyExport(){
 
 function shareExport(){
   buildSummary();
+  if(!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
   var fname='bay-oaks-round-'+state.date+'.txt';
   try{
@@ -349,7 +397,7 @@ function shareExport(){
     }
   }catch(e){}
   if(navigator.share){navigator.share({title:fname,text:t}).then(function(){state.dirty=false; save();},function(){}); return;}
-  copyExport();
+  copyExport(true);
 }
 
 load(); render();
