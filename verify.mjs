@@ -86,5 +86,27 @@ check('tip: PV rem data retained for analysis/v12', PV[4].rem.length===6 && PV[4
 check('tip: H8 carries Book caddy note', pvTip(7).includes('Book: Diagonal ridge'), pvTip(7));
 check('tip: H17 carries calm-pocket note', pvTip(16).includes('calm pocket right-mid'), pvTip(16));
 
+// Case 5: pin-position layer (v12)
+check('PINS: 18 entries, all letters valid F/M/B', typeof PINS!=='undefined' && PINS.length===18 && PINS.every(r=>['A','B','C','D','E'].every(k=>['F','M','B'].includes(r[k]))), typeof PINS==='undefined'?'PINS missing':'bad cell');
+check('PINS: H12 Kenny-confirmed (D=front, C/A=back)', PINS[11].D==='F'&&PINS[11].C==='B'&&PINS[11].A==='B', JSON.stringify(PINS[11]));
+check('PINS: H6 Kenny-confirmed (D,C = back)', PINS[5].D==='B'&&PINS[5].C==='B', JSON.stringify(PINS[5]));
+check('pin: default ? shows no pin text', (globalThis.state.pin='?', !pvMeta(17).includes('Pin')&&!pvTip(17).includes('Pin ')), pvMeta(17));
+check('pin: legacy state without pin field is safe', (delete globalThis.state.pin, !pvMeta(0).includes('Pin')), pvMeta(0));
+globalThis.state.pin='C';
+check('meta: H18 pin C renders front bucket', pvMeta(17).includes('Pin C\u2192front'), pvMeta(17));
+check('tip: H18 pin C = play the front number', pvTip(17).includes('front third of a 42.7-yd green -- play the front number'), pvTip(17));
+globalThis.state.pin='D';
+check('tip: H18 pin D = back, club UP', pvTip(17).includes('back third of a 42.7-yd green -- club UP'), pvTip(17));
+globalThis.state.pin='B';
+check('tip: H18 pin B = middle number', pvTip(17).includes('middle number is the shot'), pvTip(17));
+globalThis.state.pin='E';
+check('tip: H1 (27.6, under deep threshold) pin line ends plain', pvTip(0).includes('back third of a 27.6-yd green.')&&!pvTip(0).includes('club UP'), pvTip(0));
+globalThis.state.pin='C';
+buildSummary();
+check('export: header carries PIN:C', els['exportText'].textContent.split('\n')[0]==='BAY OAKS '+globalThis.state.date+' PIN:C', els['exportText'].textContent.split('\n')[0]);
+globalThis.state.pin='?';
+buildSummary();
+check('export: pin ? omits PIN tag', !els['exportText'].textContent.split('\n')[0].includes('PIN'), els['exportText'].textContent.split('\n')[0]);
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);

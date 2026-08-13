@@ -97,6 +97,11 @@
   <div class="tip"><b>Game plan</b><span id="tipText"></span></div>
 
   <div class="row">
+    <div class="lbl">Today's pin sheet (A&ndash;E, posted daily)</div>
+    <div class="btns" id="pinBtns"></div>
+  </div>
+
+  <div class="row">
     <div class="lbl">Score &mdash; <span class="scoreNow" id="scoreVal">&ndash;</span></div>
     <div class="scoreWrap">
       <div class="btns" id="scoreBtns"></div>
@@ -229,10 +234,50 @@ var PV=[
  {by:450,gd:42.7,rem:[186,156,148,122,75],bk:[72,88,109],te:-1,note:"Deepest green on the course -- front vs back pin is 3-4 clubs. Water left; all misses right."}
 ];
 
-function pvMeta(i){var c=COURSE[i]; return 'Par '+c.par+' \u00b7 HCP '+c.hcp+' \u00b7 '+c.cy+'/'+c.ry+' yds \u00b7 GD '+PV[i].gd;}
+// Pin-position layer (Bay Oaks pin sheet card, photographed + Kenny-validated 2026-08-13).
+// Course posts ONE letter (A-E) daily; F/M/B = front/middle/back third of the green.
+// With five greens 36+ yds deep, the bucket IS the club call. Card depth for H18 prints 45
+// vs PuttView 42.7 -- same units (yards), card rounding; PV canonical. Side data deferred.
+var PINS=[
+ {A:'F',B:'M',C:'F',D:'B',E:'B'},
+ {A:'M',B:'B',C:'B',D:'F',E:'M'},
+ {A:'B',B:'F',C:'M',D:'M',E:'B'},
+ {A:'M',B:'F',C:'M',D:'B',E:'F'},
+ {A:'B',B:'M',C:'F',D:'B',E:'F'},
+ {A:'F',B:'M',C:'B',D:'B',E:'F'},
+ {A:'M',B:'B',C:'F',D:'F',E:'M'},
+ {A:'F',B:'M',C:'F',D:'B',E:'M'},
+ {A:'B',B:'F',C:'B',D:'M',E:'F'},
+ {A:'M',B:'B',C:'F',D:'B',E:'B'},
+ {A:'F',B:'F',C:'M',D:'M',E:'B'},
+ {A:'B',B:'M',C:'B',D:'F',E:'M'},
+ {A:'B',B:'F',C:'F',D:'F',E:'B'},
+ {A:'M',B:'B',C:'F',D:'B',E:'M'},
+ {A:'M',B:'M',C:'B',D:'F',E:'M'},
+ {A:'M',B:'B',C:'M',D:'B',E:'F'},
+ {A:'M',B:'M',C:'B',D:'F',E:'M'},
+ {A:'F',B:'M',C:'F',D:'B',E:'B'}
+];
+var PINWORD={F:'front',M:'middle',B:'back'};
+function pinBucket(i){var p=state&&state.pin; return (p&&p!=='?'&&PINS[i][p])?PINS[i][p]:null;}
+
+function pvMeta(i){
+  var c=COURSE[i], m='Par '+c.par+' \u00b7 HCP '+c.hcp+' \u00b7 '+c.cy+'/'+c.ry+' yds \u00b7 GD '+PV[i].gd;
+  var b=pinBucket(i); if(b)m+=' \u00b7 Pin '+state.pin+'\u2192'+PINWORD[b];
+  return m;
+}
 function pvTip(i){
   var p=PV[i], t=COURSE[i].tip;
   if(p.note)t+='\nBook: '+p.note;
+  var b=pinBucket(i);
+  if(b){
+    t+='\nPin '+state.pin+': '+PINWORD[b]+' third of a '+p.gd+'-yd green';
+    if(p.gd>=34){
+      if(b==='B')t+=' -- club UP vs the middle number.';
+      else if(b==='F')t+=' -- play the front number, never chase.';
+      else t+=' -- middle number is the shot.';
+    } else t+='.';
+  }
   return t;
 }
 
@@ -247,6 +292,7 @@ function load(){
     state={date:today(),holes:mk(),history:(state&&state.history)||[],dirty:false};
   }
   if(state.dirty==null)state.dirty=false;
+  if(!state.pin)state.pin='?';
   state.holes.forEach(function(h){if(h.pen==null)h.pen=0; if(h.notes==null)h.notes='';});
   holes=state.holes;
   ensureDate();
@@ -269,7 +315,7 @@ function newRound(){
     if(!confirm(msg))return;
     state.history.push({date:state.date,holes:holes});
   }
-  state.date=today(); state.holes=mk(); holes=state.holes; cur=0; state.dirty=false;
+  state.date=today(); state.holes=mk(); holes=state.holes; cur=0; state.dirty=false; state.pin='?';
   save(); render();
   if(document.getElementById('summaryView').style.display==='block')toggleView();
 }
@@ -285,6 +331,17 @@ function seg(id,opts,field){
       holes[cur][field]=(holes[cur][field]===o.val)?null:o.val;
       touch(); render();
     };
+    el.appendChild(b);
+  });
+}
+
+function pinSeg(){
+  var el=document.getElementById('pinBtns'); el.innerHTML='';
+  ['?','A','B','C','D','E'].forEach(function(o){
+    var b=document.createElement('button');
+    b.textContent=o;
+    if((state.pin||'?')===o)b.className='on';
+    b.onclick=function(){ensureDate(); state.pin=o; touch(); render();};
     el.appendChild(b);
   });
 }
@@ -307,6 +364,7 @@ function render(){
   document.getElementById('holeNum').textContent=cur+1;
   document.getElementById('holeMeta').textContent=pvMeta(cur);
   document.getElementById('tipText').textContent=pvTip(cur);
+  pinSeg();
   var done=holes.filter(function(x){return x.score!==null;}).length;
   document.getElementById('doneLbl').textContent=state.date+' · '+done+'/18 holes';
   seg('scoreBtns',[{label:'-1',val:c.par-1},{label:'E',val:c.par},{label:'+1',val:c.par+1},{label:'+2',val:c.par+2}],'score');
@@ -337,7 +395,7 @@ function unscoredHoles(){
 }
 
 function buildSummary(){
-  var lines=['BAY OAKS '+state.date];
+  var lines=['BAY OAKS '+state.date+(state.pin&&state.pin!=='?'?' PIN:'+state.pin:'')];
   var tS=0,tP=0,tPar=0,gir=0,girN=0,missed=0,chipIn=0,chipTried=0,ss=0,att=0,made=0;
   var firHit=0,firL=0,firR=0,firN=0,out9=0,in9=0,tPen=0;
   holes.forEach(function(h,i){
