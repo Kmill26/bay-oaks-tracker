@@ -81,10 +81,9 @@ check('PV: H18 deepest at 42.7', PV[17].gd===42.7, PV[17].gd);
 check('PV: H1 book yardage 402', PV[0].by===402, PV[0].by);
 check('meta: H10 renders GD 37.6', pvMeta(9).includes('GD 37.6'), pvMeta(9));
 check('meta: H18 renders GD 42.7', pvMeta(17).includes('GD 42.7'), pvMeta(17));
-check('tip: H5 carries to-green refs line', pvTip(4).includes('To-green refs: 235 \u00b7 205 \u00b7 191 \u00b7 168 \u00b7 151 \u00b7 128 yds'), pvTip(4));
+check('tip: no refs line anywhere (pulled v11.1 — numbers without spatial anchor fail ROI)', COURSE.every((c,i)=>!pvTip(i).includes('To-green refs')), 'refs line present');
+check('tip: PV rem data retained for analysis/v12', PV[4].rem.length===6 && PV[4].rem[0]===235, PV[4].rem.join(','));
 check('tip: H8 carries Book caddy note', pvTip(7).includes('Book: Diagonal ridge'), pvTip(7));
-check('tip: H3 (par 3) has no refs line', !pvTip(2).includes('To-green refs'), pvTip(2));
-check('tip: H13 (397, under long-4 threshold) has no refs line', !pvTip(12).includes('To-green refs'), pvTip(12));
 check('tip: H17 carries calm-pocket note', pvTip(16).includes('calm pocket right-mid'), pvTip(16));
 
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');

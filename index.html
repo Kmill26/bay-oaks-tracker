@@ -231,8 +231,7 @@ var PV=[
 
 function pvMeta(i){var c=COURSE[i]; return 'Par '+c.par+' \u00b7 HCP '+c.hcp+' \u00b7 '+c.cy+'/'+c.ry+' yds \u00b7 GD '+PV[i].gd;}
 function pvTip(i){
-  var c=COURSE[i], p=PV[i], t=c.tip;
-  if(c.par>3&&p.rem.length&&(c.par===5||p.by>=425))t+='\nTo-green refs: '+p.rem.join(' \u00b7 ')+' yds';
+  var p=PV[i], t=COURSE[i].tip;
   if(p.note)t+='\nBook: '+p.note;
   return t;
 }
