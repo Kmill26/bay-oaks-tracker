@@ -73,5 +73,19 @@ globalThis.state.date='2026-07-10'; globalThis.holes[3].score=5;
 ensureDate();
 check('date frozen once round has data', globalThis.state.date==='2026-07-10', globalThis.state.date);
 
+// Case 4: PuttView caddy-book layer (v11)
+check('PV: 18 entries', typeof PV!=='undefined' && PV.length===18, typeof PV==='undefined'?'PV missing':PV.length);
+check('PV: all green depths present (20-50 yds)', PV.every(p=>typeof p.gd==='number'&&p.gd>20&&p.gd<50), PV.map(p=>p.gd).join(','));
+check('PV: pars align with book (par sum 72)', COURSE.reduce((a,c)=>a+c.par,0)===72, COURSE.reduce((a,c)=>a+c.par,0));
+check('PV: H18 deepest at 42.7', PV[17].gd===42.7, PV[17].gd);
+check('PV: H1 book yardage 402', PV[0].by===402, PV[0].by);
+check('meta: H10 renders GD 37.6', pvMeta(9).includes('GD 37.6'), pvMeta(9));
+check('meta: H18 renders GD 42.7', pvMeta(17).includes('GD 42.7'), pvMeta(17));
+check('tip: H5 carries to-green refs line', pvTip(4).includes('To-green refs: 235 \u00b7 205 \u00b7 191 \u00b7 168 \u00b7 151 \u00b7 128 yds'), pvTip(4));
+check('tip: H8 carries Book caddy note', pvTip(7).includes('Book: Diagonal ridge'), pvTip(7));
+check('tip: H3 (par 3) has no refs line', !pvTip(2).includes('To-green refs'), pvTip(2));
+check('tip: H13 (397, under long-4 threshold) has no refs line', !pvTip(12).includes('To-green refs'), pvTip(12));
+check('tip: H17 carries calm-pocket note', pvTip(16).includes('calm pocket right-mid'), pvTip(16));
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
