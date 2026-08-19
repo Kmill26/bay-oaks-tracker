@@ -155,7 +155,27 @@ check('mode back: cur jumps to back 9', globalThis.cur>=9, globalThis.cur);
 globalThis.cur = 17; move(1);
 check('mode back: navigation wraps 10-18 (cur=9 on +1 from H18)', globalThis.cur===9, globalThis.cur);
 
+// Case 12: Tee Selection (Blue, Tips, Combo) (v14.1)
+setMode('full');
+setGlobalTee('tips');
+check('tee global tips: H1 yardage is 402y', holeYardage(0)==='402' || holeYardage(0)===402, holeYardage(0));
+check('tee global tips: H1 meta shows Tips', pvMeta(0).includes('402 yds (Tips)'), pvMeta(0));
+check('tee global tips: H1 tip switches to tips strategy', pvTip(0).includes('TIPS: 402y'), pvTip(0));
+check('tee profile: tips total yardage is 7,026y', getTeeProfile().yds===7026 && getTeeProfile().label==='Tips', JSON.stringify(getTeeProfile()));
+
+setGlobalTee('blue');
+check('tee global blue: H1 yardage is 387y', holeYardage(0)===387, holeYardage(0));
+check('tee profile: blue total yardage is 6,594y', getTeeProfile().yds===6594 && getTeeProfile().label==='Blue', JSON.stringify(getTeeProfile()));
+
+// Combo: Hole 1 from Tips, Hole 2 from Blue
+setHoleTee('tips'); // H1
+globalThis.cur = 1; setHoleTee('blue'); // H2
+let comboProf = getTeeProfile();
+check('tee combo: detects mixed tees', comboProf.label.includes('Combo'), comboProf.label);
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
+
+
 
 

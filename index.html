@@ -165,6 +165,14 @@
   </div>
 
   <div class="row">
+    <div class="lbl">
+      <span>Tee Box &amp; Yardage</span>
+      <span id="roundTeeTag" style="color:var(--brass); text-transform:none; font-weight:700;"></span>
+    </div>
+    <div class="btns" id="holeTeeBtns"></div>
+  </div>
+
+  <div class="row">
     <div class="lbl">Today's pin sheet (A&ndash;E, posted daily)</div>
     <div class="btns" id="pinBtns"></div>
   </div>
@@ -286,32 +294,50 @@
 var STORE='bayoaks-rounds-v6';
 
 var HISTORICAL_ROUNDS=[
-  {date:'2026-07-15', score:94, par:72, fir:'7/14', gir:'7/18', putts:38, chip6:'2/10', ss:'5/11', p36:'16/20', pen:5, out:45, in:49, holes:18, type:'18 Holes'},
-  {date:'2026-08-01', score:49, par:40, fir:'5/8', gir:'2/9', putts:21, chip6:'2/7', ss:'1/7', p36:'10/11', pen:1, out:44, in:5, holes:10, type:'10 Holes'},
-  {date:'2026-08-06', score:82, par:72, fir:'11/14', gir:'11/17', putts:41, chip6:'1/6', ss:'2/6', p36:'17/17', pen:2, out:41, in:41, holes:18, type:'18 Holes'},
-  {date:'2026-08-13', score:90, par:72, fir:'3/14', gir:'4/16', putts:31, chip6:'2/11', ss:'3/12', p36:'15/17', pen:2, out:44, in:46, holes:18, type:'18 Holes'},
-  {date:'2026-08-19', score:43, par:36, fir:'4/7', gir:'5/9', putts:20, chip6:'0/4', ss:'1/4', p36:'8/8', pen:0, out:43, in:0, holes:9, type:'Front 9'}
+  {date:'2026-07-15', score:94, par:72, fir:'7/14', gir:'7/18', putts:38, chip6:'2/10', ss:'5/11', p36:'16/20', pen:5, out:45, in:49, holes:18, type:'18 Holes', tee:'Blue'},
+  {date:'2026-08-01', score:49, par:40, fir:'5/8', gir:'2/9', putts:21, chip6:'2/7', ss:'1/7', p36:'10/11', pen:1, out:44, in:5, holes:10, type:'10 Holes', tee:'Blue'},
+  {date:'2026-08-06', score:82, par:72, fir:'11/14', gir:'11/17', putts:41, chip6:'1/6', ss:'2/6', p36:'17/17', pen:2, out:41, in:41, holes:18, type:'18 Holes', tee:'Blue'},
+  {date:'2026-08-13', score:90, par:72, fir:'3/14', gir:'4/16', putts:31, chip6:'2/11', ss:'3/12', p36:'15/17', pen:2, out:44, in:46, holes:18, type:'18 Holes', tee:'Blue'},
+  {date:'2026-08-19', score:43, par:36, fir:'4/7', gir:'5/9', putts:20, chip6:'0/4', ss:'1/4', p36:'8/8', pen:0, out:43, in:0, holes:9, type:'Front 9', tee:'Blue'}
 ];
 
 var COURSE=[
- {par:4,hcp:13,cy:387,ry:362,tip:"Driver up the left side, let the cut work back. Smooth PW from ~117. Clean par start -- don't chase a pin cold."},
- {par:4,hcp:9, cy:387,ry:367,tip:"Driver left side, smooth PW ~117 (or 80% GW ~95-105) to the fat side. Two-putt par and move."},
- {par:3,hcp:15,cy:183,ry:166,tip:"6-iron, center of green. Inside 25 ft is a win here."},
- {par:4,hcp:1, cy:432,ry:401,tip:"Hardest on the card. Driver left edge, 7-iron to ~162 center. Bogey costs you nothing against the field."},
- {par:5,hcp:7, cy:515,ry:492,tip:"DANGER HOLE: lake right on every shot, and right is your miss. 4h-4h-54 (210/210/~95) never brings it in reach. Slice-proof beats two extra clubs of ego."},
- {par:4,hcp:5, cy:392,ry:371,tip:"5-iron off tee (play for natural draw to fairway turn, avoid driver running through). Smooth 6-iron in."},
- {par:5,hcp:3, cy:495,ry:447,tip:"225 left after driver -- don't chase it. 8-iron lay-up to ~70, full 58 in."},
- {par:3,hcp:17,cy:172,ry:154,tip:"7-iron. Easiest par 3 out here -- commit to the club and swing."},
- {par:4,hcp:11,cy:395,ry:388,tip:"Driver, smooth PW from ~125. Close the front nine clean -- this is the 'finish the hole' rep."},
- {par:4,hcp:14,cy:375,ry:356,tip:"Driver leaves ~100 -- smooth 80% GW (~95-105) or hard 54. Stock hole; take what it gives."},
- {par:5,hcp:10,cy:495,ry:465,tip:"Driver + 8-iron to ~70-75, full 58 in. The wedge number beats 30 yards closer in a bad spot."},
- {par:3,hcp:16,cy:162,ry:141,tip:"All carry over water. 7-iron covers it with room -- dead center, never at the pin."},
- {par:4,hcp:4, cy:378,ry:335,tip:"HCP 4. Driver left side, hard 54 from ~108 to the middle. Short-siding starts here -- don't."},
- {par:3,hcp:18,cy:135,ry:125,tip:"Stock PW. Inside 20 ft is the expectation, not the hope."},
- {par:4,hcp:12,cy:338,ry:300,tip:"NO driver -- it leaves a 68-yd guess in your wedge gap. 4-hybrid, then smooth PW from ~128."},
- {par:5,hcp:2, cy:543,ry:491,tip:"Longest hole, HCP 2. Driver, 5-iron, full 58 from ~78. Long holes give the slice room -- left edge targets all three swings."},
- {par:4,hcp:8, cy:390,ry:350,tip:"DANGER HOLE: dogleg right, water right of green, right is your miss. Tee ball down the left half; smooth PW aimed LEFT half, never at a right pin. Bogey here beats double."},
- {par:4,hcp:6, cy:420,ry:381,tip:"Water left of green -- your right miss is SAFE here. Driver, 8-iron to the center. Swing free and close it out."}
+ {par:4,hcp:13,cy:387,ry:362,tip:"Driver up the left side, let the cut work back. Smooth PW from ~117. Clean par start -- don't chase a pin cold.",
+  tipsTip:"TIPS: 402y. Driver up the left side leaves ~132. Full stock PW or smooth 9i to center. Clean par start."},
+ {par:4,hcp:9, cy:387,ry:367,tip:"Driver left side, smooth PW ~117 (or 80% GW ~95-105) to the fat side. Two-putt par and move.",
+  tipsTip:"TIPS: 429y (+42y longer!). Driver left side leaves ~159. 8-iron into 34.9y deep green. Two-putt par and move."},
+ {par:3,hcp:15,cy:183,ry:166,tip:"6-iron, center of green. Inside 25 ft is a win here.",
+  tipsTip:"TIPS: 191y Par 3. 5-iron natural draw to center of green. Inside 25-30 ft is a win here."},
+ {par:4,hcp:1, cy:432,ry:401,tip:"Hardest on the card. Driver left edge, 7-iron to ~162 center. Bogey costs you nothing against the field.",
+  tipsTip:"TIPS: 459y. Brute par 4. Driver left edge leaves ~189. 5-iron/6-iron into 36.6y deep green. Bogey costs nothing against handicap."},
+ {par:5,hcp:7, cy:515,ry:492,tip:"DANGER HOLE: lake right on every shot, and right is your miss. 4h-4h-54 (210/210/~95) never brings it in reach. Slice-proof beats two extra clubs of ego.",
+  tipsTip:"TIPS: 531y Par 5. Lake right on every shot. 4h-4h-80% GW (210/210/~111) avoids water entirely. Slice-proof 3-shot strategy."},
+ {par:4,hcp:5, cy:392,ry:371,tip:"5-iron off tee (play for natural draw to fairway turn, avoid driver running through). Smooth 6-iron in.",
+  tipsTip:"TIPS: 433y (+41y longer!). Driver to dogleg corner leaves ~163 (7-iron / 8-iron). Or 4-hybrid layup leaving 6-iron in."},
+ {par:5,hcp:3, cy:495,ry:447,tip:"225 left after driver -- don't chase it. 8-iron lay-up to ~70, full 58 in.",
+  tipsTip:"TIPS: 510y Par 5. 240 left after driver -- don't chase it. 7-iron layup to ~70y, full 58 in."},
+ {par:3,hcp:17,cy:172,ry:154,tip:"7-iron. Easiest par 3 out here -- commit to the club and swing.",
+  tipsTip:"TIPS: 179y Par 3. 6-iron smooth or full 7-iron. Diagonal ridge splits green; middle tier always."},
+ {par:4,hcp:11,cy:395,ry:388,tip:"Driver, smooth PW from ~125. Close the front nine clean -- this is the 'finish the hole' rep.",
+  tipsTip:"TIPS: 429y (+34y longer!). Driver leaves ~159. 8-iron into 34.2y green. Solid finish to front nine."},
+ {par:4,hcp:14,cy:375,ry:356,tip:"Driver leaves ~100 -- smooth 80% GW (~95-105) or hard 54. Stock hole; take what it gives.",
+  tipsTip:"TIPS: 390y. Driver leaves ~120. Smooth PW into 37.6y multi-tier green; club to pin tier."},
+ {par:5,hcp:10,cy:495,ry:465,tip:"Driver + 8-iron to ~70-75, full 58 in. The wedge number beats 30 yards closer in a bad spot.",
+  tipsTip:"TIPS: 515y Par 5. Driver + 7-iron layup to ~75y, full 58 in. Commit to the wedge number."},
+ {par:3,hcp:16,cy:162,ry:141,tip:"All carry over water. 7-iron covers it with room -- dead center, never at the pin.",
+  tipsTip:"TIPS: 184y Par 3. Carry over water. 6-iron covers it with room to center green. Never chase back pin on 37.2y green."},
+ {par:4,hcp:4, cy:378,ry:335,tip:"HCP 4. Driver left side, hard 54 from ~108 to the middle. Short-siding starts here -- don't.",
+  tipsTip:"TIPS: 397y. Driver left side leaves ~127. Smooth PW to center of 33.2y green."},
+ {par:3,hcp:18,cy:135,ry:125,tip:"Stock PW. Inside 20 ft is the expectation, not the hope.",
+  tipsTip:"TIPS: 167y Par 3 (+32y longer!). 7-iron (170y) to center. 38.7y deep green -- front vs back pin is 3 clubs."},
+ {par:4,hcp:12,cy:338,ry:300,tip:"NO driver -- it leaves a 68-yd guess in your wedge gap. 4-hybrid, then smooth PW from ~128.",
+  tipsTip:"TIPS: 356y. 4-hybrid off tee leaves ~146 (stock 9i) or Driver leaves ~86 (54° wedge)."},
+ {par:5,hcp:2, cy:543,ry:491,tip:"Longest hole, HCP 2. Driver, 5-iron, full 58 from ~78. Long holes give the slice room -- left edge targets all three swings.",
+  tipsTip:"TIPS: 569y Par 5 (Longest hole). Driver, 4-hybrid (210), full 58 from ~89. Left edge targets all three swings."},
+ {par:4,hcp:8, cy:390,ry:350,tip:"DANGER HOLE: dogleg right, water right of green, right is your miss. Tee ball down the left half; smooth PW aimed LEFT half, never at a right pin. Bogey here beats double.",
+  tipsTip:"TIPS: 435y (+45y longer!). Dogleg right, water right. Driver down left half leaves ~165 (7-iron/8-iron) aimed at right-mid calm pocket."},
+ {par:4,hcp:6, cy:420,ry:381,tip:"Water left of green -- your right miss is SAFE here. Driver, 8-iron to the center. Swing free and close it out.",
+  tipsTip:"TIPS: 450y. Driver leaves ~180 (6-iron). Deepest green (42.7y). Water left; all misses right. Close it out strong."}
 ];
 
 var PV=[
@@ -359,13 +385,33 @@ var PINWORD={F:'front',M:'middle',B:'back'};
 
 function pinBucket(i){var p=state&&state.pin; return (p&&p!=='?'&&PINS[i][p])?PINS[i][p]:null;}
 
+function holeTee(i){
+  var h=holes&&holes[i];
+  if(h&&h.tee)return h.tee;
+  return (state&&state.tee)||'blue';
+}
+
+function holeYardage(i,t){
+  t=t||holeTee(i);
+  if(t==='tips')return PV[i].by;
+  if(t==='white')return COURSE[i].ry;
+  return COURSE[i].cy;
+}
+
 function pvMeta(i){
-  var c=COURSE[i], m='Par '+c.par+' \u00b7 HCP '+c.hcp+' \u00b7 '+c.cy+'/'+c.ry+' yds \u00b7 GD '+PV[i].gd;
+  var c=COURSE[i], t=holeTee(i), yds=holeYardage(i,t);
+  var tName=(t==='tips'?'Tips':(t==='white'?'White':'Blue'));
+  var m='Par '+c.par+' \u00b7 HCP '+c.hcp+' \u00b7 '+yds+' yds ('+tName+') \u00b7 GD '+PV[i].gd;
   var b=pinBucket(i); if(b)m+=' \u00b7 Pin '+state.pin+'\u2192'+PINWORD[b];
   return m;
 }
+
 function pvTip(i){
   var p=PV[i], t=COURSE[i].tip;
+  var tee=holeTee(i);
+  if(tee==='tips'&&COURSE[i].tipsTip){
+    t=COURSE[i].tipsTip;
+  }
   if(p.note)t+='\nBook: '+p.note;
   var b=pinBucket(i);
   if(b){
@@ -418,18 +464,39 @@ function setMode(m){
   render();
 }
 
-function blank(){return {fir:null,score:null,gir:null,ss:null,chip:null,putts:null,sixAtt:0,sixMade:0,pen:0,notes:''};}
+function setHoleTee(t){
+  vibe(15);
+  ensureDate();
+  holes[cur].tee=t;
+  touch();
+  render();
+}
+
+function setGlobalTee(t){
+  vibe(20);
+  ensureDate();
+  state.tee=t;
+  holes.forEach(function(h){h.tee=t;});
+  touch();
+  render();
+}
+
+function blank(){return {fir:null,score:null,gir:null,ss:null,chip:null,putts:null,sixAtt:0,sixMade:0,pen:0,notes:'',tee:null};}
 function mk(){var a=[]; for(var i=0;i<18;i++)a.push(blank()); return a;}
 function today(){var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function load(){
   try{state=JSON.parse(localStorage.getItem(STORE));}catch(e){}
   if(!state||!state.holes||state.holes.length!==18){
-    state={date:today(),holes:mk(),history:(state&&state.history)||[],dirty:false,mode:'full'};
+    state={date:today(),holes:mk(),history:(state&&state.history)||[],dirty:false,mode:'full',tee:'blue'};
   }
   if(state.dirty==null)state.dirty=false;
   if(!state.pin)state.pin='?';
   if(!state.mode)state.mode='full';
-  state.holes.forEach(function(h){if(h.pen==null)h.pen=0; if(h.notes==null)h.notes='';});
+  if(!state.tee)state.tee='blue';
+  state.holes.forEach(function(h){
+    if(h.pen==null)h.pen=0;
+    if(h.notes==null)h.notes='';
+  });
   holes=state.holes;
   ensureDate();
   loadTheme();
@@ -451,10 +518,11 @@ function newRound(){
       ? 'WARNING: this round has NOT been saved to Drive yet. Hit "Save to Drive" first, or archive it anyway?'
       : 'Archive this round ('+state.date+') and start a new one?';
     if(!confirm(msg))return;
-    state.history.push({date:state.date,holes:holes,mode:state.mode||'full'});
+    state.history.push({date:state.date,holes:holes,mode:state.mode||'full',tee:state.tee||'blue'});
   }
   var prevMode=state.mode||'full';
-  state.date=today(); state.holes=mk(); holes=state.holes; cur=(prevMode==='back'?9:0); state.dirty=false; state.pin='?'; state.mode=prevMode;
+  var prevTee=state.tee||'blue';
+  state.date=today(); state.holes=mk(); holes=state.holes; cur=(prevMode==='back'?9:0); state.dirty=false; state.pin='?'; state.mode=prevMode; state.tee=prevTee;
   save(); render();
   showView('holeView');
 }
@@ -529,6 +597,25 @@ function renderCaddySelector(){
   } else {
     recEl.textContent='Select distance to calculate pin-adjusted club & swing';
   }
+}
+
+function renderTeeSelector(){
+  var box=document.getElementById('holeTeeBtns');
+  if(!box)return;
+  box.innerHTML='';
+  var activeT=holeTee(cur);
+  var tees=[
+    {id:'blue', label:'Blue '+COURSE[cur].cy+'y'},
+    {id:'tips', label:'Tips '+PV[cur].by+'y'},
+    {id:'white', label:'White '+COURSE[cur].ry+'y'}
+  ];
+  tees.forEach(function(t){
+    var btn=document.createElement('button');
+    btn.textContent=t.label;
+    if(activeT===t.id)btn.className='on';
+    btn.onclick=function(){setHoleTee(t.id);};
+    box.appendChild(btn);
+  });
 }
 
 function checkFatigue(){
@@ -646,6 +733,7 @@ function render(){
   var hm=document.getElementById('holeMeta'); if(hm)hm.textContent=pvMeta(cur);
   var tt=document.getElementById('tipText'); if(tt)tt.textContent=pvTip(cur);
   pinSeg();
+  renderTeeSelector();
 
   var m=(state&&state.mode)||'full';
   ['Full','Front','Back'].forEach(function(k){
@@ -694,11 +782,31 @@ function unscoredHoles(){
   return u;
 }
 
+function getTeeProfile(){
+  var r=targetHolesRange();
+  var tips=0, blue=0, white=0, yds=0;
+  for(var i=r.start; i<=r.end; i++){
+    var t=holeTee(i);
+    if(t==='tips')tips++;
+    else if(t==='white')white++;
+    else blue++;
+    yds+=holeYardage(i,t);
+  }
+  var label='Blue';
+  if(tips===r.count)label='Tips';
+  else if(white===r.count)label='White';
+  else if(tips>0&&blue>0)label='Combo ('+tips+' Tips / '+blue+' Blue)';
+  else if(tips>0)label='Combo ('+tips+' Tips)';
+  return {tips:tips, blue:blue, white:white, yds:yds, label:label};
+}
+
 function buildSummary(){
   var m=(state&&state.mode)||'full';
   var r=targetHolesRange();
+  var tp=getTeeProfile();
   var modeTag=(m==='front'?' [FRONT 9]':(m==='back'?' [BACK 9]':''));
-  var lines=['BAY OAKS '+state.date+modeTag+(state.pin&&state.pin!=='?'?' PIN:'+state.pin:'')];
+  var teeTag=(tp.label==='Blue'?'':' TEES:'+tp.label.toUpperCase());
+  var lines=['BAY OAKS '+state.date+modeTag+teeTag+(state.pin&&state.pin!=='?'?' PIN:'+state.pin:'')];
   var tS=0,tP=0,tPar=0,gir=0,girN=0,missed=0,chipIn=0,chipTried=0,ss=0,att=0,made=0;
   var firHit=0,firL=0,firR=0,firN=0,out9=0,in9=0,tPen=0;
 
@@ -755,6 +863,7 @@ function buildSummary(){
   if(st){
     st.innerHTML=
       (un.length?'<div class="stat"><span class="warn">Unscored '+(r.count===18?'holes':'('+r.label+')')+'</span> <b class="warn">'+un.join(', ')+'</b></div>':'')
+      +'<div class="stat">Tees &amp; Total Yardage <b>'+tp.label+' ('+tp.yds.toLocaleString()+' yds)</b></div>'
       +(m==='full'?'<div class="stat">Out / In / Total <b>'+out9+' / '+in9+' / '+tS+(un.length?'*':'')+'</b></div>'
         :(m==='front'?'<div class="stat">Front 9 Score <b>'+tS+' (OUT: '+out9+')</b></div>'
           :'<div class="stat">Back 9 Score <b>'+tS+' (IN: '+in9+')</b></div>'))
@@ -775,7 +884,7 @@ function buildTrends(){
   var items=HISTORICAL_ROUNDS.map(function(r){
     var diff=r.score-r.par;
     return '<div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
-      +'<b>'+r.date+'</b> ('+(r.type||(r.holes===9?'9 Holes':'18 Holes'))+'): <b>'+r.score+'</b> ('+(diff>=0?'+':'')+diff+') &middot; '
+      +'<b>'+r.date+'</b> ('+(r.type||(r.holes===9?'9 Holes':'18 Holes'))+' &middot; '+(r.tee||'Blue')+'): <b>'+r.score+'</b> ('+(diff>=0?'+':'')+diff+') &middot; '
       +'FIR '+r.fir+' &middot; GIR '+r.gir+' &middot; Putts '+r.putts+' &middot; P36 '+r.p36
       +'</div>';
   });
@@ -837,8 +946,10 @@ function copyGeminiPrompt(){
   if(!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
   var r=targetHolesRange();
+  var tp=getTeeProfile();
   var modeLabel=(r.count===9?' ('+r.label+')':'');
-  var prompt='Analyze my Bay Oaks round'+modeLabel+' from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
+  var teeLabel=' played from the '+tp.label+' tees ('+tp.yds.toLocaleString()+' yds)';
+  var prompt='Analyze my Bay Oaks round'+modeLabel+teeLabel+' from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
   var msg=document.getElementById('copiedMsg');
   function ok(){if(msg)msg.textContent='Copied prompt — ready for Gemini!'; state.dirty=false; save(); setTimeout(function(){if(msg)msg.textContent='';},2500);}
   function fallback(){
@@ -858,8 +969,10 @@ function shareExport(){
   if(!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
   var r=targetHolesRange();
+  var tp=getTeeProfile();
   var modeLabel=(r.count===9?' ('+r.label+')':'');
-  var prompt='Analyze my Bay Oaks round'+modeLabel+' from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
+  var teeLabel=' played from the '+tp.label+' tees ('+tp.yds.toLocaleString()+' yds)';
+  var prompt='Analyze my Bay Oaks round'+modeLabel+teeLabel+' from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(prompt).catch(function(){});
   }
