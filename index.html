@@ -170,12 +170,16 @@
   <div id="stats"></div>
   <pre id="exportText"></pre>
   <div class="copied" id="copiedMsg"></div>
+  <div style="display:flex; gap:8px; margin-top:8px;">
+    <button class="newRoundBtn" style="margin-top:0; flex:1;" onclick="copyExport()">Copy Log</button>
+    <button class="newRoundBtn" style="margin-top:0; flex:1;" onclick="copyGeminiPrompt()">Copy Prompt</button>
+  </div>
   <button class="newRoundBtn" onclick="newRound()">Start New Round</button>
 </div>
 
 <div class="footer">
   <button id="tabBtn" onclick="toggleView()">Summary</button>
-  <button onclick="copyExport()">Copy</button>
+  <button onclick="copyGeminiPrompt()">Ask Gemini</button>
   <button onclick="shareExport()">Save to Drive</button>
 </div>
 
@@ -184,21 +188,21 @@ var STORE='bayoaks-rounds-v6';
 
 // Bay Oaks CC (Arthur Hills, 1988). Par/HCP/yardages (Championship/Regular) from GolfPass scorecard.
 // Water in play on 14 of 18 holes (Horsepen Bayou + lakes) -- when in doubt, take the dry side.
-// Gameplan built for CHAMPIONSHIP tees + Kenny's carries: Dr 260(270 tot), 4h 210, 5i 195,
-// 6i 180, 7i 170, 8i 155, 9i 145, PW 135, GW 120 (benched -- ~5 swings in 4 yrs), 54=90-100,
-// 58=75. Driver miss: RIGHT (slice). Kenny's real scoring ladder: 58 / 54 / PW.
-// Lay-up targets: 75 (58), 95 (54), 135 (PW). 105-125 zone = hard 54 or smooth PW, clubs he trusts.
+// Gameplan built for CHAMPIONSHIP tees + Kenny's carries: Dr 260(270 tot), 4h 210, 5i 195(draw),
+// 6i 180, 7i 170, 8i 155, 9i 145, PW 135, GW 110-120 (80% swing for 95-105 yds), 54=90-100,
+// 58=75. Driver miss: RIGHT (slice) / occasional fatigue pull left. Kenny's real scoring ladder: 58 / 54 / GW / PW.
+// Lay-up targets: 75 (58), 95 (54), 105 (80% GW), 135 (PW).
 var COURSE=[
  {par:4,hcp:13,cy:387,ry:362,tip:"Driver up the left side, let the cut work back. Smooth PW from ~117. Clean par start -- don't chase a pin cold."},
- {par:4,hcp:9, cy:387,ry:367,tip:"Driver left side, smooth PW ~117 to the fat side. Two-putt par and move."},
+ {par:4,hcp:9, cy:387,ry:367,tip:"Driver left side, smooth PW ~117 (or 80% GW ~95-105) to the fat side. Two-putt par and move."},
  {par:3,hcp:15,cy:183,ry:166,tip:"6-iron, center of green. Inside 25 ft is a win here."},
  {par:4,hcp:1, cy:432,ry:401,tip:"Hardest on the card. Driver left edge, 7-iron to ~162 center. Bogey costs you nothing against the field."},
  {par:5,hcp:7, cy:515,ry:492,tip:"DANGER HOLE: lake right on every shot, and right is your miss. 4h-4h-54 (210/210/~95) never brings it in reach. Slice-proof beats two extra clubs of ego."},
- {par:4,hcp:5, cy:392,ry:371,tip:"Driver left side, smooth PW ~122. Center green, two putts, walk."},
+ {par:4,hcp:5, cy:392,ry:371,tip:"5-iron off tee (play for natural draw to fairway turn, avoid driver running through). Smooth 6-iron in."},
  {par:5,hcp:3, cy:495,ry:447,tip:"225 left after driver -- don't chase it. 8-iron lay-up to ~70, full 58 in."},
  {par:3,hcp:17,cy:172,ry:154,tip:"7-iron. Easiest par 3 out here -- commit to the club and swing."},
  {par:4,hcp:11,cy:395,ry:388,tip:"Driver, smooth PW from ~125. Close the front nine clean -- this is the 'finish the hole' rep."},
- {par:4,hcp:14,cy:375,ry:356,tip:"Driver leaves ~105 -- hard 54, your shot. Stock hole; take what it gives."},
+ {par:4,hcp:14,cy:375,ry:356,tip:"Driver leaves ~100 -- smooth 80% GW (~95-105) or hard 54. Stock hole; take what it gives."},
  {par:5,hcp:10,cy:495,ry:465,tip:"Driver + 8-iron to ~70-75, full 58 in. The wedge number beats 30 yards closer in a bad spot."},
  {par:3,hcp:16,cy:162,ry:141,tip:"All carry over water. 7-iron covers it with room -- dead center, never at the pin."},
  {par:4,hcp:4, cy:378,ry:335,tip:"HCP 4. Driver left side, hard 54 from ~108 to the middle. Short-siding starts here -- don't."},
@@ -464,7 +468,7 @@ function copyExport(skipGuard){
   if(!skipGuard&&!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
   var msg=document.getElementById('copiedMsg');
-  function ok(){msg.textContent='Copied — paste it back to Claude.'; state.dirty=false; save(); setTimeout(function(){msg.textContent='';},2500);}
+  function ok(){msg.textContent='Copied log — ready for Gemini.'; state.dirty=false; save(); setTimeout(function(){msg.textContent='';},2500);}
   function fallback(){
     var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
     ta.select(); try{document.execCommand('copy'); ok();}catch(e){msg.textContent='Long-press the text to copy.';}
@@ -472,6 +476,23 @@ function copyExport(skipGuard){
   }
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(t).then(ok,function(){fallback();});
+  }else fallback();
+  if(document.getElementById('summaryView').style.display!=='block')toggleView();
+}
+
+function copyGeminiPrompt(){
+  if(!guardPartial())return;
+  var t=document.getElementById('exportText').textContent;
+  var prompt='Analyze my Bay Oaks round from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
+  var msg=document.getElementById('copiedMsg');
+  function ok(){msg.textContent='Copied prompt — ready for Gemini!'; state.dirty=false; save(); setTimeout(function(){msg.textContent='';},2500);}
+  function fallback(){
+    var ta=document.createElement('textarea'); ta.value=prompt; document.body.appendChild(ta);
+    ta.select(); try{document.execCommand('copy'); ok();}catch(e){msg.textContent='Long-press the text to copy.';}
+    document.body.removeChild(ta);
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(prompt).then(ok,function(){fallback();});
   }else fallback();
   if(document.getElementById('summaryView').style.display!=='block')toggleView();
 }
