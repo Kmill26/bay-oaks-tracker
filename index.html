@@ -501,6 +501,10 @@ function shareExport(){
   buildSummary();
   if(!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
+  var prompt='Analyze my Bay Oaks round from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(prompt).catch(function(){});
+  }
   var fname='bay-oaks-round-'+state.date+'.txt';
   try{
     if(navigator.canShare&&window.File){
