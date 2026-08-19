@@ -6,8 +6,8 @@ const js = html.match(/<script>([\s\S]*?)<\/script>/)[1]
 
 // Minimal DOM/browser stubs
 const els = {};
-const el = id => els[id] || (els[id] = {textContent:'', innerHTML:'', value:'', style:{display:''}, className:''});
-global.document = {getElementById: el, createElement:()=>({}), body:{appendChild(){},removeChild(){}}};
+const el = id => els[id] || (els[id] = {textContent:'', innerHTML:'', value:'', style:{display:''}, className:'', appendChild(){}, classList:{add(){},remove(){},toggle(){return false;}}});
+global.document = {getElementById: el, createElement:()=>({classList:{add(){},remove(){},toggle(){return false;}},appendChild(){}}), body:{appendChild(){},removeChild(){},classList:{add(){},remove(){},toggle(){return false;}}}};
 global.localStorage = {getItem:()=>null, setItem(){}};
 Object.defineProperty(global,"navigator",{value:{},configurable:true});
 global.confirm = () => true;
@@ -108,5 +108,54 @@ globalThis.state.pin='?';
 buildSummary();
 check('export: pin ? omits PIN tag', !els['exportText'].textContent.split('\n')[0].includes('PIN'), els['exportText'].textContent.split('\n')[0]);
 
+// Case 6: Quick Presets (v13)
+globalThis.cur = 0; // H1 Par 4
+applyPreset('par');
+check('preset par: score=4, fir=y, gir=true, putts=2', globalThis.holes[0].score===4 && globalThis.holes[0].fir==='y' && globalThis.holes[0].gir===true && globalThis.holes[0].putts===2, JSON.stringify(globalThis.holes[0]));
+applyPreset('birdie');
+check('preset birdie: score=3, putts=1, gir=true', globalThis.holes[0].score===3 && globalThis.holes[0].putts===1 && globalThis.holes[0].gir===true, JSON.stringify(globalThis.holes[0]));
+applyPreset('bogey_l');
+check('preset bogey_l: score=5, fir=l, gir=false, chip=out, p36=1/1', globalThis.holes[0].score===5 && globalThis.holes[0].fir==='l' && globalThis.holes[0].gir===false && globalThis.holes[0].chip==='out' && globalThis.holes[0].sixMade===1, JSON.stringify(globalThis.holes[0]));
+
+// Case 7: Club Recommender (v13)
+globalThis.state.pin = 'B';
+let c105 = recommendClub(105, 0);
+check('recommender 105y: Gap Wedge 80%', c105.club.includes('Gap Wedge') && c105.swing.includes('80%'), JSON.stringify(c105));
+let c135 = recommendClub(135, 0);
+check('recommender 135y: Pitching Wedge', c135.club.includes('Pitching Wedge'), JSON.stringify(c135));
+let c75 = recommendClub(75, 0);
+check('recommender 75y: 58° Wedge', c75.club.includes('58°'), JSON.stringify(c75));
+
+// Case 8: Fatigue Alert (v13)
+globalThis.cur = 15; // H16 on back 9
+globalThis.holes[12].fir = 'l'; // H13 pull left
+globalThis.holes[14].fir = 'l'; // H15 pull left
+checkFatigue();
+check('fatigue alert: triggers on 2+ back-9 left pulls', els['fatigueAlert'].style.display==='block' && els['fatigueAlert'].innerHTML.includes('Back-9 Fatigue Alert'), els['fatigueAlert'].innerHTML);
+
+// Case 9: Trends History Baseline (v13)
+check('trends: 5 historical rounds stored', HISTORICAL_ROUNDS.length===5, HISTORICAL_ROUNDS.length);
+check('trends: 2026-08-19 round present in history', HISTORICAL_ROUNDS.some(r=>r.date==='2026-08-19'&&r.score===43), 'missing 08-19');
+
+// Case 10: Quick 9 Mode — Front 9 (v13.1)
+setMode('front');
+check('mode front: range is 9 holes', targetHolesRange().count===9 && targetHolesRange().start===0, JSON.stringify(targetHolesRange()));
+globalThis.cur = 8; move(1);
+check('mode front: navigation wraps 1-9 (cur=0 on +1 from H9)', globalThis.cur===0, globalThis.cur);
+for(let i=0; i<9; i++) { globalThis.holes[i].score = 4; }
+buildSummary();
+let f9out = els['exportText'].textContent;
+check('mode front: header carries [FRONT 9]', f9out.split('\n')[0].includes('[FRONT 9]'), f9out.split('\n')[0]);
+check('mode front: complete front 9 has no asterisk or unscored warning', !f9out.includes('*') && !els['stats'].innerHTML.includes('Unscored'), f9out);
+
+// Case 11: Quick 9 Mode — Back 9 (v13.1)
+setMode('back');
+check('mode back: range starts at H10', targetHolesRange().count===9 && targetHolesRange().start===9, JSON.stringify(targetHolesRange()));
+check('mode back: cur jumps to back 9', globalThis.cur>=9, globalThis.cur);
+globalThis.cur = 17; move(1);
+check('mode back: navigation wraps 10-18 (cur=9 on +1 from H18)', globalThis.cur===9, globalThis.cur);
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
+
+

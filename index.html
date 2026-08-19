@@ -13,14 +13,31 @@
     --navy:#0b1220; --panel:#141e30; --panel2:#1b2740;
     --brass:#c9973f; --brass-dim:#8a6a2f; --cream:#efe6d0;
     --muted:#8b96ab; --green:#4caf7d; --red:#c05555;
+    --chip-bg:#223252; --accent:#e5a93c;
+  }
+  body.sunlight{
+    --navy:#000000; --panel:#111927; --panel2:#1a2538;
+    --brass:#ffea00; --brass-dim:#c59b27; --cream:#ffffff;
+    --muted:#cbd5e1; --green:#00e676; --red:#ff5252;
+    --chip-bg:#1e293b; --accent:#ffd600;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   body{margin:0; background:var(--navy); color:var(--cream);
     font-family:Roboto,"Google Sans",system-ui,-apple-system,sans-serif;
-    padding:12px 12px calc(90px + env(safe-area-inset-bottom)); max-width:480px; margin-inline:auto;
-    font-size:16px; touch-action:manipulation;}
+    padding:10px 12px calc(92px + env(safe-area-inset-bottom)); max-width:480px; margin-inline:auto;
+    font-size:16px; touch-action:manipulation; overflow-x:hidden; transition:background-color .2s, color .2s;}
+  .headerWrap{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
   h1{font-size:15px; letter-spacing:.12em; text-transform:uppercase;
-    color:var(--brass); text-align:center; margin:4px 0 12px; font-weight:600;}
+    color:var(--brass); text-align:left; margin:0; font-weight:700;}
+  .sunToggle{background:var(--panel2); border:1px solid var(--brass-dim); color:var(--brass);
+    font-size:12px; font-weight:700; padding:6px 10px; border-radius:8px; cursor:pointer;}
+  .modeWrap{display:flex; gap:6px; margin-bottom:8px;}
+  .modeBtn{flex:1; padding:7px 0; font-size:12px; font-weight:700; border-radius:8px;
+    border:1px solid #2c3a5c; background:var(--panel2); color:var(--cream); cursor:pointer; text-align:center;}
+  .modeBtn.on{background:var(--brass); border-color:var(--brass); color:#1a1408;}
+  .fatigueBanner{display:none; background:linear-gradient(180deg,#3b1818,#281010); border:1px solid var(--red);
+    border-radius:10px; padding:8px 10px; margin-bottom:10px; font-size:12.5px; line-height:1.4; color:#ffcdd2;}
+  .fatigueBanner b{color:#ff8a80; text-transform:uppercase; font-size:11px; display:block; margin-bottom:2px;}
   .nav{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
   .nav button{background:var(--panel2); border:1px solid var(--brass-dim); color:var(--brass);
     font-size:22px; width:56px; height:48px; border-radius:10px;}
@@ -37,14 +54,14 @@
     padding:10px 12px; margin-bottom:10px;}
   .row.disabled{opacity:.35; pointer-events:none;}
   .lbl{font-size:11px; letter-spacing:.08em; text-transform:uppercase;
-    color:var(--muted); margin-bottom:8px;}
+    color:var(--muted); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;}
   .btns{display:flex; gap:8px;}
   .btns button{flex:1; padding:12px 0; font-size:16px; border-radius:9px;
-    border:1px solid #2c3a5c; background:var(--panel2); color:var(--cream);}
+    border:1px solid #2c3a5c; background:var(--panel2); color:var(--cream); cursor:pointer;}
   .btns button.on{background:var(--brass); border-color:var(--brass); color:#1a1408; font-weight:700;}
   .stepper{display:flex; align-items:center; gap:14px; justify-content:center;}
   .stepper button{width:60px; height:48px; font-size:24px; border-radius:9px;
-    border:1px solid #2c3a5c; background:var(--panel2); color:var(--cream);}
+    border:1px solid #2c3a5c; background:var(--panel2); color:var(--cream); cursor:pointer;}
   .stepper .val{font-size:28px; font-weight:700; min-width:44px; text-align:center;}
   .inlineWrap{display:flex; gap:10px; margin-bottom:10px;}
   .inlineWrap .row{flex:1; margin-bottom:0; min-width:0; padding:10px 8px;}
@@ -52,13 +69,27 @@
   .inlineWrap .stepper button{width:42px; height:44px; font-size:20px;}
   .inlineWrap .stepper .val{font-size:22px; min-width:26px;}
   .inlineWrap .lbl{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  body{overflow-x:hidden;}
+  .presetWrap{display:grid; grid-template-columns:repeat(2,1fr); gap:6px;}
+  .presetBtn{padding:10px 6px; font-size:13.5px; font-weight:600; border-radius:8px;
+    border:1px solid #3d4f73; background:var(--panel2); color:var(--cream); cursor:pointer; text-align:center;}
+  .presetBtn:active{background:var(--brass); color:#1a1408;}
+  .caddyBox{background:var(--panel2); border:1px solid #334466; border-radius:9px; padding:8px 10px; margin-top:6px;}
+  .caddyClubs{display:flex; gap:5px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch;}
+  .clubChip{flex:0 0 auto; padding:6px 9px; font-size:12px; border-radius:6px; background:var(--chip-bg);
+    border:1px solid #374b6e; color:var(--cream); cursor:pointer;}
+  .clubChip.active{background:var(--brass); color:#1a1408; font-weight:700; border-color:var(--brass);}
+  .caddyRec{font-size:12.5px; color:var(--brass); margin-top:5px; line-height:1.35;}
+  .micBtn{background:var(--panel2); border:1px solid var(--brass-dim); color:var(--brass);
+    font-size:11.5px; font-weight:700; padding:3px 8px; border-radius:6px; cursor:pointer;}
+  .micBtn.listening{background:var(--red); border-color:var(--red); color:#ffffff; animation:pulse 1.2s infinite;}
+  @keyframes pulse{0%{opacity:1;} 50%{opacity:.55;} 100%{opacity:1;}}
   .footer{position:fixed; bottom:0; left:0; right:0; background:var(--panel);
     border-top:1px solid #263450; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); display:flex; gap:10px;
-    max-width:480px; margin-inline:auto;}
+    max-width:480px; margin-inline:auto; z-index:90;}
   .footer button{flex:1; padding:13px 0; font-size:15px; border-radius:10px;
-    border:1px solid var(--brass-dim); background:var(--panel2); color:var(--brass); font-weight:600;}
-  #summaryView{display:none;}
+    border:1px solid var(--brass-dim); background:var(--panel2); color:var(--brass); font-weight:600; cursor:pointer;}
+  .footer button.activeTab{background:var(--brass); color:#1a1408; font-weight:700;}
+  #summaryView, #trendsView{display:none;}
   pre{background:var(--panel); border:1px solid #263450; border-radius:12px;
     padding:12px; font-size:11.5px; line-height:1.5; white-space:pre-wrap;
     word-break:break-all; color:var(--cream);}
@@ -67,21 +98,40 @@
   .stat b{color:var(--brass);}
   .copied{color:var(--green); text-align:center; font-size:13px; height:18px; margin-top:6px;}
   .newRoundBtn{width:100%; margin-top:8px; padding:13px 0; font-size:15px; border-radius:10px;
-    border:1px solid var(--brass-dim); background:var(--panel2); color:var(--brass); font-weight:600;}
+    border:1px solid var(--brass-dim); background:var(--panel2); color:var(--brass); font-weight:600; cursor:pointer;}
   .scoreWrap{display:flex; gap:6px;}
   .scoreWrap .btns{flex:1;}
   .mini{width:44px; height:46px; font-size:20px; border-radius:9px;
-    border:1px solid #2c3a5c; background:var(--panel2); color:var(--cream);}
+    border:1px solid #2c3a5c; background:var(--panel2); color:var(--cream); cursor:pointer;}
   .scoreNow{color:var(--brass); font-weight:700; text-transform:none; font-size:14px;}
   .noteBox{width:100%; background:var(--panel2); border:1px solid #2c3a5c; border-radius:9px;
     color:var(--cream); font-family:inherit; font-size:16px; line-height:1.4; padding:10px;
     resize:vertical; min-height:52px;}
   .noteBox::placeholder{color:var(--muted); opacity:.8;}
   .warn{color:var(--red); font-weight:700;}
+  .trendCard{background:var(--panel); border:1px solid #263450; border-radius:12px; padding:12px; margin-bottom:10px;}
+  .trendGrid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:8px;}
+  .metricBox{background:var(--panel2); border:1px solid #2c3a5c; border-radius:8px; padding:8px 10px; text-align:center;}
+  .metricBox .mVal{font-size:20px; font-weight:700; color:var(--brass); margin-top:2px;}
+  .metricBox .mLbl{font-size:11px; text-transform:uppercase; color:var(--muted); letter-spacing:.06em;}
+  .leakRank{font-size:13px; line-height:1.5; color:var(--cream);}
+  .leakRank li{margin-bottom:4px;}
 </style>
 </head>
 <body>
-<h1>Bay Oaks &middot; Short Game Diagnostic</h1>
+
+<div class="headerWrap">
+  <h1>Bay Oaks &middot; Diagnostic</h1>
+  <button id="sunToggle" class="sunToggle" onclick="toggleTheme()">☀️ Sunlight</button>
+</div>
+
+<div class="modeWrap">
+  <button id="modeFull" class="modeBtn on" onclick="setMode('full')">Full 18</button>
+  <button id="modeFront" class="modeBtn" onclick="setMode('front')">Front 9 (1–9)</button>
+  <button id="modeBack" class="modeBtn" onclick="setMode('back')">Back 9 (10–18)</button>
+</div>
+
+<div id="fatigueAlert" class="fatigueBanner"></div>
 
 <div id="holeView">
   <div class="nav">
@@ -95,6 +145,24 @@
   </div>
 
   <div class="tip"><b>Game plan</b><span id="tipText"></span></div>
+
+  <div class="row">
+    <div class="lbl">⚡ Quick Presets (1-Tap Fill)</div>
+    <div class="presetWrap">
+      <button class="presetBtn" onclick="applyPreset('par')">Par (GIR 2P)</button>
+      <button class="presetBtn" onclick="applyPreset('birdie')">Birdie (GIR 1P)</button>
+      <button class="presetBtn" onclick="applyPreset('bogey_l')">Bogey (Miss L)</button>
+      <button class="presetBtn" onclick="applyPreset('bogey_r')">Bogey (Miss R)</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="lbl">🎯 Caddy Club Selector</div>
+    <div class="caddyBox">
+      <div class="caddyClubs" id="caddyChips"></div>
+      <div class="caddyRec" id="caddyRecText">Select distance to calculate recommendation</div>
+    </div>
+  </div>
 
   <div class="row">
     <div class="lbl">Today's pin sheet (A&ndash;E, posted daily)</div>
@@ -160,7 +228,10 @@
   </div>
 
   <div class="row">
-    <div class="lbl">Shot notes</div>
+    <div class="lbl">
+      <span>Shot notes</span>
+      <button id="micBtn" class="micBtn" onclick="toggleVoice()">🎙️ Dictate</button>
+    </div>
     <textarea class="noteBox" id="noteBox" rows="2" placeholder="e.g. Driver left side of fairway, 158 to center"
       oninput="setNote(this.value)"></textarea>
   </div>
@@ -177,21 +248,51 @@
   <button class="newRoundBtn" onclick="newRound()">Start New Round</button>
 </div>
 
+<div id="trendsView">
+  <div class="trendCard">
+    <div class="lbl">📊 Multi-Round Performance Baseline</div>
+    <div class="trendGrid">
+      <div class="metricBox"><div class="mLbl">Season Low (18)</div><div class="mVal" id="tSeasonLow">82</div></div>
+      <div class="metricBox"><div class="mLbl">Quick 9 Low</div><div class="mVal" id="tNineLow">43</div></div>
+      <div class="metricBox"><div class="mLbl">Fairways (FIR)</div><div class="mVal" id="tFirPct">53%</div></div>
+      <div class="metricBox"><div class="mLbl">Greens (GIR)</div><div class="mVal" id="tGirPct">42%</div></div>
+      <div class="metricBox"><div class="mLbl">CHIP6 Proximity</div><div class="mVal" id="tChipPct">19%</div></div>
+      <div class="metricBox"><div class="mLbl">P36 Make Rate</div><div class="mVal" id="tP36Pct">91%</div></div>
+    </div>
+  </div>
+
+  <div class="trendCard">
+    <div class="lbl">🔍 Primary Stroke Leaks & Focus</div>
+    <ul class="leakRank">
+      <li><b>#1 Chipping Proximity (CHIP6):</b> Only 19% of chips finish inside 6 ft. High spin on new wedges requires trusting carry over landing spot.</li>
+      <li><b>#2 3-Putts on Deep Greens:</b> Greens on 4, 10, 12, 14, 17, 18 are 36–43y deep; calibrate lag distance on front vs back pins.</li>
+      <li><b>#3 Back-9 Fatigue Pull:</b> Tee misses shift left after Hole 13. Maintain smooth hip turn and avoid rushing.</li>
+    </ul>
+  </div>
+
+  <div class="trendCard">
+    <div class="lbl">📜 Round History Trajectory</div>
+    <div id="historyList" style="font-size:13px; line-height:1.6; color:var(--cream);"></div>
+  </div>
+</div>
+
 <div class="footer">
   <button id="tabBtn" onclick="toggleView()">Summary</button>
-  <button onclick="copyGeminiPrompt()">Ask Gemini</button>
+  <button id="trendsBtn" onclick="toggleTrends()">Trends</button>
   <button onclick="shareExport()">Save to Drive</button>
 </div>
 
 <script>
 var STORE='bayoaks-rounds-v6';
 
-// Bay Oaks CC (Arthur Hills, 1988). Par/HCP/yardages (Championship/Regular) from GolfPass scorecard.
-// Water in play on 14 of 18 holes (Horsepen Bayou + lakes) -- when in doubt, take the dry side.
-// Gameplan built for CHAMPIONSHIP tees + Kenny's carries: Dr 260(270 tot), 4h 210, 5i 195(draw),
-// 6i 180, 7i 170, 8i 155, 9i 145, PW 135, GW 110-120 (80% swing for 95-105 yds), 54=90-100,
-// 58=75. Driver miss: RIGHT (slice) / occasional fatigue pull left. Kenny's real scoring ladder: 58 / 54 / GW / PW.
-// Lay-up targets: 75 (58), 95 (54), 105 (80% GW), 135 (PW).
+var HISTORICAL_ROUNDS=[
+  {date:'2026-07-15', score:94, par:72, fir:'7/14', gir:'7/18', putts:38, chip6:'2/10', ss:'5/11', p36:'16/20', pen:5, out:45, in:49, holes:18, type:'18 Holes'},
+  {date:'2026-08-01', score:49, par:40, fir:'5/8', gir:'2/9', putts:21, chip6:'2/7', ss:'1/7', p36:'10/11', pen:1, out:44, in:5, holes:10, type:'10 Holes'},
+  {date:'2026-08-06', score:82, par:72, fir:'11/14', gir:'11/17', putts:41, chip6:'1/6', ss:'2/6', p36:'17/17', pen:2, out:41, in:41, holes:18, type:'18 Holes'},
+  {date:'2026-08-13', score:90, par:72, fir:'3/14', gir:'4/16', putts:31, chip6:'2/11', ss:'3/12', p36:'15/17', pen:2, out:44, in:46, holes:18, type:'18 Holes'},
+  {date:'2026-08-19', score:43, par:36, fir:'4/7', gir:'5/9', putts:20, chip6:'0/4', ss:'1/4', p36:'8/8', pen:0, out:43, in:0, holes:9, type:'Front 9'}
+];
+
 var COURSE=[
  {par:4,hcp:13,cy:387,ry:362,tip:"Driver up the left side, let the cut work back. Smooth PW from ~117. Clean par start -- don't chase a pin cold."},
  {par:4,hcp:9, cy:387,ry:367,tip:"Driver left side, smooth PW ~117 (or 80% GW ~95-105) to the fat side. Two-putt par and move."},
@@ -213,10 +314,6 @@ var COURSE=[
  {par:4,hcp:6, cy:420,ry:381,tip:"Water left of green -- your right miss is SAFE here. Driver, 8-iron to the center. Swing free and close it out."}
 ];
 
-// PuttView caddy-book layer (photographed 2026-08-13). by = book yardage from the tips.
-// gd = green depth front-to-back (yds). rem = to-green reference yardages at fairway points --
-// position-based, tee-independent, so they hold from any tee box (the layup layer).
-// bk = fairway-bunker carries. te = tee-shot elevation delta. note = caddy line for severe/deep greens.
 var PV=[
  {by:402,gd:27.6,rem:[135,101,79,60],bk:[68,80,83],te:null,note:""},
  {by:429,gd:34.9,rem:[180,176,157,140,137],bk:[71,78,83],te:0,note:""},
@@ -238,10 +335,6 @@ var PV=[
  {by:450,gd:42.7,rem:[186,156,148,122,75],bk:[72,88,109],te:-1,note:"Deepest green on the course -- front vs back pin is 3-4 clubs. Water left; all misses right."}
 ];
 
-// Pin-position layer (Bay Oaks pin sheet card, photographed + Kenny-validated 2026-08-13).
-// Course posts ONE letter (A-E) daily; F/M/B = front/middle/back third of the green.
-// With five greens 36+ yds deep, the bucket IS the club call. Card depth for H18 prints 45
-// vs PuttView 42.7 -- same units (yards), card rounding; PV canonical. Side data deferred.
 var PINS=[
  {A:'F',B:'M',C:'F',D:'B',E:'B'},
  {A:'M',B:'B',C:'B',D:'F',E:'M'},
@@ -263,6 +356,7 @@ var PINS=[
  {A:'F',B:'M',C:'F',D:'B',E:'B'}
 ];
 var PINWORD={F:'front',M:'middle',B:'back'};
+
 function pinBucket(i){var p=state&&state.pin; return (p&&p!=='?'&&PINS[i][p])?PINS[i][p]:null;}
 
 function pvMeta(i){
@@ -285,7 +379,44 @@ function pvTip(i){
   return t;
 }
 
-var state=null, holes=[], cur=0;
+var state=null, holes=[], cur=0, selectedDist=null;
+
+function vibe(ms){try{if(typeof navigator!=='undefined'&&navigator.vibrate)navigator.vibrate(ms||15);}catch(e){}}
+
+function toggleTheme(){
+  vibe(20);
+  var isSun=document.body.classList.toggle('sunlight');
+  try{localStorage.setItem('bayoaks-theme',isSun?'sunlight':'midnight');}catch(e){}
+  var btn=document.getElementById('sunToggle');
+  if(btn)btn.textContent=isSun?'🌙 Midnight':'☀️ Sunlight';
+}
+function loadTheme(){
+  try{
+    var th=localStorage.getItem('bayoaks-theme');
+    if(th==='sunlight'){
+      document.body.classList.add('sunlight');
+      var btn=document.getElementById('sunToggle');
+      if(btn)btn.textContent='🌙 Midnight';
+    }
+  }catch(e){}
+}
+
+function targetHolesRange(){
+  var m=(state&&state.mode)||'full';
+  if(m==='front')return {start:0,end:8,count:9,label:'Front 9'};
+  if(m==='back')return {start:9,end:17,count:9,label:'Back 9'};
+  return {start:0,end:17,count:18,label:'Full 18'};
+}
+
+function setMode(m){
+  vibe(15);
+  ensureDate();
+  state.mode=m;
+  if(m==='front'&&cur>8)cur=0;
+  if(m==='back'&&cur<9)cur=9;
+  touch();
+  render();
+}
 
 function blank(){return {fir:null,score:null,gir:null,ss:null,chip:null,putts:null,sixAtt:0,sixMade:0,pen:0,notes:''};}
 function mk(){var a=[]; for(var i=0;i<18;i++)a.push(blank()); return a;}
@@ -293,13 +424,15 @@ function today(){var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth(
 function load(){
   try{state=JSON.parse(localStorage.getItem(STORE));}catch(e){}
   if(!state||!state.holes||state.holes.length!==18){
-    state={date:today(),holes:mk(),history:(state&&state.history)||[],dirty:false};
+    state={date:today(),holes:mk(),history:(state&&state.history)||[],dirty:false,mode:'full'};
   }
   if(state.dirty==null)state.dirty=false;
   if(!state.pin)state.pin='?';
+  if(!state.mode)state.mode='full';
   state.holes.forEach(function(h){if(h.pen==null)h.pen=0; if(h.notes==null)h.notes='';});
   holes=state.holes;
   ensureDate();
+  loadTheme();
 }
 function save(){try{localStorage.setItem(STORE,JSON.stringify(state));}catch(e){}}
 function pristine(){
@@ -311,26 +444,160 @@ function pristine(){
 function ensureDate(){if(state.date!==today()&&pristine()){state.date=today(); save();}}
 function touch(){state.dirty=true; save();}
 function newRound(){
+  vibe(25);
   var played=holes.some(function(h){return h.score!==null;});
   if(played){
     var msg=state.dirty
       ? 'WARNING: this round has NOT been saved to Drive yet. Hit "Save to Drive" first, or archive it anyway?'
       : 'Archive this round ('+state.date+') and start a new one?';
     if(!confirm(msg))return;
-    state.history.push({date:state.date,holes:holes});
+    state.history.push({date:state.date,holes:holes,mode:state.mode||'full'});
   }
-  state.date=today(); state.holes=mk(); holes=state.holes; cur=0; state.dirty=false; state.pin='?';
+  var prevMode=state.mode||'full';
+  state.date=today(); state.holes=mk(); holes=state.holes; cur=(prevMode==='back'?9:0); state.dirty=false; state.pin='?'; state.mode=prevMode;
   save(); render();
-  if(document.getElementById('summaryView').style.display==='block')toggleView();
+  showView('holeView');
+}
+
+function applyPreset(type){
+  ensureDate();
+  vibe(20);
+  var h=holes[cur], c=COURSE[cur];
+  if(type==='par'){
+    h.score=c.par; h.gir=true;
+    if(c.par>3&&!h.fir)h.fir='y';
+    h.putts=2; h.sixAtt=0; h.sixMade=0; h.ss=null; h.chip=null; h.pen=0;
+  } else if(type==='birdie'){
+    h.score=c.par-1; h.gir=true;
+    if(c.par>3&&!h.fir)h.fir='y';
+    h.putts=1; h.sixAtt=0; h.sixMade=0; h.ss=null; h.chip=null; h.pen=0;
+  } else if(type==='bogey_l'){
+    h.score=c.par+1; h.gir=false;
+    if(c.par>3)h.fir='l';
+    h.ss=false; h.chip='out'; h.putts=2; h.sixAtt=1; h.sixMade=1; h.pen=0;
+  } else if(type==='bogey_r'){
+    h.score=c.par+1; h.gir=false;
+    if(c.par>3)h.fir='r';
+    h.ss=false; h.chip='out'; h.putts=2; h.sixAtt=1; h.sixMade=1; h.pen=0;
+  }
+  touch(); render();
+}
+
+function recommendClub(dist, holeIdx){
+  var d=parseInt(dist,10); if(isNaN(d))return null;
+  var b=pinBucket(holeIdx);
+  var eff=d;
+  if(PV[holeIdx].gd>=34){
+    if(b==='B')eff+=7;
+    else if(b==='F')eff-=7;
+  }
+  if(eff<=80)return {club:'58° Wedge', swing:'Full 75y swing (aim fat side)'};
+  if(eff<=102)return {club:'54° Wedge', swing:'Stock 90-100y pitch (bites quick)'};
+  if(eff<=112)return {club:'Gap Wedge (GW)', swing:'80% smooth swing (95-105y target)'};
+  if(eff<=125)return {club:'Pitching Wedge (PW)', swing:'Smooth PW (117-125y)'};
+  if(eff<=138)return {club:'Pitching Wedge (PW)', swing:'Full stock PW (135y)'};
+  if(eff<=148)return {club:'9-Iron', swing:'Stock 9-iron (145y)'};
+  if(eff<=160)return {club:'8-Iron', swing:'Stock 8-iron (155y, check rough flyer)'};
+  if(eff<=174)return {club:'7-Iron', swing:'Stock 7-iron (170y center green)'};
+  if(eff<=186)return {club:'6-Iron', swing:'Stock 6-iron (180y)'};
+  if(eff<=200)return {club:'5-Iron', swing:'Natural draw 5-iron (195y)'};
+  if(eff<=225)return {club:'4-Hybrid', swing:'Stock 4h (210y) or 8i layup'};
+  return {club:'Driver', swing:'Driver 260 carry / 270 total'};
+}
+
+function renderCaddySelector(){
+  var box=document.getElementById('caddyChips');
+  if(!box)return;
+  box.innerHTML='';
+  var distances=[75,95,105,120,135,145,155,170,180,195,210,260];
+  distances.forEach(function(yds){
+    var chip=document.createElement('button');
+    chip.className='clubChip'+(selectedDist===yds?' active':'');
+    chip.textContent=yds+'y';
+    chip.onclick=function(){
+      vibe(15);
+      selectedDist=(selectedDist===yds?null:yds);
+      renderCaddySelector();
+    };
+    box.appendChild(chip);
+  });
+  var recEl=document.getElementById('caddyRecText');
+  if(!recEl)return;
+  if(selectedDist){
+    var rec=recommendClub(selectedDist, cur);
+    recEl.innerHTML='<b>'+selectedDist+'y Target:</b> '+rec.club+' &mdash; <i>'+rec.swing+'</i>';
+  } else {
+    recEl.textContent='Select distance to calculate pin-adjusted club & swing';
+  }
+}
+
+function checkFatigue(){
+  var banner=document.getElementById('fatigueAlert');
+  if(!banner)return;
+  var back9LeftPulls=0;
+  for(var i=9; i<18; i++){
+    if(holes[i]&&holes[i].fir==='l')back9LeftPulls++;
+  }
+  if(cur>=9&&back9LeftPulls>=2){
+    banner.style.display='block';
+    banner.innerHTML='<b>⚠️ Back-9 Fatigue Alert</b> Detected '+back9LeftPulls+' tee shots pulled left. Stay connected, let the hips finish, let cut work back.';
+  } else {
+    banner.style.display='none';
+  }
+}
+
+var recognizer=null, isRecording=false;
+function toggleVoice(){
+  vibe(25);
+  var btn=document.getElementById('micBtn');
+  var Speech=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!Speech){
+    alert('Voice dictation not supported in this browser.');
+    return;
+  }
+  if(isRecording&&recognizer){
+    recognizer.stop();
+    return;
+  }
+  try{
+    recognizer=new Speech();
+    recognizer.continuous=false;
+    recognizer.interimResults=false;
+    recognizer.lang='en-US';
+    recognizer.onstart=function(){
+      isRecording=true;
+      if(btn){btn.className='micBtn listening'; btn.textContent='🔴 Listening...';}
+    };
+    recognizer.onresult=function(e){
+      var transcript=e.results[0][0].transcript;
+      var curVal=holes[cur].notes||'';
+      var newVal=curVal?(curVal+' / '+transcript):transcript;
+      setNote(newVal);
+      var nb=document.getElementById('noteBox'); if(nb)nb.value=newVal;
+    };
+    recognizer.onerror=function(){
+      isRecording=false;
+      if(btn){btn.className='micBtn'; btn.textContent='🎙️ Dictate';}
+    };
+    recognizer.onend=function(){
+      isRecording=false;
+      if(btn){btn.className='micBtn'; btn.textContent='🎙️ Dictate';}
+    };
+    recognizer.start();
+  }catch(e){
+    isRecording=false;
+    if(btn){btn.className='micBtn'; btn.textContent='🎙️ Dictate';}
+  }
 }
 
 function seg(id,opts,field){
-  var el=document.getElementById(id); el.innerHTML='';
+  var el=document.getElementById(id); if(!el)return; el.innerHTML='';
   opts.forEach(function(o){
     var b=document.createElement('button');
     b.textContent=o.label;
     if(holes[cur][field]===o.val)b.className='on';
     b.onclick=function(){
+      vibe(15);
       ensureDate();
       holes[cur][field]=(holes[cur][field]===o.val)?null:o.val;
       touch(); render();
@@ -340,17 +607,18 @@ function seg(id,opts,field){
 }
 
 function pinSeg(){
-  var el=document.getElementById('pinBtns'); el.innerHTML='';
+  var el=document.getElementById('pinBtns'); if(!el)return; el.innerHTML='';
   ['?','A','B','C','D','E'].forEach(function(o){
     var b=document.createElement('button');
     b.textContent=o;
     if((state.pin||'?')===o)b.className='on';
-    b.onclick=function(){ensureDate(); state.pin=o; touch(); render();};
+    b.onclick=function(){vibe(15); ensureDate(); state.pin=o; touch(); render();};
     el.appendChild(b);
   });
 }
 
 function bump(field,d){
+  vibe(15);
   ensureDate();
   var h=holes[cur];
   if(field==='score'){h.score=(h.score===null)?COURSE[cur].par:Math.max(1,h.score+d);}
@@ -361,48 +629,81 @@ function bump(field,d){
 
 function setNote(v){ensureDate(); holes[cur].notes=v; touch(); buildSummary();}
 
-function move(d){cur=(cur+18+d)%18; render();}
+function move(d){
+  vibe(20);
+  var r=targetHolesRange();
+  if(r.count===9){
+    cur=r.start+((cur-r.start+9+d)%9);
+  } else {
+    cur=(cur+18+d)%18;
+  }
+  render();
+}
 
 function render(){
   var h=holes[cur], c=COURSE[cur];
-  document.getElementById('holeNum').textContent=cur+1;
-  document.getElementById('holeMeta').textContent=pvMeta(cur);
-  document.getElementById('tipText').textContent=pvTip(cur);
+  var hn=document.getElementById('holeNum'); if(hn)hn.textContent=cur+1;
+  var hm=document.getElementById('holeMeta'); if(hm)hm.textContent=pvMeta(cur);
+  var tt=document.getElementById('tipText'); if(tt)tt.textContent=pvTip(cur);
   pinSeg();
-  var done=holes.filter(function(x){return x.score!==null;}).length;
-  document.getElementById('doneLbl').textContent=state.date+' · '+done+'/18 holes';
+
+  var m=(state&&state.mode)||'full';
+  ['Full','Front','Back'].forEach(function(k){
+    var btn=document.getElementById('mode'+k);
+    if(btn)btn.className='modeBtn'+(m===k.toLowerCase()?' on':'');
+  });
+
+  var r=targetHolesRange();
+  var done=0;
+  for(var i=r.start; i<=r.end; i++){if(holes[i].score!==null)done++;}
+  var dl=document.getElementById('doneLbl');
+  if(dl)dl.textContent=state.date+' · '+done+'/'+r.count+' holes ('+r.label+')';
+
   seg('scoreBtns',[{label:'-1',val:c.par-1},{label:'E',val:c.par},{label:'+1',val:c.par+1},{label:'+2',val:c.par+2}],'score');
   seg('penBtns',[{label:'0',val:0},{label:'1',val:1},{label:'2',val:2},{label:'3',val:3}],'pen');
   seg('puttBtns',[{label:'0',val:0},{label:'1',val:1},{label:'2',val:2},{label:'3',val:3},{label:'4',val:4},{label:'5',val:5}],'putts');
   seg('firBtns',[{label:'Hit',val:'y'},{label:'Miss L',val:'l'},{label:'Miss R',val:'r'}],'fir');
-  document.getElementById('firRow').className='row'+(c.par>3?'':' disabled');
+  var fr=document.getElementById('firRow'); if(fr)fr.className='row'+(c.par>3?'':' disabled');
   seg('girBtns',[{label:'Yes',val:true},{label:'No',val:false}],'gir');
   seg('ssBtns',[{label:'Yes',val:true},{label:'No',val:false}],'ss');
   seg('chipBtns',[{label:'≤ 6 ft',val:'in'},{label:'> 6 ft',val:'out'},{label:'n/a',val:'na'}],'chip');
   var sd=h.score===null?null:h.score-c.par;
-  document.getElementById('scoreVal').textContent=h.score===null?'–':h.score+' ('+(sd===0?'E':(sd>0?'+':'')+sd)+')';
-  document.getElementById('puttsVal').textContent=h.putts===null?'–':h.putts;
-  document.getElementById('sixAttVal').textContent=h.sixAtt;
-  document.getElementById('sixMadeVal').textContent=h.sixMade;
+  var sv=document.getElementById('scoreVal'); if(sv)sv.textContent=h.score===null?'–':h.score+' ('+(sd===0?'E':(sd>0?'+':'')+sd)+')';
+  var pv=document.getElementById('puttsVal'); if(pv)pv.textContent=h.putts===null?'–':h.putts;
+  var sa=document.getElementById('sixAttVal'); if(sa)sa.textContent=h.sixAtt;
+  var sm=document.getElementById('sixMadeVal'); if(sm)sm.textContent=h.sixMade;
   var nb=document.getElementById('noteBox');
-  if(nb.value!==(h.notes||''))nb.value=h.notes||'';
+  if(nb&&nb.value!==(h.notes||''))nb.value=h.notes||'';
   var missed=(h.gir===false);
-  document.getElementById('ssRow').className='row'+(missed?'':' disabled');
-  document.getElementById('chipRow').className='row'+(missed?'':' disabled');
+  var sr=document.getElementById('ssRow'); if(sr)sr.className='row'+(missed?'':' disabled');
+  var cr=document.getElementById('chipRow'); if(cr)cr.className='row'+(missed?'':' disabled');
+  renderCaddySelector();
+  checkFatigue();
   buildSummary();
+  buildTrends();
 }
 
 function fmt(v,y,n){return v===null?'?':(v===true?y:(v===false?n:v));}
 
 function unscoredHoles(){
-  var u=[]; holes.forEach(function(h,i){if(h.score===null)u.push(i+1);}); return u;
+  var r=targetHolesRange();
+  var u=[];
+  for(var i=r.start; i<=r.end; i++){
+    if(holes[i].score===null)u.push(i+1);
+  }
+  return u;
 }
 
 function buildSummary(){
-  var lines=['BAY OAKS '+state.date+(state.pin&&state.pin!=='?'?' PIN:'+state.pin:'')];
+  var m=(state&&state.mode)||'full';
+  var r=targetHolesRange();
+  var modeTag=(m==='front'?' [FRONT 9]':(m==='back'?' [BACK 9]':''));
+  var lines=['BAY OAKS '+state.date+modeTag+(state.pin&&state.pin!=='?'?' PIN:'+state.pin:'')];
   var tS=0,tP=0,tPar=0,gir=0,girN=0,missed=0,chipIn=0,chipTried=0,ss=0,att=0,made=0;
   var firHit=0,firL=0,firR=0,firN=0,out9=0,in9=0,tPen=0;
-  holes.forEach(function(h,i){
+
+  for(var i=(m==='back'?9:0); i<=(m==='front'?8:17); i++){
+    var h=holes[i];
     var n=(i+1<10?'0':'')+(i+1);
     var pn=(h.pen==null?0:h.pen); tPen+=pn;
     lines.push('H'+n+' P'+COURSE[i].par+' S'+(h.score===null?'?':h.score)
@@ -414,94 +715,151 @@ function buildSummary(){
       +' P36:'+h.sixMade+'/'+h.sixAtt
       +' PEN:'+pn);
     if(h.notes&&h.notes.trim())lines.push('H'+n+' NOTE: '+h.notes.trim().replace(/\s*\n+\s*/g,' / '));
-    if(h.score!==null){tS+=h.score;tPar+=COURSE[i].par; if(i<9)out9+=h.score; else in9+=h.score;}
+    if(h.score!==null){
+      tS+=h.score; tPar+=COURSE[i].par;
+      if(i<9)out9+=h.score; else in9+=h.score;
+    }
     if(h.putts!==null)tP+=h.putts;
     if(h.gir===true)gir++; if(h.gir!==null)girN++;
-    if(h.gir===false){missed++; if(h.ss===true)ss++;
-      if(h.chip==='in'){chipIn++;chipTried++;} if(h.chip==='out')chipTried++;}
-    if(COURSE[i].par>3&&h.fir!==null){firN++; if(h.fir==='y')firHit++; if(h.fir==='l')firL++; if(h.fir==='r')firR++;}
+    if(h.gir===false){
+      missed++; if(h.ss===true)ss++;
+      if(h.chip==='in'){chipIn++;chipTried++;}
+      if(h.chip==='out')chipTried++;
+    }
+    if(COURSE[i].par>3&&h.fir!==null){
+      firN++;
+      if(h.fir==='y')firHit++;
+      if(h.fir==='l')firL++;
+      if(h.fir==='r')firR++;
+    }
     att+=h.sixAtt; made+=h.sixMade;
-  });
+  }
+
   var diff=tS-tPar;
   var un=unscoredHoles();
-  var scoredN=18-un.length;
-  var totLbl=un.length
-    ? 'TOT S:'+tS+'* (PARTIAL '+scoredN+'/18, '+(diff>=0?'+':'')+diff+' thru scored) UNSCORED:H'+un.join(',H')
-    : 'TOT S:'+tS+' ('+(diff>=0?'+':'')+diff+')';
+  var scoredN=r.count-un.length;
+  var totLbl;
+  if(un.length){
+    totLbl='TOT S:'+tS+'* (PARTIAL '+scoredN+'/'+r.count+', '+(diff>=0?'+':'')+diff+' thru scored) UNSCORED:H'+un.join(',H');
+  } else {
+    totLbl='TOT S:'+tS+' ('+(diff>=0?'+':'')+diff+')'+modeTag;
+  }
+
+  var splitScores=(m==='front'?' OUT:'+out9:(m==='back'?' IN:'+in9:' OUT:'+out9+' IN:'+in9));
   lines.push(totLbl+' FIR:'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+') GIR:'+gir+'/'+girN
     +' PUTTS:'+tP+' CHIP6:'+chipIn+'/'+chipTried+' SS:'+ss+'/'+missed
-    +' P36:'+made+'/'+att+' PEN:'+tPen+' OUT:'+out9+' IN:'+in9);
-  document.getElementById('exportText').textContent=lines.join('\n');
+    +' P36:'+made+'/'+att+' PEN:'+tPen+splitScores);
+  var et=document.getElementById('exportText'); if(et)et.textContent=lines.join('\n');
   var pct=function(a,b){return b?Math.round(100*a/b)+'%':'–';};
-  document.getElementById('stats').innerHTML=
-    (un.length?'<div class="stat"><span class="warn">Unscored holes</span> <b class="warn">'+un.join(', ')+'</b></div>':'')
-    +'<div class="stat">Out / In / Total <b>'+out9+' / '+in9+' / '+tS+(un.length?'*':'')+'</b></div>'
-    +'<div class="stat">Score <b>'+tS+' ('+(diff>=0?'+':'')+diff+')</b></div>'
-    +'<div class="stat">Fairways <b>'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+')</b></div>'
-    +'<div class="stat">GIR <b>'+gir+'/'+girN+'</b></div>'
-    +'<div class="stat">First chip inside 6 ft <b>'+chipIn+'/'+chipTried+' ('+pct(chipIn,chipTried)+')</b></div>'
-    +'<div class="stat">Short-sided on missed greens <b>'+ss+'/'+missed+'</b></div>'
-    +'<div class="stat">Total putts <b>'+tP+'</b></div>'
-    +'<div class="stat">3–6 ft putts made <b>'+made+'/'+att+' ('+pct(made,att)+')</b></div>'
-    +'<div class="stat">Penalty strokes <b>'+tPen+'</b></div>';
+  var st=document.getElementById('stats');
+  if(st){
+    st.innerHTML=
+      (un.length?'<div class="stat"><span class="warn">Unscored '+(r.count===18?'holes':'('+r.label+')')+'</span> <b class="warn">'+un.join(', ')+'</b></div>':'')
+      +(m==='full'?'<div class="stat">Out / In / Total <b>'+out9+' / '+in9+' / '+tS+(un.length?'*':'')+'</b></div>'
+        :(m==='front'?'<div class="stat">Front 9 Score <b>'+tS+' (OUT: '+out9+')</b></div>'
+          :'<div class="stat">Back 9 Score <b>'+tS+' (IN: '+in9+')</b></div>'))
+      +'<div class="stat">Score vs Par <b>'+tS+' ('+(diff>=0?'+':'')+diff+')</b></div>'
+      +'<div class="stat">Fairways <b>'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+')</b></div>'
+      +'<div class="stat">GIR <b>'+gir+'/'+girN+'</b></div>'
+      +'<div class="stat">First chip inside 6 ft <b>'+chipIn+'/'+chipTried+' ('+pct(chipIn,chipTried)+')</b></div>'
+      +'<div class="stat">Short-sided on missed greens <b>'+ss+'/'+missed+'</b></div>'
+      +'<div class="stat">Total putts <b>'+tP+'</b></div>'
+      +'<div class="stat">3–6 ft putts made <b>'+made+'/'+att+' ('+pct(made,att)+')</b></div>'
+      +'<div class="stat">Penalty strokes <b>'+tPen+'</b></div>';
+  }
+}
+
+function buildTrends(){
+  var hl=document.getElementById('historyList');
+  if(!hl)return;
+  var items=HISTORICAL_ROUNDS.map(function(r){
+    var diff=r.score-r.par;
+    return '<div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
+      +'<b>'+r.date+'</b> ('+(r.type||(r.holes===9?'9 Holes':'18 Holes'))+'): <b>'+r.score+'</b> ('+(diff>=0?'+':'')+diff+') &middot; '
+      +'FIR '+r.fir+' &middot; GIR '+r.gir+' &middot; Putts '+r.putts+' &middot; P36 '+r.p36
+      +'</div>';
+  });
+  hl.innerHTML=items.join('');
+}
+
+function showView(viewId){
+  ['holeView','summaryView','trendsView'].forEach(function(v){
+    var el=document.getElementById(v); if(el)el.style.display=(v===viewId?'block':'none');
+  });
+  var tabBtn=document.getElementById('tabBtn');
+  var trendsBtn=document.getElementById('trendsBtn');
+  if(tabBtn)tabBtn.textContent=(viewId==='summaryView'?'Holes':'Summary');
+  if(trendsBtn)trendsBtn.textContent=(viewId==='trendsView'?'Holes':'Trends');
 }
 
 function toggleView(){
-  var s=document.getElementById('summaryView'), hv=document.getElementById('holeView');
-  var showSum=s.style.display!=='block';
-  s.style.display=showSum?'block':'none';
-  hv.style.display=showSum?'none':'block';
-  document.getElementById('tabBtn').textContent=showSum?'Holes':'Summary';
+  vibe(20);
+  var curShow=document.getElementById('summaryView').style.display==='block';
+  showView(curShow?'holeView':'summaryView');
+}
+
+function toggleTrends(){
+  vibe(20);
+  var curShow=document.getElementById('trendsView').style.display==='block';
+  showView(curShow?'holeView':'trendsView');
 }
 
 function guardPartial(){
   var un=unscoredHoles();
+  var r=targetHolesRange();
   if(!un.length)return true;
-  if(confirm('Holes '+un.join(', ')+' have no score. Export a PARTIAL round anyway?'))return true;
+  if(confirm(r.label+' Holes '+un.join(', ')+' have no score. Export a PARTIAL round anyway?'))return true;
   cur=un[0]-1;
-  if(document.getElementById('summaryView').style.display==='block')toggleView();
+  showView('holeView');
   render();
   return false;
 }
 
 function copyExport(skipGuard){
+  vibe(20);
   if(!skipGuard&&!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
   var msg=document.getElementById('copiedMsg');
-  function ok(){msg.textContent='Copied log — ready for Gemini.'; state.dirty=false; save(); setTimeout(function(){msg.textContent='';},2500);}
+  function ok(){if(msg)msg.textContent='Copied log — ready for Gemini.'; state.dirty=false; save(); setTimeout(function(){if(msg)msg.textContent='';},2500);}
   function fallback(){
     var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
-    ta.select(); try{document.execCommand('copy'); ok();}catch(e){msg.textContent='Long-press the text to copy.';}
+    ta.select(); try{document.execCommand('copy'); ok();}catch(e){if(msg)msg.textContent='Long-press the text to copy.';}
     document.body.removeChild(ta);
   }
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(t).then(ok,function(){fallback();});
   }else fallback();
-  if(document.getElementById('summaryView').style.display!=='block')toggleView();
+  showView('summaryView');
 }
 
 function copyGeminiPrompt(){
+  vibe(20);
   if(!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
-  var prompt='Analyze my Bay Oaks round from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
+  var r=targetHolesRange();
+  var modeLabel=(r.count===9?' ('+r.label+')':'');
+  var prompt='Analyze my Bay Oaks round'+modeLabel+' from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
   var msg=document.getElementById('copiedMsg');
-  function ok(){msg.textContent='Copied prompt — ready for Gemini!'; state.dirty=false; save(); setTimeout(function(){msg.textContent='';},2500);}
+  function ok(){if(msg)msg.textContent='Copied prompt — ready for Gemini!'; state.dirty=false; save(); setTimeout(function(){if(msg)msg.textContent='';},2500);}
   function fallback(){
     var ta=document.createElement('textarea'); ta.value=prompt; document.body.appendChild(ta);
-    ta.select(); try{document.execCommand('copy'); ok();}catch(e){msg.textContent='Long-press the text to copy.';}
+    ta.select(); try{document.execCommand('copy'); ok();}catch(e){if(msg)msg.textContent='Long-press the text to copy.';}
     document.body.removeChild(ta);
   }
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(prompt).then(ok,function(){fallback();});
   }else fallback();
-  if(document.getElementById('summaryView').style.display!=='block')toggleView();
+  showView('summaryView');
 }
 
 function shareExport(){
+  vibe(20);
   buildSummary();
   if(!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
-  var prompt='Analyze my Bay Oaks round from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
+  var r=targetHolesRange();
+  var modeLabel=(r.count===9?' ('+r.label+')':'');
+  var prompt='Analyze my Bay Oaks round'+modeLabel+' from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(prompt).catch(function(){});
   }
@@ -517,8 +875,13 @@ function shareExport(){
 }
 
 load(); render();
-if('serviceWorker' in navigator && location.protocol==='https:'){
-  navigator.serviceWorker.register('sw.js').catch(function(){});
+if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
+  navigator.serviceWorker.register('sw.js').then(function(reg){
+    reg.update();
+  }).catch(function(){});
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    window.location.reload();
+  });
 }
 </script>
 </body>
