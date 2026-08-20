@@ -262,19 +262,19 @@
   <div class="trendCard">
     <div class="lbl">📊 Multi-Round Performance Baseline</div>
     <div class="trendGrid">
-      <div class="metricBox"><div class="mLbl">Season Low (18)</div><div class="mVal" id="tSeasonLow">82</div></div>
-      <div class="metricBox"><div class="mLbl">Quick 9 Low</div><div class="mVal" id="tNineLow">43</div></div>
-      <div class="metricBox"><div class="mLbl">Fairways (FIR)</div><div class="mVal" id="tFirPct">53%</div></div>
-      <div class="metricBox"><div class="mLbl">Greens (GIR)</div><div class="mVal" id="tGirPct">42%</div></div>
-      <div class="metricBox"><div class="mLbl">CHIP6 Proximity</div><div class="mVal" id="tChipPct">19%</div></div>
-      <div class="metricBox"><div class="mLbl">P36 Make Rate</div><div class="mVal" id="tP36Pct">91%</div></div>
+      <div class="metricBox"><div class="mLbl">Season Low (18)</div><div class="mVal" id="tSeasonLow">&mdash;</div></div>
+      <div class="metricBox"><div class="mLbl">Quick 9 Low</div><div class="mVal" id="tNineLow">&mdash;</div></div>
+      <div class="metricBox"><div class="mLbl">Fairways (FIR)</div><div class="mVal" id="tFirPct">&mdash;</div></div>
+      <div class="metricBox"><div class="mLbl">Greens (GIR)</div><div class="mVal" id="tGirPct">&mdash;</div></div>
+      <div class="metricBox"><div class="mLbl">CHIP6 Proximity</div><div class="mVal" id="tChipPct">&mdash;</div></div>
+      <div class="metricBox"><div class="mLbl">P36 Make Rate</div><div class="mVal" id="tP36Pct">&mdash;</div></div>
     </div>
   </div>
 
   <div class="trendCard">
     <div class="lbl">🔍 Primary Stroke Leaks & Focus</div>
     <ul class="leakRank">
-      <li><b>#1 Chipping Proximity (CHIP6):</b> Only 19% of chips finish inside 6 ft. High spin on new wedges requires trusting carry over landing spot.</li>
+      <li><b>#1 Chipping Proximity (CHIP6):</b> Only <span id="tLeakChip">&mdash;</span> of chips finish inside 6 ft. High spin on new wedges requires trusting carry over landing spot.</li>
       <li><b>#2 3-Putts on Deep Greens:</b> Greens on 4, 10, 12, 14, 17, 18 are 36–43y deep; calibrate lag distance on front vs back pins.</li>
       <li><b>#3 Back-9 Fatigue Pull:</b> Tee misses shift left after Hole 13. Maintain smooth hip turn and avoid rushing.</li>
     </ul>
@@ -295,13 +295,78 @@
 <script>
 var STORE='bayoaks-rounds-v6';
 
-var HISTORICAL_ROUNDS=[
+// v16b: SEED_ROUNDS is one-time seed data only -- hand-transcribed summaries from before
+// the app archived rounds itself. It is read exactly once, by migrateState(), to populate
+// state.rounds. Nothing else may read it: rounds[] is the single canonical round store.
+var SEED_ROUNDS=[
   {date:'2026-07-15', score:94, par:72, fir:'7/14', gir:'7/18', putts:38, chip6:'2/10', ss:'5/11', p36:'16/20', pen:5, out:45, in:49, holes:18, type:'18 Holes', tee:'Blue'},
   {date:'2026-08-01', score:49, par:40, fir:'5/8', gir:'2/9', putts:21, chip6:'2/7', ss:'1/7', p36:'10/11', pen:1, out:44, in:5, holes:10, type:'10 Holes', tee:'Blue'},
   {date:'2026-08-06', score:82, par:72, fir:'11/14', gir:'11/17', putts:41, chip6:'1/6', ss:'2/6', p36:'17/17', pen:2, out:41, in:41, holes:18, type:'18 Holes', tee:'Blue'},
   {date:'2026-08-13', score:90, par:72, fir:'3/14', gir:'4/16', putts:31, chip6:'2/11', ss:'3/12', p36:'15/17', pen:2, out:44, in:46, holes:18, type:'18 Holes', tee:'Blue'},
   {date:'2026-08-19', score:43, par:36, fir:'4/7', gir:'5/9', putts:20, chip6:'0/4', ss:'1/4', p36:'8/8', pen:0, out:43, in:0, holes:9, type:'Front 9', tee:'Blue'}
 ];
+
+// ---- v16b: canonical round store ------------------------------------------------
+// Every trend, metric and history line reads state.rounds. A round either carries a full
+// holes[] (logged in-app) or a summary (seeded/hand-transcribed). roundStats() normalises
+// both shapes so no caller has to branch on provenance -- and so a stat is never invented
+// for a round that didn't record it: absent denominators stay 0 and render as em-dash.
+var SCHEMA=1;
+
+function parseFrac(s){var p=String(s==null?'':s).split('/'); return {n:+p[0]||0,d:+p[1]||0};}
+
+function seedToRound(r){
+  return {id:'seed-'+r.date, date:r.date, mode:(r.holes===18?'full':(r.holes===9?'front':'partial')),
+    tee:String(r.tee||'blue').toLowerCase(), source:'manual', suspect:false, pin:null, holes:null,
+    summary:{score:r.score,par:r.par,played:r.holes,fir:parseFrac(r.fir),gir:parseFrac(r.gir),
+      putts:r.putts,chip6:parseFrac(r.chip6),ss:parseFrac(r.ss),p36:parseFrac(r.p36),
+      pen:r.pen,out:r.out,inn:r.in,type:r.type}};
+}
+
+function legacyToRound(h){
+  return {id:'log-'+h.date, date:h.date, mode:h.mode||'full', tee:h.tee||'blue',
+    source:'logged', suspect:false, pin:h.pin||null, holes:h.holes||null, summary:null};
+}
+
+function roundStats(r){
+  if(r&&r.summary){var s=r.summary;
+    return {score:s.score,par:s.par,played:s.played,fir:s.fir,gir:s.gir,putts:s.putts,
+      chip6:s.chip6,ss:s.ss,p36:s.p36,pen:s.pen,out:s.out,inn:s.inn,
+      type:s.type||(s.played+' Holes')};}
+  var hs=(r&&r.holes)||[], score=0,par=0,played=0,putts=0,pen=0,out=0,inn=0;
+  var fir={n:0,d:0},gir={n:0,d:0},chip6={n:0,d:0},ss={n:0,d:0},p36={n:0,d:0};
+  hs.forEach(function(h,i){
+    var c=COURSE[i]; if(!c||!h||h.score==null)return;
+    played++; score+=h.score; par+=c.par;
+    if(i<9)out+=h.score; else inn+=h.score;
+    putts+=h.putts||0; pen+=h.pen||0;
+    if(c.par>3&&h.fir){fir.d++; if(h.fir==='y')fir.n++;}
+    if(h.gir!=null){gir.d++; if(h.gir)gir.n++;}
+    if(h.chip==='in'||h.chip==='out'){chip6.d++; if(h.chip==='in')chip6.n++;}
+    if(h.gir===false&&h.ss!=null){ss.d++; if(h.ss)ss.n++;}
+    p36.n+=h.sixMade||0; p36.d+=h.sixAtt||0;
+  });
+  return {score:score,par:par,played:played,fir:fir,gir:gir,putts:putts,chip6:chip6,
+    ss:ss,p36:p36,pen:pen,out:out,inn:inn,type:played+' Holes'};
+}
+
+// One-way migration. Legacy state.history is converted, then retained as _legacyHistory
+// for one version as a rollback net (v17 deletes it). Logged rounds win over seed rows on
+// the same date -- they carry holes[] and are therefore strictly richer.
+function migrateState(st){
+  if(!st)return st;
+  if(st.schemaVersion===SCHEMA&&Array.isArray(st.rounds))return st;
+  if(!Array.isArray(st.rounds)){
+    var byDate={};
+    SEED_ROUNDS.forEach(function(r){byDate[r.date]=seedToRound(r);});
+    (st.history||[]).forEach(function(h){if(h&&h.date)byDate[h.date]=legacyToRound(h);});
+    st.rounds=Object.keys(byDate).sort().map(function(k){return byDate[k];});
+    if(st.history&&st.history.length)st._legacyHistory=st.history;
+    delete st.history;
+  }
+  st.schemaVersion=SCHEMA;
+  return st;
+}
 
 var COURSE=[
  {par:4,hcp:13,cy:387,ry:362,tip:"Driver up the left side, let the cut work back. Smooth PW from ~117. Clean par start -- don't chase a pin cold.",
@@ -489,13 +554,14 @@ function today(){var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth(
 function load(){
   try{state=JSON.parse(localStorage.getItem(STORE));}catch(e){}
   if(!state||!state.holes||state.holes.length!==18){
-    state={date:today(),holes:mk(),history:(state&&state.history)||[],dirty:false,mode:'full',tee:'blue'};
+    state={date:today(),holes:mk(),rounds:(state&&state.rounds)||null,history:(state&&state.history)||[],dirty:false,mode:'full',tee:'blue'};
   }
   if(state.dirty==null)state.dirty=false;
   if(state.exported==null)state.exported=false;
   if(!state.pin)state.pin='?';
   if(!state.mode)state.mode='full';
   if(!state.tee)state.tee='blue';
+  migrateState(state);
   state.holes.forEach(function(h){
     if(h.pen==null)h.pen=0;
     if(h.notes==null)h.notes='';
@@ -523,7 +589,10 @@ function newRound(){
       ? 'WARNING: this round has NOT been exported yet. Hit "Export Round" first, or archive it anyway?'
       : 'Archive this round ('+state.date+') and start a new one?';
     if(!confirm(msg))return;
-    state.history.push({date:state.date,holes:holes,mode:state.mode||'full',tee:state.tee||'blue'});
+    state.rounds.push({id:'log-'+state.date+'-'+Date.now().toString(36), date:state.date,
+      mode:state.mode||'full', tee:state.tee||'blue', source:'logged', suspect:false,
+      pin:(state.pin&&state.pin!=='?')?state.pin:null,
+      holes:holes.map(function(h){return Object.assign({},h);}), summary:null});
   }
   var prevMode=state.mode||'full';
   var prevTee=state.tee||'blue';
@@ -885,17 +954,41 @@ function buildSummary(){
   }
 }
 
+// v16b: every number here is derived from state.rounds. Nothing is hardcoded, and a metric
+// with no denominator renders as em-dash rather than a stale or invented figure -- an honest
+// blank beats a confident wrong number, which is the whole reason this rewrite exists.
 function buildTrends(){
+  var rs=((state&&state.rounds)||[]).slice().sort(function(a,b){return a.date<b.date?1:-1;});
+  var agg={fir:{n:0,d:0},gir:{n:0,d:0},chip6:{n:0,d:0},p36:{n:0,d:0}};
+  var low18=null, low9=null;
+  rs.forEach(function(r){
+    var s=roundStats(r);
+    ['fir','gir','chip6','p36'].forEach(function(k){agg[k].n+=(s[k]&&s[k].n)||0; agg[k].d+=(s[k]&&s[k].d)||0;});
+    if(s.played>=18){if(low18===null||s.score<low18)low18=s.score;}
+    else if(s.played===9){if(low9===null||s.score<low9)low9=s.score;}
+  });
+  function pctOf(o){return o.d?Math.round(o.n/o.d*100)+'%':'\u2014';}
+  function setTxt(id,v){var e=document.getElementById(id); if(e)e.textContent=v;}
+  setTxt('tSeasonLow', low18===null?'\u2014':low18);
+  setTxt('tNineLow',   low9===null?'\u2014':low9);
+  setTxt('tFirPct',    pctOf(agg.fir));
+  setTxt('tGirPct',    pctOf(agg.gir));
+  setTxt('tChipPct',   pctOf(agg.chip6));
+  setTxt('tP36Pct',    pctOf(agg.p36));
+  setTxt('tLeakChip',  pctOf(agg.chip6));
   var hl=document.getElementById('historyList');
   if(!hl)return;
-  var items=HISTORICAL_ROUNDS.map(function(r){
-    var diff=r.score-r.par;
+  if(!rs.length){hl.innerHTML='<i>No rounds logged yet.</i>'; return;}
+  hl.innerHTML=rs.map(function(r){
+    var s=roundStats(r), diff=s.score-s.par;
+    function frac(o){return o&&o.d?o.n+'/'+o.d:'\u2014';}
     return '<div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
-      +'<b>'+r.date+'</b> ('+(r.type||(r.holes===9?'9 Holes':'18 Holes'))+' &middot; '+(r.tee||'Blue')+'): <b>'+r.score+'</b> ('+(diff>=0?'+':'')+diff+') &middot; '
-      +'FIR '+r.fir+' &middot; GIR '+r.gir+' &middot; Putts '+r.putts+' &middot; P36 '+r.p36
+      +'<b>'+r.date+'</b> ('+s.type+' &middot; '+(r.tee||'blue')+(r.pin?' &middot; Pin '+r.pin:'')+'): '
+      +'<b>'+s.score+'</b> ('+(diff>=0?'+':'')+diff+') &middot; '
+      +'FIR '+frac(s.fir)+' &middot; GIR '+frac(s.gir)+' &middot; Putts '+s.putts+' &middot; P36 '+frac(s.p36)
+      +(r.suspect?' <span title="logged while quick presets fabricated data (v14-v16a)">\u26a0</span>':'')
       +'</div>';
-  });
-  hl.innerHTML=items.join('');
+  }).join('');
 }
 
 function showView(viewId){

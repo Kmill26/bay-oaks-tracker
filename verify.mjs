@@ -162,9 +162,11 @@ globalThis.holes[14].fir = 'l'; // H15 pull left
 checkFatigue();
 check('fatigue alert: triggers on 2+ back-9 left pulls', els['fatigueAlert'].style.display==='block' && els['fatigueAlert'].innerHTML.includes('Back-9 Fatigue Alert'), els['fatigueAlert'].innerHTML);
 
-// Case 9: Trends History Baseline (v13)
-check('trends: 5 historical rounds stored', HISTORICAL_ROUNDS.length===5, HISTORICAL_ROUNDS.length);
-check('trends: 2026-08-19 round present in history', HISTORICAL_ROUNDS.some(r=>r.date==='2026-08-19'&&r.score===43), 'missing 08-19');
+// Case 9 (v13, rewritten v16b): seed data integrity. These once asserted against
+// HISTORICAL_ROUNDS as a live read path; that array is now seed-only, so they assert
+// the seed itself is intact. The live-read contract is tested in Case 12 below.
+check('seed: 5 historical rounds present', SEED_ROUNDS.length===5, SEED_ROUNDS.length);
+check('seed: 2026-08-19 round present', SEED_ROUNDS.some(r=>r.date==='2026-08-19'&&r.score===43), 'missing 08-19');
 
 // Case 10: Quick 9 Mode — Front 9 (v13.1)
 setMode('front');
@@ -201,6 +203,64 @@ setHoleTee('tips'); // H1
 globalThis.cur = 1; setHoleTee('blue'); // H2
 let comboProf = getTeeProfile();
 check('tee combo: detects mixed tees', comboProf.label.includes('Combo'), comboProf.label);
+
+// Case 12: canonical rounds[] store + dynamic trends (v16b)
+// The v15 bug this replaces: buildTrends rendered a hardcoded HISTORICAL_ROUNDS array while
+// archived rounds went to state.history and were never read. A dashboard that looked dynamic
+// but wasn't. These checks pin the new contract: rounds[] is the only read path.
+
+// migration from a legacy pre-v16b state (history[], no rounds[], no schemaVersion)
+const legacyState = {date:'2026-08-20', holes:[], history:[
+  {date:'2026-08-06', mode:'full', tee:'blue', holes:[{score:4,fir:'y',gir:true,ss:null,chip:null,putts:2,sixAtt:1,sixMade:1,pen:0}]}
+], dirty:false};
+migrateState(legacyState);
+check('migrate: schemaVersion stamped', legacyState.schemaVersion===SCHEMA, legacyState.schemaVersion);
+check('migrate: rounds[] built from seed + history', Array.isArray(legacyState.rounds) && legacyState.rounds.length===SEED_ROUNDS.length, legacyState.rounds&&legacyState.rounds.length);
+check('migrate: legacy history retired but retained as rollback net', legacyState.history===undefined && Array.isArray(legacyState._legacyHistory), 'history='+legacyState.history);
+check('migrate: logged round wins over seed row on same date', legacyState.rounds.filter(r=>r.date==='2026-08-06')[0].source==='logged', JSON.stringify(legacyState.rounds.filter(r=>r.date==='2026-08-06')[0].source));
+check('migrate: rounds sorted by date ascending', legacyState.rounds.every((r,i,a)=>i===0||a[i-1].date<=r.date), legacyState.rounds.map(r=>r.date).join(','));
+
+// idempotence -- running migration twice must not duplicate or re-seed
+const before = JSON.stringify(legacyState.rounds);
+migrateState(legacyState);
+check('migrate: idempotent on second run', JSON.stringify(legacyState.rounds)===before, 'rounds mutated on re-run');
+
+// roundStats normalises both shapes
+const seededRound = seedToRound(SEED_ROUNDS[0]);
+const ss1 = roundStats(seededRound);
+check('roundStats(summary): 07-15 reads 94 (+22), FIR 7/14', ss1.score===94 && ss1.par===72 && ss1.fir.n===7 && ss1.fir.d===14, JSON.stringify(ss1.fir));
+// Built from COURSE rather than reusing globalThis.holes -- earlier cases mutate that array,
+// and a stats test that depends on cumulative mutation tests the test order, not the code.
+const fixtureHoles = COURSE.map((c,i)=>({score:c.par, fir:(c.par>3?'y':null), gir:true, ss:null,
+  chip:(i%3===0?'in':(i%3===1?'out':null)), putts:2, sixAtt:1, sixMade:1, pen:0}));
+const expFirD = COURSE.filter(c=>c.par>3).length;
+const loggedRound = {date:'2026-08-20', source:'logged', holes:fixtureHoles, summary:null};
+const ss2 = roundStats(loggedRound);
+check('roundStats(holes): derives from live hole data, not a stored summary', ss2.played===18 && ss2.score===72 && ss2.par===72, JSON.stringify({played:ss2.played,score:ss2.score,par:ss2.par}));
+check('roundStats: par 3s excluded from FIR denominator', ss2.fir.d===expFirD && ss2.fir.n===expFirD, 'fir='+ss2.fir.n+'/'+ss2.fir.d+' expected d='+expFirD);
+check('roundStats: CHIP6 counts only recorded chips (12 attempts, 6 inside)', ss2.chip6.d===12 && ss2.chip6.n===6, JSON.stringify(ss2.chip6));
+check('roundStats: OUT/IN split at the turn', ss2.out+ss2.inn===ss2.score && ss2.out===COURSE.slice(0,9).reduce((a,c)=>a+c.par,0), 'out='+ss2.out+' inn='+ss2.inn);
+
+// trends compute from rounds[], never from SEED_ROUNDS directly
+globalThis.state.rounds = SEED_ROUNDS.map(seedToRound);
+buildTrends();
+check('trends: season low computed from 18-hole rounds only (82)', els['tSeasonLow'].textContent===82 || els['tSeasonLow'].textContent==='82', els['tSeasonLow'].textContent);
+check('trends: quick-9 low computed separately (43)', els['tNineLow'].textContent===43 || els['tNineLow'].textContent==='43', els['tNineLow'].textContent);
+check('trends: FIR% aggregated across rounds, not hardcoded', els['tFirPct'].textContent==='53%', els['tFirPct'].textContent);
+check('trends: CHIP6% aggregated (7/38 = 18%)', els['tChipPct'].textContent==='18%', els['tChipPct'].textContent);
+check('trends: leak card pulls the live CHIP6 number', els['tLeakChip'].textContent===els['tChipPct'].textContent, els['tLeakChip'].textContent);
+check('trends: history list renders every round', (els['historyList'].innerHTML.match(/border-bottom/g)||[]).length===SEED_ROUNDS.length, 'rows rendered');
+
+// the load-bearing invariant: no rounds => honest blanks, never stale or invented numbers
+globalThis.state.rounds = [];
+buildTrends();
+check('trends: empty store renders em-dash, not a stale figure', els['tFirPct'].textContent==='\u2014' && els['tSeasonLow'].textContent==='\u2014' && els['tP36Pct'].textContent==='\u2014', els['tFirPct'].textContent+'/'+els['tSeasonLow'].textContent);
+check('trends: empty store says so in the history list', els['historyList'].innerHTML.indexOf('No rounds logged yet')>-1, els['historyList'].innerHTML);
+
+// no read path to SEED_ROUNDS outside migrateState
+const appSrc = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+check('SEED_ROUNDS is referenced only by its declaration and migrateState', (appSrc.match(/SEED_ROUNDS/g)||[]).length===3, (appSrc.match(/SEED_ROUNDS/g)||[]).length+' references');
+check('HISTORICAL_ROUNDS is gone', appSrc.indexOf('HISTORICAL_ROUNDS')===-1, 'still present');
 
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
