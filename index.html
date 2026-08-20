@@ -281,6 +281,16 @@
   </div>
 
   <div class="trendCard">
+    <div class="lbl">🔥 Hole Hotspots — worst by average strokes over par</div>
+    <div id="hotspotList" style="font-size:12.5px; line-height:1.55; color:var(--cream);"></div>
+  </div>
+
+  <div class="trendCard">
+    <div class="lbl">⏱ Segment Split — does the round decay?</div>
+    <div id="segmentList" style="font-size:12.5px; line-height:1.55; color:var(--cream);"></div>
+  </div>
+
+  <div class="trendCard">
     <div class="lbl">📜 Round History Trajectory</div>
     <div id="historyList" style="font-size:13px; line-height:1.6; color:var(--cream);"></div>
   </div>
@@ -333,6 +343,64 @@ function decodeSeedHoles(csv){
       chip:t[4]==='i'?'in':(t[4]==='o'?'out':null),
       putts:t[5]==='-'?null:+t[5], sixMade:+t[6], sixAtt:+t[7], pen:+t[8], notes:''};
   });
+}
+
+// ---- v17: per-hole and segment analytics, all derived from rounds[] ------------------
+// Sample sizes are tiny (n<=5 per hole), so every figure ships with its n and the UI
+// suppresses holes with n<2. Showing a confident average built on one round is the same
+// failure as the hardcoded dashboard -- a number that looks like evidence but isn't.
+function holeStats(rounds){
+  var out=COURSE.map(function(c,i){return {hole:i+1,par:c.par,hcp:c.hcp,n:0,strokes:0,overPar:0,
+    gir:{n:0,d:0},chip6:{n:0,d:0},threePutts:0,pen:0,firL:0,firR:0,firY:0};});
+  (rounds||[]).forEach(function(r){
+    var hs=r.holes; if(!hs)return;
+    hs.forEach(function(h,i){
+      if(!h||h.score==null||!out[i])return;
+      var o=out[i];
+      o.n++; o.strokes+=h.score; o.overPar+=(h.score-COURSE[i].par);
+      if(h.gir!=null){o.gir.d++; if(h.gir)o.gir.n++;}
+      if(h.chip==='in'||h.chip==='out'){o.chip6.d++; if(h.chip==='in')o.chip6.n++;}
+      if((h.putts||0)>=3)o.threePutts++;
+      o.pen+=h.pen||0;
+      if(h.fir==='l')o.firL++; else if(h.fir==='r')o.firR++; else if(h.fir==='y')o.firY++;
+    });
+  });
+  out.forEach(function(o){o.avg=o.n?o.strokes/o.n:null; o.avgOver=o.n?o.overPar/o.n:null;});
+  return out;
+}
+
+// Segment split tests the fatigue hypothesis against real history instead of a fixed
+// threshold: does his tee-miss pattern actually shift late in the round?
+function segmentStats(rounds){
+  var seg=[{label:'H1-6',from:0,to:6},{label:'H7-12',from:6,to:12},{label:'H13-18',from:12,to:18}];
+  return seg.map(function(s){
+    var o={label:s.label,n:0,strokes:0,overPar:0,l:0,r:0,y:0,firD:0,pen:0,threePutts:0};
+    (rounds||[]).forEach(function(r){
+      var hs=r.holes; if(!hs)return;
+      for(var i=s.from;i<s.to;i++){
+        var h=hs[i]; if(!h||h.score==null)continue;
+        o.n++; o.strokes+=h.score; o.overPar+=(h.score-COURSE[i].par);
+        o.pen+=h.pen||0; if((h.putts||0)>=3)o.threePutts++;
+        if(COURSE[i].par>3&&h.fir){o.firD++; if(h.fir==='l')o.l++; else if(h.fir==='r')o.r++; else if(h.fir==='y')o.y++;}
+      }
+    });
+    o.leftRate=o.firD?o.l/o.firD:null;
+    o.avgOver=o.n?o.overPar/o.n:null;
+    return o;
+  });
+}
+
+function nineSplit(rounds){
+  var out={front:{n:0,over:0},back:{n:0,over:0}};
+  (rounds||[]).forEach(function(r){
+    var hs=r.holes; if(!hs)return;
+    hs.forEach(function(h,i){
+      if(!h||h.score==null)return;
+      var k=i<9?'front':'back';
+      out[k].n++; out[k].over+=(h.score-COURSE[i].par);
+    });
+  });
+  return out;
 }
 
 // ---- v16b: canonical round store ------------------------------------------------
@@ -730,16 +798,30 @@ function renderTeeSelector(){
   });
 }
 
+// v17: the alert now cites Kenny's own segment baseline instead of firing on an arbitrary
+// count of two. A pull-left tendency that matches his normal rate isn't fatigue -- it's just
+// his miss, and calling it fatigue trains him to distrust the alert.
 function checkFatigue(){
   var banner=document.getElementById('fatigueAlert');
   if(!banner)return;
-  var back9LeftPulls=0;
+  var back9LeftPulls=0, back9Fir=0;
   for(var i=9; i<18; i++){
-    if(holes[i]&&holes[i].fir==='l')back9LeftPulls++;
+    if(holes[i]&&COURSE[i].par>3&&holes[i].fir){back9Fir++; if(holes[i].fir==='l')back9LeftPulls++;}
   }
   if(cur>=9&&back9LeftPulls>=2){
+    var segs=segmentStats((state&&state.rounds)||[]);
+    var late=segs[2], early={l:segs[0].l+segs[1].l, d:segs[0].firD+segs[1].firD};
+    var msg='<b>\u26a0\ufe0f Back-9 Left-Miss Alert</b> '+back9LeftPulls+' of '+back9Fir+' tee shots pulled left today.';
+    if(late&&late.firD>=8&&early.d>=8){
+      var lateP=Math.round(late.leftRate*100), earlyP=Math.round(early.l/early.d*100);
+      msg+=' Your history: '+lateP+'% left on H13-18 vs '+earlyP+'% on H1-12 (n='+(late.firD+early.d)+' tee shots).';
+      msg+=lateP>earlyP+10 ? ' The late shift is real \u2014 stay connected, let the hips finish.'
+                           : ' That matches your normal rate, so this is dispersion, not fatigue.';
+    } else {
+      msg+=' Not enough history yet to say whether that is fatigue or just your miss.';
+    }
     banner.style.display='block';
-    banner.innerHTML='<b>⚠️ Back-9 Fatigue Alert</b> Detected '+back9LeftPulls+' tee shots pulled left. Stay connected, let the hips finish, let cut work back.';
+    banner.innerHTML=msg;
   } else {
     banner.style.display='none';
   }
@@ -1012,6 +1094,8 @@ function buildTrends(){
   setTxt('tChipPct',   pctOf(agg.chip6));
   setTxt('tP36Pct',    pctOf(agg.p36));
   setTxt('tLeakChip',  pctOf(agg.chip6));
+  buildHotspots(rs);
+  buildSegments(rs);
   var hl=document.getElementById('historyList');
   if(!hl)return;
   if(!rs.length){hl.innerHTML='<i>No rounds logged yet.</i>'; return;}
@@ -1025,6 +1109,54 @@ function buildTrends(){
       +(r.suspect?' <span title="logged while quick presets fabricated data (v14-v16a)">\u26a0</span>':'')
       +'</div>';
   }).join('');
+}
+
+// v17: hotspots answer "which holes actually cost me strokes" -- the one question that
+// changes pre-round strategy. Holes with n<2 are listed separately rather than ranked,
+// because one bad round would otherwise crown a hole Kenny plays fine.
+function buildHotspots(rounds){
+  var el=document.getElementById('hotspotList'); if(!el)return;
+  var hs=holeStats(rounds).filter(function(o){return o.n>0;});
+  if(!hs.length){el.innerHTML='<i>No hole-level data yet.</i>'; return;}
+  var ranked=hs.filter(function(o){return o.n>=2;}).sort(function(a,b){return b.avgOver-a.avgOver;});
+  var thin=hs.filter(function(o){return o.n<2;});
+  var rows=ranked.slice(0,6).map(function(o){
+    var bits=[];
+    if(o.threePutts)bits.push(o.threePutts+' three-putt'+(o.threePutts>1?'s':''));
+    if(o.pen)bits.push(o.pen+' pen');
+    if(o.gir.d)bits.push('GIR '+o.gir.n+'/'+o.gir.d);
+    if(o.chip6.d)bits.push('CHIP6 '+o.chip6.n+'/'+o.chip6.d);
+    return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
+      +'<b>H'+o.hole+'</b> (par '+o.par+', hcp '+o.hcp+') <b style="color:var(--brass)">+'
+      +o.avgOver.toFixed(2)+'</b>/rd &middot; avg '+o.avg.toFixed(1)+' <span style="color:var(--muted)">(n='+o.n+')</span>'
+      +(bits.length?'<br><span style="color:var(--muted)">'+bits.join(' &middot; ')+'</span>':'')
+      +'</div>';
+  }).join('');
+  if(thin.length)rows+='<div style="color:var(--muted); font-size:11.5px; margin-top:4px;">Too few rounds to rank: '
+    +thin.map(function(o){return 'H'+o.hole;}).join(', ')+'</div>';
+  el.innerHTML=rows;
+}
+
+function buildSegments(rounds){
+  var el=document.getElementById('segmentList'); if(!el)return;
+  var segs=segmentStats(rounds).filter(function(s){return s.n>0;});
+  if(!segs.length){el.innerHTML='<i>No hole-level data yet.</i>'; return;}
+  var rows=segs.map(function(s){
+    var miss=s.firD?('L '+s.l+' / R '+s.r+' / hit '+s.y):'\u2014';
+    return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
+      +'<b>'+s.label+'</b> <b style="color:var(--brass)">+'+s.avgOver.toFixed(2)+'</b>/hole '
+      +'<span style="color:var(--muted)">(n='+s.n+' holes)</span><br>'
+      +'<span style="color:var(--muted)">Tee: '+miss+' &middot; '+s.threePutts+' three-putts &middot; '+s.pen+' pen</span>'
+      +'</div>';
+  }).join('');
+  var nine=nineSplit(rounds);
+  if(nine.front.n&&nine.back.n){
+    var f=nine.front.over/nine.front.n, b=nine.back.over/nine.back.n, d=b-f;
+    rows+='<div style="margin-top:6px; font-size:12px;">Front +'+f.toFixed(2)+'/hole vs back +'+b.toFixed(2)
+      +'/hole \u2014 <b>'+(Math.abs(d)<0.1?'no meaningful split':(d>0?'back nine costs +'+d.toFixed(2)+'/hole':'front nine costs +'+(-d).toFixed(2)+'/hole'))+'</b>'
+      +' <span style="color:var(--muted)">(n='+(nine.front.n+nine.back.n)+' holes)</span></div>';
+  }
+  el.innerHTML=rows;
 }
 
 function showView(viewId){

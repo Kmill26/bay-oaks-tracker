@@ -160,7 +160,14 @@ globalThis.cur = 15; // H16 on back 9
 globalThis.holes[12].fir = 'l'; // H13 pull left
 globalThis.holes[14].fir = 'l'; // H15 pull left
 checkFatigue();
-check('fatigue alert: triggers on 2+ back-9 left pulls', els['fatigueAlert'].style.display==='block' && els['fatigueAlert'].innerHTML.includes('Back-9 Fatigue Alert'), els['fatigueAlert'].innerHTML);
+check('fatigue alert: triggers on 2+ back-9 left pulls', els['fatigueAlert'].style.display==='block' && els['fatigueAlert'].innerHTML.includes('Left-Miss Alert'), els['fatigueAlert'].innerHTML);
+check('fatigue alert: admits when history is too thin to judge (v17)', els['fatigueAlert'].innerHTML.includes('Not enough history'), els['fatigueAlert'].innerHTML);
+// with history loaded it must cite Kenny's own segment baseline rather than a fixed threshold
+globalThis.state.rounds = SEED_ROUNDS.map(seedToRound);
+checkFatigue();
+check('fatigue alert: cites personal segment baseline once history exists', /% left on H13-18 vs \d+% on H1-12/.test(els['fatigueAlert'].innerHTML), els['fatigueAlert'].innerHTML);
+check('fatigue alert: distinguishes real shift from normal dispersion', /late shift is real|matches your normal rate/.test(els['fatigueAlert'].innerHTML), els['fatigueAlert'].innerHTML);
+globalThis.state.rounds = [];
 
 // Case 9 (v13, rewritten v16b): seed data integrity. These once asserted against
 // HISTORICAL_ROUNDS as a live read path; that array is now seed-only, so they assert
@@ -294,6 +301,43 @@ buildTrends();
 check('backfill: aggregate FIR still 53% (30/57, matches vault)', els['tFirPct'].textContent==='53%', els['tFirPct'].textContent);
 check('backfill: aggregate CHIP6 still 18% (7/38, matches vault)', els['tChipPct'].textContent==='18%', els['tChipPct'].textContent);
 check('backfill: aggregate P36 still 90% (66/73, matches vault)', els['tP36Pct'].textContent==='90%', els['tP36Pct'].textContent);
+
+// Case 14: per-hole and segment analytics (v17)
+const allRounds = SEED_ROUNDS.map(seedToRound);
+const hStats = holeStats(allRounds);
+check('holeStats: one entry per hole', hStats.length===18, hStats.length);
+check('holeStats: H1 played in all 5 rounds', hStats[0].n===5, hStats[0].n);
+check('holeStats: back-nine holes reflect the two partial rounds (n=3)', hStats[10].n===3, 'H11 n='+hStats[10].n);
+check('holeStats: averages derived, not stored', Math.abs(hStats[0].avg - hStats[0].strokes/hStats[0].n) < 1e-9, hStats[0].avg);
+// H3 on 08-06 was a 6 on a par 3 with a penalty -- penalty attribution must land on the right hole
+check('holeStats: penalties attributed per hole', hStats[2].pen>=1, 'H3 pen='+hStats[2].pen);
+check('holeStats: three-putts counted from putts>=3', hStats.reduce((a,o)=>a+o.threePutts,0)===17, hStats.reduce((a,o)=>a+o.threePutts,0));
+
+const segs = segmentStats(allRounds);
+check('segmentStats: three segments', segs.length===3 && segs[0].label==='H1-6', segs.map(s=>s.label).join(','));
+check('segmentStats: hole counts sum to total played', segs.reduce((a,s)=>a+s.n,0)===allRounds.reduce((a,r)=>a+roundStats(r).played,0), segs.map(s=>s.n).join('+'));
+check('segmentStats: FIR denominator excludes par 3s', segs.every(s=>s.l+s.r+s.y===s.firD), segs.map(s=>s.l+'+'+s.r+'+'+s.y+' vs '+s.firD).join(' | '));
+
+const ns = nineSplit(allRounds);
+check('nineSplit: front and back both populated', ns.front.n>0 && ns.back.n>0, JSON.stringify(ns));
+check('nineSplit: front holes = 5 rounds x 9 (all rounds reached the turn)', ns.front.n===45, ns.front.n);
+
+// rendering: hotspots must rank by average over par and show n, never rank a single-round hole
+globalThis.state.rounds = allRounds;
+buildTrends();
+check('hotspots: rendered with sample sizes', els['hotspotList'].innerHTML.indexOf('n=')>-1, els['hotspotList'].innerHTML.slice(0,120));
+check('hotspots: worst hole listed first', (function(){
+  const ranked = hStats.filter(o=>o.n>=2).sort((a,b)=>b.avgOver-a.avgOver);
+  return els['hotspotList'].innerHTML.indexOf('H'+ranked[0].hole+'</b>')>-1;
+})(), 'top hole missing');
+check('segments: rendered with per-hole over-par and n', els['segmentList'].innerHTML.indexOf('H1-6')>-1 && els['segmentList'].innerHTML.indexOf('n=')>-1, els['segmentList'].innerHTML.slice(0,120));
+check('segments: front/back comparison rendered', els['segmentList'].innerHTML.indexOf('/hole')>-1, 'missing split line');
+
+// empty store must not fabricate analytics
+globalThis.state.rounds = [];
+buildTrends();
+check('hotspots: empty store says so rather than showing zeros', els['hotspotList'].innerHTML.indexOf('No hole-level data')>-1, els['hotspotList'].innerHTML);
+check('segments: empty store says so rather than showing zeros', els['segmentList'].innerHTML.indexOf('No hole-level data')>-1, els['segmentList'].innerHTML);
 
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
