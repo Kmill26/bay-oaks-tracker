@@ -176,33 +176,30 @@ function applyPreset(type){
   touch(); render();
 }
 
+// v18: reads the bag rather than hardcoding it. Behaviour is unchanged -- the slot ceilings
+// moved into js/player.js verbatim -- but a yardage change is now a one-line data edit and
+// the recommendation text can no longer disagree with the number it was derived from.
 function recommendClub(dist, holeIdx){
   var d=parseInt(dist,10); if(isNaN(d))return null;
   var b=pinBucket(holeIdx);
   var eff=d;
+  // Deep greens shift the effective number: a back pin on a 40-yd green is most of a club.
   if(PV[holeIdx].gd>=34){
     if(b==='B')eff+=7;
     else if(b==='F')eff-=7;
   }
-  if(eff<=80)return {club:'58° Wedge', swing:'Full 75y swing (aim fat side)'};
-  if(eff<=102)return {club:'54° Wedge', swing:'Stock 90-100y pitch (bites quick)'};
-  if(eff<=112)return {club:'Gap Wedge (GW)', swing:'80% smooth swing (95-105y target)'};
-  if(eff<=125)return {club:'Pitching Wedge (PW)', swing:'Smooth PW (117-125y)'};
-  if(eff<=138)return {club:'Pitching Wedge (PW)', swing:'Full stock PW (135y)'};
-  if(eff<=148)return {club:'9-Iron', swing:'Stock 9-iron (145y)'};
-  if(eff<=160)return {club:'8-Iron', swing:'Stock 8-iron (155y, check rough flyer)'};
-  if(eff<=174)return {club:'7-Iron', swing:'Stock 7-iron (170y center green)'};
-  if(eff<=186)return {club:'6-Iron', swing:'Stock 6-iron (180y)'};
-  if(eff<=200)return {club:'5-Iron', swing:'Natural draw 5-iron (195y)'};
-  if(eff<=225)return {club:'4-Hybrid', swing:'Stock 4h (210y) or 8i layup'};
-  return {club:'Driver', swing:'Driver 260 carry / 270 total'};
+  for(var i=0;i<BAG.length;i++){
+    if(eff<=BAG[i].upTo)return {club:BAG[i].club, swing:BAG[i].swing, carry:BAG[i].carry, eff:eff};
+  }
+  var last=BAG[BAG.length-1];
+  return {club:last.club, swing:last.swing, carry:last.carry, eff:eff};
 }
 
 function renderCaddySelector(){
   var box=document.getElementById('caddyChips');
   if(!box)return;
   box.innerHTML='';
-  var distances=[75,95,105,120,135,145,155,170,180,195,210,260];
+  var distances=bagDistances();
   distances.forEach(function(yds){
     var chip=document.createElement('button');
     chip.className='clubChip'+(selectedDist===yds?' active':'');

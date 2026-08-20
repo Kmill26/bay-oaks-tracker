@@ -3,7 +3,7 @@ import {readFileSync} from 'fs';
 // v17.1: the app is split into classic scripts. Concatenate them in load order -- that is
 // exactly what the browser does with four <script src> tags, so the oracle tests the same
 // global scope the app actually runs in.
-const SRC_FILES = ['js/seed.js','js/stats.js','js/course.js','js/app.js'];
+const SRC_FILES = ['js/seed.js','js/stats.js','js/course.js','js/player.js','js/app.js'];
 const html = readFileSync('index.html','utf8');
 const appSrc = SRC_FILES.map(f => readFileSync(f,'utf8')).join('\n');
 const js = appSrc.replace(/load\(\); render\(\);[\s\S]*$/, ''); // skip boot
@@ -402,6 +402,29 @@ globalThis.cur=0; buildSummary();
 check('export: LAG tag emitted when recorded', els['exportText'].textContent.indexOf('LAG:C')>-1, els['exportText'].textContent.split('\n')[1]);
 globalThis.holes[0].lag=null; buildSummary();
 check('export: LAG tag omitted when not recorded', els['exportText'].textContent.indexOf('LAG:')===-1, els['exportText'].textContent.split('\n')[1]);
+
+// Case 17: player model extraction (v18)
+// A refactor's proof is that behaviour didn't change -- the recommender checks above still
+// pass untouched. These add the property the extraction was for: no carry number may live
+// in caddy logic any more, so a yardage edit can never leave the advice text disagreeing.
+const appJs = readFileSync('js/app.js','utf8');
+const recFn = appJs.match(/function recommendClub[\s\S]*?\n}/)[0];
+check('bag: recommendClub contains no hardcoded club names', !/58\u00b0|Pitching Wedge|4-Hybrid|Gap Wedge/.test(recFn), recFn.slice(0,200));
+check('bag: recommendClub contains no hardcoded yardage thresholds', !/eff<=\d+/.test(recFn), recFn.slice(0,200));
+check('bag: every slot has club, carry, upTo and swing', BAG.every(b=>b.club&&b.carry>0&&b.upTo>0&&b.swing), 'incomplete slot');
+check('bag: slots ordered ascending by ceiling', BAG.every((b,i)=>i===0||b.upTo>BAG[i-1].upTo), BAG.map(b=>b.upTo).join(','));
+check('bag: covers any distance (final slot is open-ended)', recommendClub(400,0)!==null && recommendClub(400,0).club==='Driver', JSON.stringify(recommendClub(400,0)));
+check('bag: caddy chips derive from the bag, not a parallel list', bagDistances().every(d=>BAG.some(b=>b.carry===d)), bagDistances().join(','));
+check('bag: recommendation reports the effective distance it used', recommendClub(120,0).eff===120, JSON.stringify(recommendClub(120,0)));
+// pin-depth adjustment must survive the refactor: back pin on a deep green costs a club
+check('bag: back pin on a deep green shifts the recommendation', (function(){
+  globalThis.state.pin='D';                       // H18 pin D = back third, gd 42.7
+  const back=recommendClub(120,17);
+  globalThis.state.pin='C';                       // H18 pin C = front third
+  const front=recommendClub(120,17);
+  globalThis.state.pin='?';
+  return back.eff===127 && front.eff===113;
+})(), 'pin adjustment lost');
 
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
