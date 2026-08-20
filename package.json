@@ -1,0 +1,14 @@
+{
+  "name": "bay-oaks-tracker",
+  "version": "16.1.0",
+  "private": true,
+  "description": "Personal round tracker and caddy for Bay Oaks CC. Vanilla single-file PWA, oracle-gated.",
+  "type": "module",
+  "scripts": {
+    "test": "node verify.mjs",
+    "verify": "node verify.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

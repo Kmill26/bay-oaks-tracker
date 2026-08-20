@@ -1,0 +1,37 @@
+name: verify
+
+# The oracle is the ship gate. Locally it runs because Kenny remembers;
+# here it runs because the repo insists. Any push or PR that breaks a
+# check fails visibly instead of reaching the course.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  oracle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run oracle (verify.mjs)
+        run: npm test
+
+      - name: Guard - sw cache version must bump when app code changes
+        run: |
+          if ! git diff --quiet HEAD~1 HEAD -- index.html; then
+            if git diff --quiet HEAD~1 HEAD -- sw.js; then
+              echo "::error::index.html changed but sw.js cache version did not — phones would serve stale code."
+              exit 1
+            fi
+          fi
+          echo "sw cache: $(grep -o 'bayoaks-v[0-9]*' sw.js | head -1)"
