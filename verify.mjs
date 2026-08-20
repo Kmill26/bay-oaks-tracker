@@ -1,8 +1,12 @@
 import {readFileSync} from 'fs';
 
+// v17.1: the app is split into classic scripts. Concatenate them in load order -- that is
+// exactly what the browser does with four <script src> tags, so the oracle tests the same
+// global scope the app actually runs in.
+const SRC_FILES = ['js/seed.js','js/stats.js','js/course.js','js/app.js'];
 const html = readFileSync('index.html','utf8');
-const js = html.match(/<script>([\s\S]*?)<\/script>/)[1]
-  .replace(/load\(\); render\(\);[\s\S]*$/, ''); // skip boot
+const appSrc = SRC_FILES.map(f => readFileSync(f,'utf8')).join('\n');
+const js = appSrc.replace(/load\(\); render\(\);[\s\S]*$/, ''); // skip boot
 
 // Minimal DOM/browser stubs
 const els = {};
@@ -265,7 +269,6 @@ check('trends: empty store renders em-dash, not a stale figure', els['tFirPct'].
 check('trends: empty store says so in the history list', els['historyList'].innerHTML.indexOf('No rounds logged yet')>-1, els['historyList'].innerHTML);
 
 // no read path to SEED_ROUNDS outside migrateState
-const appSrc = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 check('SEED_ROUNDS is referenced only by its declaration and migrateState', (appSrc.match(/SEED_ROUNDS/g)||[]).length===3, (appSrc.match(/SEED_ROUNDS/g)||[]).length+' references');
 check('HISTORICAL_ROUNDS is gone', appSrc.indexOf('HISTORICAL_ROUNDS')===-1, 'still present');
 
@@ -338,6 +341,33 @@ globalThis.state.rounds = [];
 buildTrends();
 check('hotspots: empty store says so rather than showing zeros', els['hotspotList'].innerHTML.indexOf('No hole-level data')>-1, els['hotspotList'].innerHTML);
 check('segments: empty store says so rather than showing zeros', els['segmentList'].innerHTML.indexOf('No hole-level data')>-1, els['segmentList'].innerHTML);
+
+// Case 15: file split integrity (v17.1)
+// These guard the failure modes behavioural tests can't see: a script that never loads,
+// or an asset the service worker forgets to precache (which only surfaces offline, on the
+// course, with no signal).
+import {existsSync} from 'fs';
+const swSrc = readFileSync('sw.js','utf8');
+
+SRC_FILES.concat(['styles.css']).forEach(f=>{
+  check('split: '+f+' exists on disk', existsSync(f), 'missing');
+  check('split: index.html references '+f, html.indexOf(f)>-1, 'not referenced');
+  check('split: sw precaches '+f, swSrc.indexOf(f)>-1, 'not precached');
+});
+
+check('split: scripts load in dependency order (seed -> stats -> course -> app)', (function(){
+  const pos = SRC_FILES.map(f=>html.indexOf(f));
+  return pos.every((p,i)=>p>-1 && (i===0 || p>pos[i-1]));
+})(), SRC_FILES.map(f=>html.indexOf(f)).join(','));
+check('split: classic scripts, not modules (29 inline onclick handlers need globals)', html.indexOf('type="module"')===-1, 'module script found');
+check('split: no inline <script> block left behind', !/<script>[\s\S]*?var /.test(html), 'inline code remains');
+check('split: no inline <style> block left behind', html.indexOf('<style>')===-1, 'inline styles remain');
+check('split: boot call survives in app.js', /load\(\);\s*render\(\);/.test(readFileSync('js/app.js','utf8')), 'boot missing');
+check('split: every icon in the manifest is precached', (function(){
+  const man = JSON.parse(readFileSync('manifest.json','utf8'));
+  return (man.icons||[]).every(i=>swSrc.indexOf(i.src.replace(/^\.?\//,''))>-1);
+})(), 'a manifest icon is not precached');
+check('split: sw caches only GET requests', swSrc.indexOf("method!=='GET'")>-1, 'GET guard missing');
 
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
