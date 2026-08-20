@@ -57,6 +57,30 @@ function nineSplit(rounds){
   return out;
 }
 
+// v19: first-putt distance buckets. Standing prescription #2 says the 3-putts come from
+// 40-60 ft first putts on 27-43 yd greens, not from the stroke -- but until now that was an
+// inference from round-level data. This makes it directly measurable: 3-putt rate BY first-
+// putt distance separates "bad approach/chip" from "bad lag" for the first time.
+var LAGLABEL={a:'0-6 ft',b:'7-15 ft',c:'16-30 ft',d:'30+ ft'};
+var LAGORDER=['a','b','c','d'];
+
+function lagStats(rounds){
+  var out={}; LAGORDER.forEach(function(k){out[k]={label:LAGLABEL[k],n:0,threePutts:0,putts:0};});
+  var missing=0, withPutts=0;
+  (rounds||[]).forEach(function(r){
+    var hs=r.holes; if(!hs)return;
+    hs.forEach(function(h){
+      if(!h||h.score==null||!h.putts)return;
+      withPutts++;
+      if(!h.lag||!out[h.lag]){missing++; return;}
+      var b=out[h.lag];
+      b.n++; b.putts+=h.putts; if(h.putts>=3)b.threePutts++;
+    });
+  });
+  return {buckets:out, missing:missing, withPutts:withPutts,
+    coverage:withPutts?(withPutts-missing)/withPutts:0};
+}
+
 // ---- v16b: canonical round store ------------------------------------------------
 // Every trend, metric and history line reads state.rounds. A round either carries a full
 // holes[] (logged in-app) or a summary (seeded/hand-transcribed). roundStats() normalises

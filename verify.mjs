@@ -369,6 +369,40 @@ check('split: every icon in the manifest is precached', (function(){
 })(), 'a manifest icon is not precached');
 check('split: sw caches only GET requests', swSrc.indexOf("method!=='GET'")>-1, 'GET guard missing');
 
+// Case 16: first-putt distance bucket (v19)
+check('lag: new holes carry a lag field', blank().lag===null, JSON.stringify(blank()));
+check('lag: legacy holes without lag are safe', lagStats([{holes:[{score:4,putts:2}]}]).withPutts===1, 'crashed or miscounted');
+
+// the five backfilled rounds have no lag data -- the card must say so, not render empty buckets
+const lagSeed = lagStats(SEED_ROUNDS.map(seedToRound));
+check('lag: seed rounds have putting data but no lag coverage', lagSeed.withPutts>0 && lagSeed.coverage===0, 'withPutts='+lagSeed.withPutts+' coverage='+lagSeed.coverage);
+globalThis.state.rounds = SEED_ROUNDS.map(seedToRound);
+buildTrends();
+check('lag card: states that distance is unrecorded rather than showing zeros', els['lagList'].innerHTML.indexOf('not recorded on any hole')>-1, els['lagList'].innerHTML.slice(0,120));
+
+// with real lag data it must separate long-putt from short-putt three-putts
+const lagRound = {date:'2026-08-21', source:'logged', summary:null, holes:COURSE.map((c,i)=>({
+  score:c.par, fir:null, gir:true, ss:null, chip:null,
+  putts:(i<6?3:2), lag:(i<6?'d':'a'), sixAtt:1, sixMade:1, pen:0, notes:''
+}))};
+const L2 = lagStats([lagRound]);
+check('lag: 30+ ft bucket captures the three-putts', L2.buckets.d.n===6 && L2.buckets.d.threePutts===6, JSON.stringify(L2.buckets.d));
+check('lag: 0-6 ft bucket shows none', L2.buckets.a.n===12 && L2.buckets.a.threePutts===0, JSON.stringify(L2.buckets.a));
+check('lag: full coverage reported when every hole is tagged', L2.coverage===1, L2.coverage);
+globalThis.state.rounds = [lagRound];
+buildTrends();
+check('lag card: renders a three-putt rate per bucket', /100%<\/b> three-putt/.test(els['lagList'].innerHTML), els['lagList'].innerHTML.slice(0,160));
+
+// export must carry the new field, and omit it cleanly when absent
+globalThis.state.rounds = [];
+globalThis.holes = mk();
+globalThis.state.holes = globalThis.holes;
+globalThis.holes[0].score=4; globalThis.holes[0].putts=2; globalThis.holes[0].lag='c';
+globalThis.cur=0; buildSummary();
+check('export: LAG tag emitted when recorded', els['exportText'].textContent.indexOf('LAG:C')>-1, els['exportText'].textContent.split('\n')[1]);
+globalThis.holes[0].lag=null; buildSummary();
+check('export: LAG tag omitted when not recorded', els['exportText'].textContent.indexOf('LAG:')===-1, els['exportText'].textContent.split('\n')[1]);
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
 

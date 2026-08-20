@@ -97,7 +97,7 @@ function setGlobalTee(t){
   render();
 }
 
-function blank(){return {fir:null,score:null,gir:null,ss:null,chip:null,putts:null,sixAtt:0,sixMade:0,pen:0,notes:'',tee:null};}
+function blank(){return {fir:null,score:null,gir:null,ss:null,chip:null,putts:null,lag:null,sixAtt:0,sixMade:0,pen:0,notes:'',tee:null};}
 function mk(){var a=[]; for(var i=0;i<18;i++)a.push(blank()); return a;}
 function today(){var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function load(){
@@ -389,6 +389,12 @@ function render(){
   seg('scoreBtns',[{label:'-1',val:c.par-1},{label:'E',val:c.par},{label:'+1',val:c.par+1},{label:'+2',val:c.par+2}],'score');
   seg('penBtns',[{label:'0',val:0},{label:'1',val:1},{label:'2',val:2},{label:'3',val:3}],'pen');
   seg('puttBtns',[{label:'0',val:0},{label:'1',val:1},{label:'2',val:2},{label:'3',val:3},{label:'4',val:4},{label:'5',val:5}],'putts');
+  // v19: first-putt distance bucket. The single datum that separates "bad approach left a
+  // 50-footer" from "bad lag putting" -- without it a 3-putt is undiagnosable, and lag
+  // putting is standing prescription #2. One tap, only shown when a putt was actually hit.
+  seg('lagBtns',[{label:'0-6ft',val:'a'},{label:'7-15',val:'b'},{label:'16-30',val:'c'},{label:'30+',val:'d'}],'lag');
+  var lr=document.getElementById('lagRow'); if(lr)lr.className='row'+((h.putts===null||h.putts>0)?'':' disabled');
+  var lv=document.getElementById('lagVal'); if(lv)lv.textContent=h.lag?LAGLABEL[h.lag]:'\u2013';
   seg('firBtns',[{label:'Hit',val:'y'},{label:'Miss L',val:'l'},{label:'Miss R',val:'r'}],'fir');
   var fr=document.getElementById('firRow'); if(fr)fr.className='row'+(c.par>3?'':' disabled');
   seg('girBtns',[{label:'Yes',val:true},{label:'No',val:false}],'gir');
@@ -459,6 +465,7 @@ function buildSummary(){
       +' SS:'+(h.gir===false?fmt(h.ss,'Y','N'):'-')
       +' CHIP6:'+(h.gir===false?(h.chip==='in'?'Y':h.chip==='out'?'N':h.chip==='na'?'NA':'?'):'-')
       +' PUTTS:'+(h.putts===null?'?':h.putts)
+      +(h.lag?' LAG:'+h.lag.toUpperCase():'')
       +' P36:'+h.sixMade+'/'+h.sixAtt
       +' PEN:'+pn);
     if(h.notes&&h.notes.trim())lines.push('H'+n+' NOTE: '+h.notes.trim().replace(/\s*\n+\s*/g,' / '));
@@ -541,6 +548,7 @@ function buildTrends(){
   setTxt('tLeakChip',  pctOf(agg.chip6));
   buildHotspots(rs);
   buildSegments(rs);
+  buildLag(rs);
   var hl=document.getElementById('historyList');
   if(!hl)return;
   if(!rs.length){hl.innerHTML='<i>No rounds logged yet.</i>'; return;}
@@ -601,6 +609,34 @@ function buildSegments(rounds){
       +'/hole \u2014 <b>'+(Math.abs(d)<0.1?'no meaningful split':(d>0?'back nine costs +'+d.toFixed(2)+'/hole':'front nine costs +'+(-d).toFixed(2)+'/hole'))+'</b>'
       +' <span style="color:var(--muted)">(n='+(nine.front.n+nine.back.n)+' holes)</span></div>';
   }
+  el.innerHTML=rows;
+}
+
+// v19: this card is deliberately blunt about coverage. The five backfilled rounds have no
+// lag data at all, so it opens by saying so rather than rendering four empty buckets that
+// look like a finding. It becomes useful after a few logged rounds -- and then it either
+// confirms prescription #2 or falsifies it, which is the point.
+function buildLag(rounds){
+  var el=document.getElementById('lagList'); if(!el)return;
+  var L=lagStats(rounds);
+  if(!L.withPutts){el.innerHTML='<i>No putting data yet.</i>'; return;}
+  var recorded=L.withPutts-L.missing;
+  if(!recorded){
+    el.innerHTML='<i>First-putt distance not recorded on any hole yet.</i>'
+      +'<div style="color:var(--muted); font-size:11.5px; margin-top:4px;">Tap it on each green and this will show whether 3-putts come from long first putts (approach problem) or short ones (stroke problem). '
+      +L.withPutts+' holes with putts are waiting on it.</div>';
+    return;
+  }
+  var rows=LAGORDER.map(function(k){
+    var b=L.buckets[k];
+    if(!b.n)return '<div style="color:var(--muted); margin-bottom:4px;">'+b.label+' &mdash; no data</div>';
+    var rate=Math.round(b.threePutts/b.n*100);
+    return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
+      +'<b>'+b.label+'</b> &middot; <b style="color:var(--brass)">'+rate+'%</b> three-putt '
+      +'<span style="color:var(--muted)">('+b.threePutts+'/'+b.n+' holes &middot; '+(b.putts/b.n).toFixed(2)+' putts avg)</span></div>';
+  }).join('');
+  if(L.missing)rows+='<div style="color:var(--muted); font-size:11.5px; margin-top:4px;">'
+    +L.missing+' of '+L.withPutts+' holes missing a first-putt distance ('+Math.round(L.coverage*100)+'% coverage).</div>';
   el.innerHTML=rows;
 }
 
