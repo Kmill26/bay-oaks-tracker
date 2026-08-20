@@ -262,6 +262,39 @@ const appSrc = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 check('SEED_ROUNDS is referenced only by its declaration and migrateState', (appSrc.match(/SEED_ROUNDS/g)||[]).length===3, (appSrc.match(/SEED_ROUNDS/g)||[]).length+' references');
 check('HISTORICAL_ROUNDS is gone', appSrc.indexOf('HISTORICAL_ROUNDS')===-1, 'still present');
 
+// Case 13: hole-level backfill (v16c)
+// The seed rounds now carry real holes[] parsed from the Drive exports. The load-bearing
+// invariant: stats derived from those holes must reproduce the hand-transcribed summary
+// in SEED_ROUNDS. If an encode/decode bug crept in, these fail loudly rather than quietly
+// shifting Kenny's baseline.
+check('backfill: all 5 seed rounds carry hole data', SEED_ROUNDS.every(r=>SEED_HOLES[r.date]), SEED_ROUNDS.filter(r=>!SEED_HOLES[r.date]).map(r=>r.date).join(','));
+check('backfill: decode yields 18 slots per round', SEED_ROUNDS.every(r=>decodeSeedHoles(SEED_HOLES[r.date]).length===18), 'wrong length');
+
+SEED_ROUNDS.forEach(r=>{
+  const st = roundStats(seedToRound(r));
+  const f = s => {const p=String(s).split('/'); return p[0]+'/'+p[1];};
+  const got = [st.score, st.fir.n+'/'+st.fir.d, st.gir.n+'/'+st.gir.d, st.putts,
+               st.chip6.n+'/'+st.chip6.d, st.ss.n+'/'+st.ss.d, st.p36.n+'/'+st.p36.d, st.pen].join(' ');
+  const exp = [r.score, f(r.fir), f(r.gir), r.putts, f(r.chip6), f(r.ss), f(r.p36), r.pen].join(' ');
+  check('backfill '+r.date+': derived stats reproduce the transcribed summary', got===exp, got+'  vs  '+exp);
+  check('backfill '+r.date+': holes played matches', st.played===r.holes, st.played+' vs '+r.holes);
+});
+
+check('backfill: summary dropped once holes exist (single computation path)', seedToRound(SEED_ROUNDS[0]).summary===null && seedToRound(SEED_ROUNDS[0]).holes!==null, 'summary retained alongside holes');
+check('backfill: 08-19 carries its pin letter (D)', seedToRound(SEED_ROUNDS[4]).pin==='D', seedToRound(SEED_ROUNDS[4]).pin);
+check('backfill: unplayed holes decode as empty, not zero', decodeSeedHoles(SEED_HOLES['2026-08-19'])[9].score===null, JSON.stringify(decodeSeedHoles(SEED_HOLES['2026-08-19'])[9]));
+
+// scrambling semantics: saves / greens MISSED (matches buildSummary and every historical export)
+const ssFix = roundStats(seedToRound(SEED_ROUNDS[3]));
+check('scramble: denominator is greens missed, not holes where ss was recorded', ssFix.ss.d===12 && ssFix.ss.n===3, ssFix.ss.n+'/'+ssFix.ss.d);
+
+// aggregate must still match the independently-maintained vault trends table
+globalThis.state.rounds = SEED_ROUNDS.map(seedToRound);
+buildTrends();
+check('backfill: aggregate FIR still 53% (30/57, matches vault)', els['tFirPct'].textContent==='53%', els['tFirPct'].textContent);
+check('backfill: aggregate CHIP6 still 18% (7/38, matches vault)', els['tChipPct'].textContent==='18%', els['tChipPct'].textContent);
+check('backfill: aggregate P36 still 90% (66/73, matches vault)', els['tP36Pct'].textContent==='90%', els['tP36Pct'].textContent);
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
 
