@@ -150,32 +150,6 @@ function newRound(){
   showView('holeView');
 }
 
-// v16a: presets assert ONLY what their label claims. They never auto-fill FIR (except the
-// explicitly-named miss direction), never fabricate P36 attempts, and never guess CHIP6 --
-// those three are the diagnostic stats the whole coaching layer rests on. Unknowns stay null
-// so they read as missing, not as data. Values that are entailed by the score arithmetic
-// (e.g. missed green + 2 putts + bogey => no up-and-down) are safe to set.
-function applyPreset(type){
-  ensureDate();
-  vibe(20);
-  var h=holes[cur], c=COURSE[cur];
-  h.sixAtt=0; h.sixMade=0; h.pen=0;
-  if(type==='gir_par'){
-    h.score=c.par; h.gir=true; h.putts=2; h.ss=null; h.chip=null;
-  } else if(type==='gir_birdie'){
-    h.score=c.par-1; h.gir=true; h.putts=1; h.ss=null; h.chip=null;
-  } else if(type==='updown_par'){
-    h.score=c.par; h.gir=false; h.ss=true; h.chip='in'; h.putts=1;
-  } else if(type==='threeputt_bogey'){
-    h.score=c.par+1; h.gir=true; h.putts=3; h.ss=null; h.chip=null;
-  } else if(type==='miss_bogey_l'){
-    h.score=c.par+1; h.gir=false; if(c.par>3)h.fir='l'; h.ss=false; h.chip=null; h.putts=2;
-  } else if(type==='miss_bogey_r'){
-    h.score=c.par+1; h.gir=false; if(c.par>3)h.fir='r'; h.ss=false; h.chip=null; h.putts=2;
-  }
-  touch(); render();
-}
-
 // v18: reads the bag rather than hardcoding it. Behaviour is unchanged -- the slot ceilings
 // moved into js/player.js verbatim -- but a yardage change is now a one-line data edit and
 // the recommendation text can no longer disagree with the number it was derived from.

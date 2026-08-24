@@ -58,10 +58,6 @@
   .inlineWrap .stepper button{width:42px; height:44px; font-size:20px;}
   .inlineWrap .stepper .val{font-size:22px; min-width:26px;}
   .inlineWrap .lbl{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .presetWrap{display:grid; grid-template-columns:repeat(2,1fr); gap:6px;}
-  .presetBtn{padding:10px 6px; font-size:13.5px; font-weight:600; border-radius:8px;
-    border:1px solid #3d4f73; background:var(--panel2); color:var(--cream); cursor:pointer; text-align:center;}
-  .presetBtn:active{background:var(--brass); color:#1a1408;}
   .caddyBox{background:var(--panel2); border:1px solid #334466; border-radius:9px; padding:8px 10px; margin-top:6px;}
   .caddyClubs{display:flex; gap:5px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch;}
   .clubChip{flex:0 0 auto; padding:6px 9px; font-size:12px; border-radius:6px; background:var(--chip-bg);

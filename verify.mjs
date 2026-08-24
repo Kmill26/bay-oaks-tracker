@@ -5,6 +5,7 @@ import {readFileSync} from 'fs';
 // global scope the app actually runs in.
 const SRC_FILES = ['js/seed.js','js/stats.js','js/course.js','js/player.js','js/app.js'];
 const html = readFileSync('index.html','utf8');
+const css  = readFileSync('styles.css','utf8');
 const appSrc = SRC_FILES.map(f => readFileSync(f,'utf8')).join('\n');
 const js = appSrc.replace(/load\(\); render\(\);[\s\S]*$/, ''); // skip boot
 
@@ -112,43 +113,24 @@ globalThis.state.pin='?';
 buildSummary();
 check('export: pin ? omits PIN tag', !els['exportText'].textContent.split('\n')[0].includes('PIN'), els['exportText'].textContent.split('\n')[0]);
 
-// Case 6: Quick Presets (rewritten v16a -- the v13/v14 presets fabricated FIR, CHIP6 and P36,
-// and the old oracle asserted that fabrication as correct. These checks now assert the opposite:
-// a preset may only set what its label claims. Diagnostic stats stay null unless observed.
+// Case 6 (v20): Quick Presets removed 2026-08-24 on Kenny's call -- six buttons that still
+// needed score, putts and CHIP6 corrected by hand afterward, so they cost a tap and saved
+// none. The deleted assertions are replaced by an absence invariant rather than dropped:
+// the fabrication vector that made the v14-v16a rounds suspect must not return quietly.
 globalThis.cur = 0; // H1 Par 4
 const freshH1 = () => { globalThis.holes[0] = {score:null,fir:null,gir:null,ss:null,chip:null,putts:null,sixAtt:0,sixMade:0,pen:0,notes:''}; };
 
-freshH1(); applyPreset('gir_par');
-check('preset gir_par: score=4, gir=true, putts=2', globalThis.holes[0].score===4 && globalThis.holes[0].gir===true && globalThis.holes[0].putts===2, JSON.stringify(globalThis.holes[0]));
-check('preset gir_par: does NOT fabricate FIR', globalThis.holes[0].fir===null, 'fir='+globalThis.holes[0].fir);
-check('preset gir_par: does NOT fabricate CHIP6', globalThis.holes[0].chip===null, 'chip='+globalThis.holes[0].chip);
+check('presets: applyPreset no longer exists', typeof globalThis.applyPreset==='undefined', 'typeof applyPreset='+typeof globalThis.applyPreset);
+check('presets: no applyPreset call sites in markup', !html.includes('applyPreset'), 'index.html still calls applyPreset');
+check('presets: no preset buttons in markup', !html.includes('presetBtn') && !html.includes('presetWrap'), 'index.html still has preset markup');
+check('presets: no preset styles left behind', !css.includes('preset'), 'styles.css still carries preset rules');
 
-freshH1(); applyPreset('gir_birdie');
-check('preset gir_birdie: score=3, putts=1, gir=true, no FIR', globalThis.holes[0].score===3 && globalThis.holes[0].putts===1 && globalThis.holes[0].gir===true && globalThis.holes[0].fir===null, JSON.stringify(globalThis.holes[0]));
-
-freshH1(); applyPreset('updown_par');
-check('preset updown_par: missed GIR, chip in (label-asserted), 1 putt, ss', globalThis.holes[0].score===4 && globalThis.holes[0].gir===false && globalThis.holes[0].chip==='in' && globalThis.holes[0].putts===1 && globalThis.holes[0].ss===true, JSON.stringify(globalThis.holes[0]));
-check('preset updown_par: does NOT fabricate FIR', globalThis.holes[0].fir===null, 'fir='+globalThis.holes[0].fir);
-
-freshH1(); applyPreset('threeputt_bogey');
-check('preset threeputt_bogey: GIR + 3 putts = bogey', globalThis.holes[0].score===5 && globalThis.holes[0].gir===true && globalThis.holes[0].putts===3, JSON.stringify(globalThis.holes[0]));
-
-freshH1(); applyPreset('miss_bogey_l');
-check('preset miss_bogey_l: score=5, fir=l (label-asserted), gir=false, ss=false', globalThis.holes[0].score===5 && globalThis.holes[0].fir==='l' && globalThis.holes[0].gir===false && globalThis.holes[0].ss===false, JSON.stringify(globalThis.holes[0]));
-check('preset miss_bogey_l: does NOT guess CHIP6', globalThis.holes[0].chip===null, 'chip='+globalThis.holes[0].chip);
-
-freshH1(); applyPreset('miss_bogey_r');
-check('preset miss_bogey_r: fir=r, no CHIP6 guess', globalThis.holes[0].fir==='r' && globalThis.holes[0].chip===null, JSON.stringify(globalThis.holes[0]));
-
-// The load-bearing invariant: NO preset may ever contribute a P36 attempt.
-// P36 is Kenny's strongest stat and the sole basis for "don't prescribe putting drills" --
-// a fabricated make would corrupt that conclusion invisibly.
-check('presets: none fabricate P36 attempts', ['gir_par','gir_birdie','updown_par','threeputt_bogey','miss_bogey_l','miss_bogey_r'].every(p=>{freshH1(); applyPreset(p); return globalThis.holes[0].sixAtt===0 && globalThis.holes[0].sixMade===0;}), 'a preset set sixAtt/sixMade');
-
-// Case 6b: dirty vs exported semantics (v16a) -- copying is not saving.
+// Case 6b: dirty vs exported semantics (v16a) -- copying is not saving. The fixture moved
+// off applyPreset onto the stepper, which is now the only way a hole gets filled.
 globalThis.state.exported=true; globalThis.state.dirty=false;
-globalThis.cur=0; freshH1(); applyPreset('gir_par');
+globalThis.cur=0; freshH1(); bump('score',1);
 check('export state: editing a hole clears exported', globalThis.state.exported===false && globalThis.state.dirty===true, 'exported='+globalThis.state.exported+' dirty='+globalThis.state.dirty);
+check('manual entry: stepper seeds an unscored hole at par', globalThis.holes[0].score===4, 'score='+globalThis.holes[0].score);
 
 // Case 7: Club Recommender (v13)
 globalThis.state.pin = 'B';
