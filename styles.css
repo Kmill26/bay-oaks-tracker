@@ -52,6 +52,13 @@
   /* Figures embedded in prose (+1.67, n=3, GIR 5/9) align down the column while
      the surrounding text stays proportional. */
   .trendCard, .holeLbl .meta{font-variant-numeric:tabular-nums;}
+  /* Annotation labels. One rule, so oxblood never has to mean "heading". */
+  .lbl, .metricBox .mLbl, .tip b, .trendCard .lbl{
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    font-weight:700;
+    color:var(--muted);}
   .headerWrap{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
   h1{font-size:15px; letter-spacing:.12em; text-transform:uppercase;
     color:var(--oxblood); text-align:left; margin:0; font-weight:700;}
@@ -74,13 +81,12 @@
   .tip{background:var(--panel); border:1px solid var(--line-strong);
     border-radius:12px; padding:10px 12px; margin-bottom:10px; font-size:13.5px;
     line-height:1.45; color:var(--ink);}
-  .tip b{color:var(--oxblood); font-size:11px; letter-spacing:.08em; text-transform:uppercase; display:block; margin-bottom:3px;}
+  .tip b{display:block; margin-bottom:3px;}
   #tipText{white-space:pre-line;}
   .row{background:var(--panel); border:1px solid var(--line); border-radius:10px;
     padding:10px 12px; margin-bottom:10px;}
   .row.disabled{opacity:.35; pointer-events:none;}
-  .lbl{font-size:11px; letter-spacing:.08em; text-transform:uppercase;
-    color:var(--muted); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;}
+  .lbl{margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;}
   .btns{display:flex; gap:8px;}
   .btns button{flex:1; padding:12px 0; font-size:16px; border-radius:8px;
     border:1px solid var(--line-strong); background:var(--panel2); color:var(--ink); cursor:pointer;}
@@ -126,7 +132,7 @@
   .scoreWrap .btns{flex:1;}
   .mini{width:44px; height:46px; font-size:20px; border-radius:8px;
     border:1px solid var(--line-strong); background:var(--panel2); color:var(--ink); cursor:pointer;}
-  .scoreNow{color:var(--oxblood); font-weight:700; text-transform:none; font-size:14px;}
+  .scoreNow{color:var(--oxblood); font-weight:700; text-transform:none; font-size:14px; letter-spacing:normal;}
   .noteBox{width:100%; background:var(--panel2); border:1px solid var(--line-strong); border-radius:8px;
     color:var(--ink); font-family:inherit; font-size:16px; line-height:1.4; padding:10px;
     resize:vertical; min-height:52px;}
@@ -136,6 +142,5 @@
   .trendGrid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:8px;}
   .metricBox{background:var(--panel2); border:1px solid var(--line-strong); border-radius:8px; padding:8px 10px; text-align:center;}
   .metricBox .mVal{font-size:20px; font-weight:700; color:var(--oxblood); margin-top:2px;}
-  .metricBox .mLbl{font-size:11px; text-transform:uppercase; color:var(--muted); letter-spacing:.06em;}
   .leakRank{font-size:13px; line-height:1.5; color:var(--ink);}
   .leakRank li{margin-bottom:4px;}
