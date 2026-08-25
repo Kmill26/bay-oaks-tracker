@@ -76,17 +76,17 @@
     line-height:1.45; color:var(--ink);}
   .tip b{color:var(--oxblood); font-size:11px; letter-spacing:.08em; text-transform:uppercase; display:block; margin-bottom:3px;}
   #tipText{white-space:pre-line;}
-  .row{background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  .row{background:var(--panel); border:1px solid var(--line); border-radius:10px;
     padding:10px 12px; margin-bottom:10px;}
   .row.disabled{opacity:.35; pointer-events:none;}
   .lbl{font-size:11px; letter-spacing:.08em; text-transform:uppercase;
     color:var(--muted); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;}
   .btns{display:flex; gap:8px;}
-  .btns button{flex:1; padding:12px 0; font-size:16px; border-radius:9px;
+  .btns button{flex:1; padding:12px 0; font-size:16px; border-radius:8px;
     border:1px solid var(--line-strong); background:var(--panel2); color:var(--ink); cursor:pointer;}
   .btns button.on{background:var(--oxblood); border-color:var(--oxblood); color:var(--on-oxblood); font-weight:700;}
   .stepper{display:flex; align-items:center; gap:14px; justify-content:center;}
-  .stepper button{width:60px; height:48px; font-size:24px; border-radius:9px;
+  .stepper button{width:60px; height:48px; font-size:24px; border-radius:8px;
     border:1px solid var(--line-strong); background:var(--panel2); color:var(--ink); cursor:pointer;}
   .stepper .val{font-size:28px; font-weight:700; min-width:44px; text-align:center;}
   .inlineWrap{display:flex; gap:10px; margin-bottom:10px;}
@@ -95,9 +95,9 @@
   .inlineWrap .stepper button{width:42px; height:44px; font-size:20px;}
   .inlineWrap .stepper .val{font-size:22px; min-width:26px;}
   .inlineWrap .lbl{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .caddyBox{background:var(--panel2); border:1px solid var(--line-strong); border-radius:9px; padding:8px 10px; margin-top:6px;}
+  .caddyBox{background:var(--panel2); border:1px solid var(--line-strong); border-radius:8px; padding:8px 10px; margin-top:6px;}
   .caddyClubs{display:flex; gap:5px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch;}
-  .clubChip{flex:0 0 auto; padding:6px 9px; font-size:12px; border-radius:6px; background:var(--panel2);
+  .clubChip{flex:0 0 auto; padding:6px 9px; font-size:12px; border-radius:8px; background:var(--panel2);
     border:1px solid var(--line-strong); color:var(--ink); cursor:pointer;}
   .clubChip.active{background:var(--oxblood); color:var(--on-oxblood); font-weight:700; border-color:var(--oxblood);}
   .caddyRec{font-size:12.5px; color:var(--oxblood); margin-top:5px; line-height:1.35;}
@@ -112,26 +112,27 @@
     border:1px solid var(--line-strong); background:var(--panel2); color:var(--oxblood); font-weight:600; cursor:pointer;}
   .footer button.activeTab{background:var(--oxblood); color:var(--on-oxblood); font-weight:700;}
   #summaryView, #trendsView{display:none;}
-  pre{background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  pre{background:var(--panel); border:1px solid var(--line); border-radius:10px;
     padding:12px; font-size:11.5px; line-height:1.5; white-space:pre-wrap;
     word-break:break-all; color:var(--ink);}
-  .stat{display:flex; justify-content:space-between; padding:9px 12px;
-    background:var(--panel); border:1px solid var(--line); border-radius:10px; margin-bottom:8px; font-size:14px;}
+  .stat{display:flex; justify-content:space-between; padding:10px 2px;
+    border-bottom:1px solid var(--line-soft); font-size:14px;}
+  .stat:last-child{border-bottom:0;}
   .stat b{color:var(--oxblood);}
   .copied{color:var(--green); text-align:center; font-size:13px; height:18px; margin-top:6px;}
   .newRoundBtn{width:100%; margin-top:8px; padding:13px 0; font-size:15px; border-radius:10px;
     border:1px solid var(--line-strong); background:var(--panel2); color:var(--oxblood); font-weight:600; cursor:pointer;}
   .scoreWrap{display:flex; gap:6px;}
   .scoreWrap .btns{flex:1;}
-  .mini{width:44px; height:46px; font-size:20px; border-radius:9px;
+  .mini{width:44px; height:46px; font-size:20px; border-radius:8px;
     border:1px solid var(--line-strong); background:var(--panel2); color:var(--ink); cursor:pointer;}
   .scoreNow{color:var(--oxblood); font-weight:700; text-transform:none; font-size:14px;}
-  .noteBox{width:100%; background:var(--panel2); border:1px solid var(--line-strong); border-radius:9px;
+  .noteBox{width:100%; background:var(--panel2); border:1px solid var(--line-strong); border-radius:8px;
     color:var(--ink); font-family:inherit; font-size:16px; line-height:1.4; padding:10px;
     resize:vertical; min-height:52px;}
   .noteBox::placeholder{color:var(--muted); opacity:.8;}
   .warn{color:var(--warn); font-weight:700;}
-  .trendCard{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px;}
+  .trendCard{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px;}
   .trendGrid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:8px;}
   .metricBox{background:var(--panel2); border:1px solid var(--line-strong); border-radius:8px; padding:8px 10px; text-align:center;}
   .metricBox .mVal{font-size:20px; font-weight:700; color:var(--oxblood); margin-top:2px;}
