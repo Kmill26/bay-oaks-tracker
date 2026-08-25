@@ -533,7 +533,7 @@ function buildTrends(){
   hl.innerHTML=rs.map(function(r){
     var s=roundStats(r), diff=s.score-s.par;
     function frac(o){return o&&o.d?o.n+'/'+o.d:'\u2014';}
-    return '<div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
+    return '<div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid var(--line-soft);">'
       +'<b>'+r.date+'</b> ('+(r.label||s.type)+' &middot; '+(r.tee||'blue')+(r.pin?' &middot; Pin '+r.pin:'')+'): '
       +'<b>'+s.score+'</b> ('+(diff>=0?'+':'')+diff+') &middot; '
       +'FIR '+frac(s.fir)+' &middot; GIR '+frac(s.gir)+' &middot; Putts '+s.putts+' &middot; P36 '+frac(s.p36)
@@ -557,7 +557,7 @@ function buildHotspots(rounds){
     if(o.pen)bits.push(o.pen+' pen');
     if(o.gir.d)bits.push('GIR '+o.gir.n+'/'+o.gir.d);
     if(o.chip6.d)bits.push('CHIP6 '+o.chip6.n+'/'+o.chip6.d);
-    return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
+    return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid var(--line-soft);">'
       +'<b>H'+o.hole+'</b> (par '+o.par+', hcp '+o.hcp+') <b style="color:var(--oxblood)">+'
       +o.avgOver.toFixed(2)+'</b>/rd &middot; avg '+o.avg.toFixed(1)+' <span style="color:var(--muted)">(n='+o.n+')</span>'
       +(bits.length?'<br><span style="color:var(--muted)">'+bits.join(' &middot; ')+'</span>':'')
@@ -574,7 +574,7 @@ function buildSegments(rounds){
   if(!segs.length){el.innerHTML='<i>No hole-level data yet.</i>'; return;}
   var rows=segs.map(function(s){
     var miss=s.firD?('L '+s.l+' / R '+s.r+' / hit '+s.y):'\u2014';
-    return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
+    return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid var(--line-soft);">'
       +'<b>'+s.label+'</b> <b style="color:var(--oxblood)">+'+s.avgOver.toFixed(2)+'</b>/hole '
       +'<span style="color:var(--muted)">(n='+s.n+' holes)</span><br>'
       +'<span style="color:var(--muted)">Tee: '+miss+' &middot; '+s.threePutts+' three-putts &middot; '+s.pen+' pen</span>'
@@ -609,7 +609,7 @@ function buildLag(rounds){
     var b=L.buckets[k];
     if(!b.n)return '<div style="color:var(--muted); margin-bottom:4px;">'+b.label+' &mdash; no data</div>';
     var rate=Math.round(b.threePutts/b.n*100);
-    return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
+    return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid var(--line-soft);">'
       +'<b>'+b.label+'</b> &middot; <b style="color:var(--oxblood)">'+rate+'%</b> three-putt '
       +'<span style="color:var(--muted)">('+b.threePutts+'/'+b.n+' holes &middot; '+(b.putts/b.n).toFixed(2)+' putts avg)</span></div>';
   }).join('');
