@@ -45,22 +45,29 @@ var state=null, holes=[], cur=0, selectedDist=null;
 
 function vibe(ms){try{if(typeof navigator!=='undefined'&&navigator.vibrate)navigator.vibrate(ms||15);}catch(e){}}
 
+// v21: bone is the default and dusk is the option -- the inverse of v20.
+function applyTheme(isDusk){
+  document.body.classList.toggle('dusk',isDusk);
+  var btn=document.getElementById('themeToggle');
+  if(btn)btn.textContent=isDusk?'☀️ Bone':'🌙 Dusk';
+}
 function toggleTheme(){
   vibe(20);
-  var isSun=document.body.classList.toggle('sunlight');
-  try{localStorage.setItem('bayoaks-theme',isSun?'sunlight':'midnight');}catch(e){}
-  var btn=document.getElementById('sunToggle');
-  if(btn)btn.textContent=isSun?'🌙 Midnight':'☀️ Sunlight';
+  var isDusk=!document.body.classList.contains('dusk');
+  applyTheme(isDusk);
+  try{localStorage.setItem('bayoaks-theme',isDusk?'dusk':'bone');}catch(e){}
 }
 function loadTheme(){
   try{
+    // A returning phone still holds a pre-v21 value. 'midnight' was the old dark
+    // default, so it becomes dusk; 'sunlight' was the light exception, which is
+    // now simply the default. Anything else (including null) falls to bone.
     var th=localStorage.getItem('bayoaks-theme');
-    if(th==='sunlight'){
-      document.body.classList.add('sunlight');
-      var btn=document.getElementById('sunToggle');
-      if(btn)btn.textContent='🌙 Midnight';
-    }
-  }catch(e){}
+    if(th==='midnight')th='dusk';
+    if(th!=='dusk')th='bone';
+    localStorage.setItem('bayoaks-theme',th);
+    applyTheme(th==='dusk');
+  }catch(e){applyTheme(false);}
 }
 
 function targetHolesRange(){
@@ -551,7 +558,7 @@ function buildHotspots(rounds){
     if(o.gir.d)bits.push('GIR '+o.gir.n+'/'+o.gir.d);
     if(o.chip6.d)bits.push('CHIP6 '+o.chip6.n+'/'+o.chip6.d);
     return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
-      +'<b>H'+o.hole+'</b> (par '+o.par+', hcp '+o.hcp+') <b style="color:var(--brass)">+'
+      +'<b>H'+o.hole+'</b> (par '+o.par+', hcp '+o.hcp+') <b style="color:var(--oxblood)">+'
       +o.avgOver.toFixed(2)+'</b>/rd &middot; avg '+o.avg.toFixed(1)+' <span style="color:var(--muted)">(n='+o.n+')</span>'
       +(bits.length?'<br><span style="color:var(--muted)">'+bits.join(' &middot; ')+'</span>':'')
       +'</div>';
@@ -568,7 +575,7 @@ function buildSegments(rounds){
   var rows=segs.map(function(s){
     var miss=s.firD?('L '+s.l+' / R '+s.r+' / hit '+s.y):'\u2014';
     return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
-      +'<b>'+s.label+'</b> <b style="color:var(--brass)">+'+s.avgOver.toFixed(2)+'</b>/hole '
+      +'<b>'+s.label+'</b> <b style="color:var(--oxblood)">+'+s.avgOver.toFixed(2)+'</b>/hole '
       +'<span style="color:var(--muted)">(n='+s.n+' holes)</span><br>'
       +'<span style="color:var(--muted)">Tee: '+miss+' &middot; '+s.threePutts+' three-putts &middot; '+s.pen+' pen</span>'
       +'</div>';
@@ -603,7 +610,7 @@ function buildLag(rounds){
     if(!b.n)return '<div style="color:var(--muted); margin-bottom:4px;">'+b.label+' &mdash; no data</div>';
     var rate=Math.round(b.threePutts/b.n*100);
     return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid #22304a;">'
-      +'<b>'+b.label+'</b> &middot; <b style="color:var(--brass)">'+rate+'%</b> three-putt '
+      +'<b>'+b.label+'</b> &middot; <b style="color:var(--oxblood)">'+rate+'%</b> three-putt '
       +'<span style="color:var(--muted)">('+b.threePutts+'/'+b.n+' holes &middot; '+(b.putts/b.n).toFixed(2)+' putts avg)</span></div>';
   }).join('');
   if(L.missing)rows+='<div style="color:var(--muted); font-size:11.5px; margin-top:4px;">'

@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1220">
-<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#EFE9DC">
+<meta name="color-scheme" content="light dark">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="icon-192.png">
 <title>Bay Oaks — Short Game Diagnostic</title>
@@ -14,7 +14,7 @@
 
 <div class="headerWrap">
   <h1>Bay Oaks &middot; Diagnostic</h1>
-  <button id="sunToggle" class="sunToggle" onclick="toggleTheme()">☀️ Sunlight</button>
+  <button id="themeToggle" class="themeToggle" onclick="toggleTheme()">🌙 Dusk</button>
 </div>
 
 <div class="modeWrap">
@@ -49,7 +49,7 @@
   <div class="row">
     <div class="lbl">
       <span>Tee Box &amp; Yardage</span>
-      <span id="roundTeeTag" style="color:var(--brass); text-transform:none; font-weight:700;"></span>
+      <span id="roundTeeTag" style="color:var(--oxblood); text-transform:none; font-weight:700;"></span>
     </div>
     <div class="btns" id="holeTeeBtns"></div>
   </div>
@@ -167,22 +167,22 @@
 
   <div class="trendCard">
     <div class="lbl">🔥 Hole Hotspots — worst by average strokes over par</div>
-    <div id="hotspotList" style="font-size:12.5px; line-height:1.55; color:var(--cream);"></div>
+    <div id="hotspotList" style="font-size:12.5px; line-height:1.55; color:var(--ink);"></div>
   </div>
 
   <div class="trendCard">
     <div class="lbl">⏱ Segment Split — does the round decay?</div>
-    <div id="segmentList" style="font-size:12.5px; line-height:1.55; color:var(--cream);"></div>
+    <div id="segmentList" style="font-size:12.5px; line-height:1.55; color:var(--ink);"></div>
   </div>
 
   <div class="trendCard">
     <div class="lbl">⛳ Lag Putting — 3-putt rate by first-putt distance</div>
-    <div id="lagList" style="font-size:12.5px; line-height:1.55; color:var(--cream);"></div>
+    <div id="lagList" style="font-size:12.5px; line-height:1.55; color:var(--ink);"></div>
   </div>
 
   <div class="trendCard">
     <div class="lbl">📜 Round History Trajectory</div>
-    <div id="historyList" style="font-size:13px; line-height:1.6; color:var(--cream);"></div>
+    <div id="historyList" style="font-size:13px; line-height:1.6; color:var(--ink);"></div>
   </div>
 </div>
 
