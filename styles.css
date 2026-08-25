@@ -17,6 +17,9 @@
     --green:#2E6B4F;         /* under par                5.21:1 */
     --red:#A32E24;           /* over par, penalties      5.84:1 */
     --warn:#8A3324;          /* partial-round warnings   6.73:1 */
+
+    /* System stacks only -- no font files, because this runs with no signal. */
+    --numerals: ui-monospace, "SF Mono", "Roboto Mono", "DejaVu Sans Mono", monospace;
   }
   /* Dusk -- the option, for evening nines and reading indoors. */
   body.dusk{
@@ -39,6 +42,16 @@
     font-family:Roboto,"Google Sans",system-ui,-apple-system,sans-serif;
     padding:10px 12px calc(92px + env(safe-area-inset-bottom)); max-width:480px; margin-inline:auto;
     font-size:16px; touch-action:manipulation; overflow-x:hidden; transition:background-color .2s, color .2s;}
+  /* This is a scorecard app; the figures should be set like a scorecard. Columns
+     align and 1 reads apart from 7 at a glance on a moving cart. */
+  .stepper .val, .scoreNow, .metricBox .mVal, .holeLbl .num,
+  .stat b, pre, #exportText{
+    font-family:var(--numerals);
+    font-variant-numeric:tabular-nums;
+    font-feature-settings:"tnum" 1;}
+  /* Figures embedded in prose (+1.67, n=3, GIR 5/9) align down the column while
+     the surrounding text stays proportional. */
+  .trendCard, .holeLbl .meta{font-variant-numeric:tabular-nums;}
   .headerWrap{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
   h1{font-size:15px; letter-spacing:.12em; text-transform:uppercase;
     color:var(--oxblood); text-align:left; margin:0; font-weight:700;}
