@@ -37,7 +37,7 @@ var PLAYER={
   handicap:13,
   driverSpeed:'103-105 mph',
   smash:1.45,
-  missTendency:'right (heel contact); pull-hook left under fatigue',
+  missTendency:'aim-based, ~10 yds either side, little curve; snap hook left only on a babied driver',
   dangerHoles:[5,17],   // water on the miss side
   safeMissHoles:[18]    // water opposite the miss
 };

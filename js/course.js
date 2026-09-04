@@ -1,6 +1,6 @@
 // Bay Oaks course facts: pars, yardages, PuttView data, pin positions.
 var COURSE=[
- {par:4,hcp:13,cy:387,ry:362,tip:"Driver up the left side, let the cut work back. Smooth PW from ~117. Clean par start -- don't chase a pin cold.",
+ {par:4,hcp:13,cy:387,ry:362,tip:"Driver up the left side. No cut to play for now -- pick the line and commit. Smooth PW from ~117. Clean par start -- don't chase a pin cold.",
   tipsTip:"TIPS: 402y. Driver up the left side leaves ~132. Full stock PW or smooth 9i to center. Clean par start."},
  {par:4,hcp:9, cy:387,ry:367,tip:"Driver left side, smooth PW ~117 (or 80% GW ~95-105) to the fat side. Two-putt par and move.",
   tipsTip:"TIPS: 429y (+42y longer!). Driver left side leaves ~159. 8-iron into 34.9y deep green. Two-putt par and move."},
@@ -8,8 +8,8 @@ var COURSE=[
   tipsTip:"TIPS: 191y Par 3. 5-iron natural draw to center of green. Inside 25-30 ft is a win here."},
  {par:4,hcp:1, cy:432,ry:401,tip:"Hardest on the card. Driver left edge, 7-iron to ~162 center. Bogey costs you nothing against the field.",
   tipsTip:"TIPS: 459y. Brute par 4. Driver left edge leaves ~189. 5-iron/6-iron into 36.6y deep green. Bogey costs nothing against handicap."},
- {par:5,hcp:7, cy:515,ry:492,tip:"DANGER HOLE: lake right on every shot, and right is your miss. 4h-4h-54 (210/210/~95) never brings it in reach. Slice-proof beats two extra clubs of ego.",
-  tipsTip:"TIPS: 531y Par 5. Lake right on every shot. 4h-4h-80% GW (210/210/~111) avoids water entirely. Slice-proof 3-shot strategy."},
+ {par:5,hcp:7, cy:515,ry:492,tip:"DANGER HOLE: lake right on every shot -- but driver carries it now. Driver, 7-iron to ~75, full 58 in. Still three shots; the difference is a wedge you trust. The risk here is the babied swing, not the big one.",
+  tipsTip:"TIPS: 531y Par 5. Lake right on every shot, but driver carries it. Driver, 7-iron, full 54 from ~91. Three shots by the numbers, not by fear of a slice."},
  {par:4,hcp:5, cy:392,ry:371,tip:"5-iron off tee (play for natural draw to fairway turn, avoid driver running through). Smooth 6-iron in.",
   tipsTip:"TIPS: 433y (+41y longer!). Driver to dogleg corner leaves ~163 (7-iron / 8-iron). Or 4-hybrid layup leaving 6-iron in."},
  {par:5,hcp:3, cy:495,ry:447,tip:"225 left after driver -- don't chase it. 8-iron lay-up to ~70, full 58 in.",
@@ -30,11 +30,11 @@ var COURSE=[
   tipsTip:"TIPS: 167y Par 3 (+32y longer!). 7-iron (170y) to center. 38.7y deep green -- front vs back pin is 3 clubs."},
  {par:4,hcp:12,cy:338,ry:300,tip:"NO driver -- it leaves a 68-yd guess in your wedge gap. 4-hybrid, then smooth PW from ~128.",
   tipsTip:"TIPS: 356y. 4-hybrid off tee leaves ~146 (stock 9i) or Driver leaves ~86 (54° wedge)."},
- {par:5,hcp:2, cy:543,ry:491,tip:"Longest hole, HCP 2. Driver, 5-iron, full 58 from ~78. Long holes give the slice room -- left edge targets all three swings.",
+ {par:5,hcp:2, cy:543,ry:491,tip:"Longest hole, HCP 2. Driver, 5-iron, full 58 from ~78. Left edge targets all three swings -- most room on the card, so swing freely.",
   tipsTip:"TIPS: 569y Par 5 (Longest hole). Driver, 4-hybrid (210), full 58 from ~89. Left edge targets all three swings."},
- {par:4,hcp:8, cy:390,ry:350,tip:"DANGER HOLE: dogleg right, water right of green, right is your miss. Tee ball down the left half; smooth PW aimed LEFT half, never at a right pin. Bogey here beats double.",
+ {par:4,hcp:8, cy:390,ry:350,tip:"DANGER HOLE: dogleg right, water right of green. Tee ball down the left half; smooth PW aimed LEFT half, never at a right pin -- a thin or toe strike leaks right and that side is wet. Bogey here beats double.",
   tipsTip:"TIPS: 435y (+45y longer!). Dogleg right, water right. Driver down left half leaves ~165 (7-iron/8-iron) aimed at right-mid calm pocket."},
- {par:4,hcp:6, cy:420,ry:381,tip:"Water left of green -- your right miss is SAFE here. Driver, 8-iron to the center. Swing free and close it out.",
+ {par:4,hcp:6, cy:420,ry:381,tip:"Water left of green -- a right miss is safe here. Driver, 8-iron to the center. Swing free and close it out.",
   tipsTip:"TIPS: 450y. Driver leaves ~180 (6-iron). Deepest green (42.7y). Water left; all misses right. Close it out strong."}
 ];
 
