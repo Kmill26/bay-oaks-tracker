@@ -463,26 +463,138 @@ check('bag: back pin on a deep green shifts the recommendation', (function(){
 })();
 
 // --- 20b: the current hole survives a reload, inside the round mode --------------------
+// v29 moved the cursor out of the round blob into its own key. v28 stored it inside the
+// round and saved the whole round on every Next/Prev, which is what let an idle tab
+// overwrite a newer one just by navigating. These checks pin the new contract.
 (() => {
   const blank = () => Array.from({length:18}, () => ({score:null,fir:null,gir:null,ss:null,
     chip:null,putts:null,lag:null,sixAtt:0,sixMade:0,pen:0,notes:'',tee:null}));
-  const drive = saved => {
-    global.localStorage = {getItem:k => k===STORE ? JSON.stringify(saved) : null, setItem(){}};
+  const drive = (saved, cursor) => {
+    global.localStorage = {
+      getItem: k => k===STORE ? JSON.stringify(saved) : (k===CURKEY && cursor!==undefined ? JSON.stringify(cursor) : null),
+      setItem(){},
+    };
     load();
     return globalThis.cur;
   };
-  check('resume: a back-nine round reopens on a back-nine hole, not H1',
-    drive({date:today(),holes:blank(),mode:'back',tee:'blue',rounds:[]})===9, 'cur='+globalThis.cur);
-  check('resume: the exact hole is restored',
-    drive({date:today(),holes:blank(),mode:'back',tee:'blue',cur:14,rounds:[]})===14, 'cur='+globalThis.cur);
-  check('resume: a stored hole outside the mode is pulled back into range',
-    drive({date:today(),holes:blank(),mode:'back',tee:'blue',cur:3,rounds:[]})===9, 'cur='+globalThis.cur);
-  check('resume: front-nine mode rejects a back-nine hole',
-    drive({date:today(),holes:blank(),mode:'front',tee:'blue',cur:12,rounds:[]})===0, 'cur='+globalThis.cur);
-  check('resume: a corrupt stored value falls back to the first hole of the mode',
-    drive({date:today(),holes:blank(),mode:'back',tee:'blue',cur:'banana',rounds:[]})===9, 'cur='+globalThis.cur);
-  check('resume: the restored hole is written back to state', globalThis.state.cur===globalThis.cur, 'state.cur='+globalThis.state.cur);
+  const round = extra => ({date:today(),holes:blank(),mode:'back',tee:'blue',rounds:[],...extra});
+
+  check('resume: a back-nine round with no stored cursor opens on the first back-nine hole',
+    drive(round())===9, 'cur='+globalThis.cur);
+  check('resume: the exact hole is restored from the cursor key',
+    drive(round(), {date:today(),cur:14})===14, 'cur='+globalThis.cur);
+  check('resume: a cursor outside the mode is pulled back into range',
+    drive(round(), {date:today(),cur:3})===9, 'cur='+globalThis.cur);
+  check('resume: front-nine mode rejects a back-nine cursor',
+    drive(round({mode:'front'}), {date:today(),cur:12})===0, 'cur='+globalThis.cur);
+  check('resume: a corrupt cursor falls back to the first hole of the mode',
+    drive(round(), {date:today(),cur:'banana'})===9, 'cur='+globalThis.cur);
+  check("resume: yesterday's cursor is ignored",
+    drive(round(), {date:'2020-01-01',cur:15})===9, 'cur='+globalThis.cur);
+  check('resume: a v28 round carrying state.cur still restores it once',
+    drive(round({cur:13}))===13, 'cur='+globalThis.cur);
+  check('resume: the v28 cursor field is dropped from the round once migrated',
+    globalThis.state.cur===undefined, 'state.cur='+globalThis.state.cur);
+
+  // The regression itself: navigating must not write the round.
+  (() => {
+    const writes = [];
+    global.localStorage = {getItem: k => k===STORE ? JSON.stringify(round()) : null,
+                           setItem(k){writes.push(k);}};
+    load();
+    writes.length = 0;
+    setCur(12); move(1); move(-1);
+    check('resume: navigation never writes the round blob',
+      writes.length>0 && writes.every(k=>k===CURKEY), 'keys written: '+(writes.join(',')||'none'));
+  })();
   global.localStorage = {getItem:()=>null, setItem(){}};
+})();
+
+// --- 20e: a stale tab must refuse to overwrite a newer round ---------------------------
+// Reproduced in two real browser tabs: enter a score in tab A, press Next in idle tab B,
+// reload A -- the score was gone. Last writer won, silently. Now the loser is told.
+(() => {
+  const blank = () => Array.from({length:18}, () => ({score:null,fir:null,gir:null,ss:null,
+    chip:null,putts:null,lag:null,sixAtt:0,sixMade:0,pen:0,notes:'',tee:null}));
+  let disk = {date:today(),holes:blank(),mode:'full',tee:'blue',rounds:[],rev:7};
+  global.localStorage = {getItem:k => k===STORE ? JSON.stringify(disk) : null, setItem(){}};
+  load();                                     // this tab is now at rev 7
+  disk = {...disk, rev: 9};                   // another tab has since written twice
+  const wrote = save();
+  check('conflict: a tab behind the stored revision refuses to write', wrote===false, 'save() returned '+wrote);
+  check('conflict: the refusal is shown, not swallowed',
+    els['saveAlert'].style.display==='block' && /newer round in another tab/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,80));
+  check('conflict: the stale tab did not bump the stored revision', disk.rev===9, 'disk.rev='+disk.rev);
+
+  // and a storage event from the other tab raises it without waiting for a write attempt
+  saveConflict=false; showSaveState();
+  onExternalWrite(STORE);
+  check('conflict: a write from another tab is noticed immediately',
+    els['saveAlert'].style.display==='block', 'no banner after external write');
+
+  // the same tab, once current again, writes normally and clears the banner
+  disk = {...disk, rev: globalThis.state.rev};
+  saveConflict=false;
+  let written=null;
+  global.localStorage = {getItem:k => k===STORE ? JSON.stringify(disk) : null,
+                         setItem:(k,v)=>{ if(k===STORE) written=JSON.parse(v); }};
+  check('conflict: a current tab still writes', save()===true, 'save() refused while current');
+  check('conflict: the write carries the next revision', written && written.rev===disk.rev+1, 'rev='+(written&&written.rev));
+  check('conflict: the banner clears once the write succeeds', els['saveAlert'].style.display==='none', els['saveAlert'].style.display);
+})();
+
+// --- 20f: a refused write is surfaced, never swallowed ----------------------------------
+(() => {
+  global.localStorage = {getItem:()=>null, setItem(){ throw new Error('QuotaExceededError'); }};
+  const revBefore = globalThis.state.rev;
+  const ok = save();
+  check('storage: a failed write reports failure', ok===false, 'save() returned '+ok);
+  check('storage: a failed write does not claim a revision it never wrote', globalThis.state.rev===revBefore, 'rev '+revBefore+' -> '+globalThis.state.rev);
+  check('storage: the user is told the round is not saved',
+    els['saveAlert'].style.display==='block' && /Not saved/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,80));
+  global.localStorage = {getItem:()=>null, setItem(){}};
+  save();
+  check('storage: the warning clears once a write succeeds', els['saveAlert'].style.display==='none', els['saveAlert'].style.display);
+})();
+
+// --- 20g: a round with stats but no scores is not silently destroyed --------------------
+// newRound() asked only about scores, so a round of notes and putts was wiped with no
+// prompt and no archived copy -- while roundStats had just been taught those are real data.
+(() => {
+  const blank = () => Array.from({length:18}, () => ({score:null,fir:null,gir:null,ss:null,
+    chip:null,putts:null,lag:null,sixAtt:0,sixMade:0,pen:0,notes:'',tee:null}));
+  global.localStorage = {getItem:()=>null, setItem(){}};
+  const start = shape => {
+    globalThis.state = {date:today(),holes:blank(),rounds:[],mode:'full',tee:'blue',pin:'?',
+      dirty:false,exported:false,rev:0};
+    globalThis.holes = globalThis.state.holes;
+    Object.assign(globalThis.holes[0], shape);
+  };
+  const cases = [
+    ['notes-only',   {notes:'wind off the left all day'}],
+    ['putts-only',   {putts:3}],
+    ['penalty-only', {pen:1}],
+    ['fairway-only', {fir:'l'}],
+    ['lag-only',     {lag:'d'}],
+  ];
+  for (const [label, shape] of cases) {
+    start(shape);
+    check('preserve: a '+label+' round counts as data', roundHasData()===true, label+' read as empty');
+    let asked = 0;
+    const realConfirm = global.confirm; global.confirm = m => { asked++; return true; };
+    newRound();
+    global.confirm = realConfirm;
+    check('preserve: a '+label+' round is confirmed before it is replaced', asked===1, 'confirmations='+asked);
+    check('preserve: a '+label+' round is archived, not discarded', globalThis.state.rounds.length===1, 'archived='+globalThis.state.rounds.length);
+  }
+  // and a genuinely empty round still restarts without ceremony
+  start({});
+  let asked = 0;
+  const realConfirm = global.confirm; global.confirm = () => { asked++; return true; };
+  newRound();
+  global.confirm = realConfirm;
+  check('preserve: an empty round restarts with no prompt and nothing archived',
+    asked===0 && globalThis.state.rounds.length===0, 'confirmations='+asked+' archived='+globalThis.state.rounds.length);
 })();
 
 // --- 20c: a failed copy is never reported as a success ---------------------------------

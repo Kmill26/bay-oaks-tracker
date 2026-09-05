@@ -53,7 +53,19 @@ function clampCur(c){
   if(isNaN(n)||n<rr.start||n>rr.end)return rr.start;
   return n;
 }
-function setCur(n){cur=clampCur(n); if(state){state.cur=cur; save();} return cur;}
+
+// v29: the cursor lives in its own key. v28 stored it inside the round and called save()
+// on every Next/Prev, which meant an idle second tab could write its whole stale round
+// over a newer one by navigating -- losing scores that were never touched. Navigation must
+// never write the round. Keyed to the date so yesterday's cursor cannot land on today.
+var CURKEY='bayoaks-cursor-v1';
+function saveCursor(){try{localStorage.setItem(CURKEY,JSON.stringify({date:state&&state.date,cur:cur}));}catch(e){}}
+function loadCursor(){
+  try{var c=JSON.parse(localStorage.getItem(CURKEY));
+    if(c&&c.date===state.date&&c.cur!=null)return c.cur;}catch(e){}
+  return (state&&state.cur!=null)?state.cur:null;   // one-version migration from v28
+}
+function setCur(n){cur=clampCur(n); saveCursor(); return cur;}
 
 function vibe(ms){try{if(typeof navigator!=='undefined'&&navigator.vibrate)navigator.vibrate(ms||15);}catch(e){}}
 
@@ -93,8 +105,7 @@ function setMode(m){
   vibe(15);
   ensureDate();
   state.mode=m;
-  cur=clampCur(cur);
-  state.cur=cur;
+  cur=clampCur(cur); saveCursor();
   touch();
   render();
 }
@@ -135,29 +146,89 @@ function load(){
     if(h.notes==null)h.notes='';
   });
   holes=state.holes;
-  cur=clampCur(state.cur);
-  state.cur=cur;
+  if(typeof state.rev!=='number')state.rev=0;   // pre-v29 rounds join the scheme at 0
+  cur=clampCur(loadCursor());                    // reads the cursor key, then v28's state.cur
+  delete state.cur;                              // v28 field; the cursor has its own key now
+  saveCursor();
+  saveConflict=false; saveFailed=false;
   ensureDate();
   loadTheme();
 }
-function save(){try{localStorage.setItem(STORE,JSON.stringify(state));}catch(e){}}
-function pristine(){
-  return holes.every(function(h){
-    return h.score===null&&h.putts===null&&h.fir===null&&h.gir===null&&h.ss===null
-      &&h.chip===null&&h.sixAtt===0&&h.sixMade===0&&(h.pen||0)===0&&!(h.notes&&h.notes.trim());
-  });
+// v29: two tabs on the same round used to be a last-writer-wins race, silently. The round
+// now carries a revision; a tab whose copy is behind what is already in storage refuses to
+// write and says so, instead of winning by being last. And a failed write is no longer
+// swallowed -- a full-storage phone mid-round used to keep accepting taps that went nowhere.
+var TAB_ID=Math.random().toString(36).slice(2,10);
+var saveConflict=false, saveFailed=false;
+function readStored(){try{return JSON.parse(localStorage.getItem(STORE));}catch(e){return null;}}
+function isStale(stored){
+  return !!(stored&&typeof stored.rev==='number'&&typeof state.rev==='number'&&stored.rev>state.rev);
 }
+function save(){
+  if(!state)return false;
+  var stored=readStored();
+  if(isStale(stored)){ saveConflict=true; showSaveState(); return false; }
+  if(typeof state.rev!=='number')state.rev=0;
+  state.rev++; state.writer=TAB_ID;
+  try{
+    localStorage.setItem(STORE,JSON.stringify(state));
+    saveFailed=false; saveConflict=false; showSaveState(); return true;
+  }catch(e){
+    state.rev--;                      // never claim a revision we did not write
+    saveFailed=true; showSaveState(); return false;
+  }
+}
+// Fires when another tab writes the round. Separate from save() so the oracle can drive it.
+function onExternalWrite(key){
+  if(key&&key!==STORE)return;
+  if(isStale(readStored())){ saveConflict=true; showSaveState(); }
+}
+function showSaveState(){
+  var b=document.getElementById('saveAlert'); if(!b)return;
+  if(saveConflict){
+    b.style.display='block';
+    b.innerHTML='<b>\u26a0\ufe0f Not saved \u2014 newer round in another tab</b>'
+      +'This tab is showing an older copy of the round. Nothing was overwritten. '
+      +'Reload this tab to pick up the newer version before entering anything else.';
+  } else if(saveFailed){
+    b.style.display='block';
+    b.innerHTML='<b>\u26a0\ufe0f Not saved</b>'
+      +'This browser refused to store the round, so the last few taps exist only on this '
+      +'screen. Export the round now \u2014 a reload will lose them.';
+  } else {
+    b.style.display='none'; b.innerHTML='';
+  }
+}
+// v29: one definition of "this hole has something in it", used by both the date-refresh
+// rule and the archive guard. They used to disagree: newRound() asked only about scores, so
+// a round of notes and putts with no score was deleted silently on Start New Round.
+function holeHasData(h){
+  return !!h&&(h.score!==null||h.putts!==null||h.fir!==null||h.gir!==null||h.ss!==null
+    ||h.chip!==null||h.lag!=null||(h.sixAtt||0)>0||(h.sixMade||0)>0||(h.pen||0)>0
+    ||!!(h.notes&&h.notes.trim()));
+}
+function roundHasData(){return holes.some(holeHasData);}
+function pristine(){return !roundHasData();}
 function ensureDate(){if(state.date!==today()&&pristine()){state.date=today(); save();}}
 // v16a: any new data invalidates a prior export -- dirty (unsaved edits) and exported
 // (round data has left the app) are separate facts. Copying no longer means saved.
-function touch(){state.dirty=true; state.exported=false; save();}
+function touch(){state.dirty=true; state.exported=false; return save();}
 function newRound(){
   vibe(25);
-  var played=holes.some(function(h){return h.score!==null;});
-  if(played){
-    var msg=!state.exported
-      ? 'WARNING: this round has NOT been exported yet. Hit "Export Round" first, or archive it anyway?'
-      : 'Archive this round ('+state.date+') and start a new one?';
+  // v29: was `holes.some(h => h.score !== null)`. A round carrying notes, putts, penalties
+  // or fairways but no score counted as empty and was wiped with no prompt and no archived
+  // copy -- while roundStats had just been taught that those same fields are real data.
+  var hasData=roundHasData();
+  if(hasData){
+    var scored=holes.some(function(h){return h.score!==null;});
+    var msg;
+    if(!state.exported){
+      msg=scored
+        ? 'WARNING: this round has NOT been exported yet. Hit "Export Round" first, or archive it anyway?'
+        : 'This round has notes or stats but no scores, and has NOT been exported. Archive it anyway so nothing is lost?';
+    } else {
+      msg='Archive this round ('+state.date+') and start a new one?';
+    }
     if(!confirm(msg))return;
     state.rounds.push({id:'log-'+state.date+'-'+Date.now().toString(36), date:state.date,
       mode:state.mode||'full', tee:state.tee||'blue', source:'logged', suspect:false,
@@ -166,7 +237,7 @@ function newRound(){
   }
   var prevMode=state.mode||'full';
   var prevTee=state.tee||'blue';
-  state.date=today(); state.holes=mk(); holes=state.holes; cur=(prevMode==='back'?9:0); state.cur=cur; state.dirty=false; state.exported=false; state.pin='?'; state.mode=prevMode; state.tee=prevTee;
+  state.date=today(); state.holes=mk(); holes=state.holes; cur=(prevMode==='back'?9:0); saveCursor(); state.dirty=false; state.exported=false; state.pin='?'; state.mode=prevMode; state.tee=prevTee;
   save(); render();
   showView('holeView');
 }
@@ -538,9 +609,12 @@ function buildTrends(){
   hl.innerHTML=rs.map(function(r){
     var s=roundStats(r), diff=s.score-s.par;
     function frac(o){return o&&o.d?o.n+'/'+o.d:'\u2014';}
+    // v29: a round archived for its notes/stats with no scores is real, and must not read
+    // as a 0 that looks like a data error.
+    var scoreCell=s.played?('<b>'+s.score+'</b> ('+(diff>=0?'+':'')+diff+')'):'<b>&mdash;</b> <span style="color:var(--muted)">stats only</span>';
     return '<div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid var(--line-soft);">'
       +'<b>'+r.date+'</b> ('+(r.label||s.type)+' &middot; '+(r.tee||'blue')+(r.pin?' &middot; Pin '+r.pin:'')+'): '
-      +'<b>'+s.score+'</b> ('+(diff>=0?'+':'')+diff+') &middot; '
+      +scoreCell+' &middot; '
       +'FIR '+frac(s.fir)+' &middot; GIR '+frac(s.gir)+' &middot; Putts '+s.putts+' &middot; P36 '+frac(s.p36)
       +(r.suspect?' <span title="logged while quick presets fabricated data (v14-v16a)">\u26a0</span>':'')
       +'</div>';
@@ -734,6 +808,11 @@ function shareExport(){
 }
 
 load(); render();
+// v29: another tab writing the round is a fact this tab needs to know before it tries to
+// write over it. onExternalWrite() lives above so the oracle can drive it directly.
+if(typeof window!=='undefined'&&window.addEventListener){
+  window.addEventListener('storage',function(e){onExternalWrite(e&&e.key);});
+}
 if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
   navigator.serviceWorker.register('sw.js').then(function(reg){
     reg.update();
