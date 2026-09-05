@@ -923,6 +923,165 @@ global.localStorage = {getItem:()=>null, setItem(){}};
 global.localStorage = {getItem:()=>null, setItem(){}};
 
 
+// Case 22 (v32): the five acceptance workflows, end to end rather than by unit.
+// "Writing a stash isn't enough -- it must be recoverable."
+
+// --- 22a: a refused entry survives a reload and has a route back ------------------------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; globalThis.cur = 0;
+  globalThis.holes[0].score = 4; save();
+
+  // another tab moves ahead, so our next save is refused
+  const ahead = JSON.parse(disk.raw); ahead.rev += 5; ahead.writer='othertab';
+  disk.raw = JSON.stringify(ahead);
+  globalThis.holes[1].score = 7; globalThis.holes[1].notes = 'refused entry note';
+  check('recover: the entry is refused, not written', save()===false, 'save succeeded');
+  check('recover: a copy is stashed under its own key',
+    (()=>{try{return !!JSON.parse(localStorage.getItem(RECOVERY));}catch(e){return false;}})(), 'no stash');
+
+  load();                                     // the reload the banner used to demand
+  check('recover: the reload picks the stash up', !!recovered, 'nothing recovered');
+  check('recover: the banner offers a way back to it',
+    /Show the kept round/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,90));
+  recoverDraft();
+  buildSummary();
+  check('recover: restoring puts the entry back on screen',
+    globalThis.holes[1].score===7 && globalThis.holes[1].notes==='refused entry note', 'entry not restored');
+  check('recover: and into the export, which is the thing you were told to use',
+    els['exportText'].textContent.includes('refused entry note'), 'export missing the note');
+})();
+
+// --- 22b: a tab that fell behind can save its held entry without eating the newer round --
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; globalThis.cur = 0;
+  save();                                              // we are in sync, holding nothing
+  const newer = JSON.parse(disk.raw);
+  newer.rev += 3; newer.writer='otherwriter';
+  newer.holes[0] = {...newer.holes[0], score:4};       // the other tab's newer scores
+  newer.holes[1] = {...newer.holes[1], score:5};
+  disk.raw = JSON.stringify(newer);
+  globalThis.holes[2].score = 6;                        // our held entry, on a hole they left empty
+  globalThis.holes[2].notes = 'held while read-only';
+
+  check('takeover: a stale tab will not blind-write over the newer round', save()===false, 'stale write allowed');
+  check('takeover: the newer scores are still on disk',
+    JSON.parse(disk.raw).holes[0].score===4 && JSON.parse(disk.raw).holes[1].score===5, 'newer scores lost');
+  check('takeover: the refusal offers to merge rather than dead-ending',
+    /Add my holes to the newer round/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,140));
+
+  check('takeover: merging succeeds', mergeHeldEntries()===true, 'merge refused');
+  const after = JSON.parse(disk.raw);
+  check('takeover: the previous writer\'s scores survive the merge',
+    after.holes[0].score===4 && after.holes[1].score===5, 'lost the newer scores');
+  check('takeover: the held entry is finally persisted',
+    after.holes[2].score===6 && after.holes[2].notes==='held while read-only', 'held entry lost');
+  check('takeover: and the banner clears', els['saveAlert'].style.display==='none', els['saveAlert'].style.display);
+})();
+
+// --- 22b2: a genuinely contested hole is named and nothing is picked for you -------------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; save();
+  const newer = JSON.parse(disk.raw);
+  newer.rev += 3; newer.writer='otherwriter';
+  newer.holes[4] = {...newer.holes[4], score:5};        // they recorded hole 5
+  disk.raw = JSON.stringify(newer);
+  globalThis.holes[4].score = 8;                         // we recorded hole 5 differently
+  save();
+  check('takeover: a contested hole blocks the merge', mergeHeldEntries()===false, 'merged over a conflict');
+  check('takeover: the contested hole is named', /Hole 5/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,110));
+  check('takeover: neither version is silently chosen',
+    JSON.parse(disk.raw).holes[4].score===5 && globalThis.holes[4].score===8, 'a version was picked');
+  mergeBlocked=null;
+})();
+
+// --- 22c: if even the stash fails, the advice says so -----------------------------------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[0].score=4; save();
+  const plain = global.localStorage;
+  global.localStorage = {                       // storage is now full for everything
+    getItem:k=>plain.getItem(k),
+    setItem(){ throw new Error('injected QuotaExceededError'); },
+    removeItem(){},
+  };
+  globalThis.holes[1].score=5;
+  check('stash: the save fails', save()===false, 'save reported success');
+  check('stash: the failure to keep a copy is admitted, not hidden',
+    stashFailed===true && /could not keep a backup copy/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,180));
+  check('stash: and Copy Log is named as the only remaining route',
+    /Copy Log is the only thing/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,200));
+  global.localStorage = plain;
+})();
+
+// --- 22d: with no Web Locks, nothing claims lock-grade protection -----------------------
+(() => {
+  const realNav = global.navigator;
+  Object.defineProperty(global,'navigator',{value:{},configurable:true});
+  check('fallback: no Web Locks is reported as unsupported', lockSupported()===false, 'claimed support');
+  electWriter();
+  check('fallback: the tab still works rather than locking itself out', writerRole==='writer', 'role='+writerRole);
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[0].score=4;
+  check('fallback: it can save', save()===true, 'save refused');
+  check('fallback: and no message claims another tab is locked out',
+    !/read-only|open in another tab/i.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,90));
+  Object.defineProperty(global,'navigator',{value:realNav,configurable:true});
+})();
+
+// --- 22e: a hidden holder must hand the lock to the tab in front -------------------------
+// v31 held the lock for the tab's lifetime, so a BACKGROUNDED tab kept it and the tab you
+// were actually using went read-only and could not record a score. Verified in two real
+// browser tabs before this change; this pins the policy.
+(() => {
+  let held = null;                              // one lock, whoever asks first while free
+  const realNav = global.navigator;
+  Object.defineProperty(global,'navigator',{value:{locks:{request(name,opts,fn){
+    if(held) return Promise.resolve(fn(null));
+    held = name;
+    return Promise.resolve(fn({name}));
+  }}},configurable:true});
+
+  writerRole='writer'; lockRelease=null;
+  electWriter();
+  check('suspend: the front tab holds the lock', writerRole==='writer' && !!lockRelease, 'role='+writerRole);
+  releaseWriter();                              // this tab goes to the background
+  check('suspend: going hidden hands the lock back', lockRelease===null && writerRole==='reader', 'role='+writerRole);
+  check('suspend: the lock is genuinely free for the other tab', (held=null, true), '');
+
+  electWriter();                                // the tab now in front takes it
+  check('suspend: the tab in front can take the lock', writerRole==='writer', 'role='+writerRole);
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; globalThis.holes[0].score=4;
+  check('suspend: and can record a score', save()===true, 'the tab in front still could not save');
+  Object.defineProperty(global,'navigator',{value:realNav,configurable:true});
+  writerRole='writer'; lockRelease=null;
+})();
+
+// the release/acquire policy is only useful if it is actually wired to the page lifecycle
+check('suspend: hiding is wired to releasing the lock',
+  /visibilitychange[\s\S]{0,160}releaseWriter/.test(appSrc), 'visibilitychange does not release');
+check('suspend: returning is wired to re-acquiring it',
+  /visibilitychange[\s\S]{0,200}electWriter/.test(appSrc) && /pagehide['"]?,\s*releaseWriter/.test(appSrc), 'not wired to re-acquire');
+global.localStorage = {getItem:()=>null, setItem(){}};
+
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
 

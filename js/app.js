@@ -151,9 +151,13 @@ function load(){
   delete state.cur;                              // v28 field; the cursor has its own key now
   saveCursor();
   saveConflict=''; saveFailed=false; saveUnreadable=false; saveReadOnly=false;
+  mergeBlocked=null; stashFailed=false;
   recovered=loadRecovery();
   ensureDate();
   loadTheme();
+  // load() is what resets these flags, so it is what owes the banner an update. Relying on
+  // the boot line meant a stale warning could outlive the state that produced it.
+  showSaveState();
 }
 // v29: two tabs on the same round used to be a last-writer-wins race, silently. The round
 // now carries a revision; a tab whose copy is behind what is already in storage refuses to
@@ -163,33 +167,52 @@ var TAB_ID=Math.random().toString(36).slice(2,10);
 var RECOVERY='bayoaks-recovery-v1';
 // '' | 'refused' (nothing was written) | 'overwritten' (our write was replaced)
 var saveConflict='', saveFailed=false, saveUnreadable=false, saveReadOnly=false, recovered=null;
+var stashFailed=false, mergeBlocked=null;
 
 // v31: real exclusion where the browser offers it. One tab holds the writer lock for its
 // lifetime; the others are read-only and say so, which is a truthful description of what
 // was already happening silently. Chrome on Android has Web Locks; where it is missing this
 // is inert and the synchronous guards below carry the weight.
-var writerRole='writer';
+var writerRole='writer', lockRelease=null;
+// Asked at call time, not once at parse: the answer is a property of the environment when
+// we need it, and freezing it at load made the oracle's own environment untestable.
+function lockSupported(){
+  return typeof navigator!=='undefined'&&!!navigator.locks&&typeof navigator.locks.request==='function';
+}
+
+// v32: the lock follows the VISIBLE tab, not the tab that happened to open first. v31 held it
+// for the tab's lifetime, so a backgrounded tab kept the lock and the tab actually in front
+// went read-only and could not record a score at all -- a worse on-course failure than the
+// race the lock exists to stop. Hidden releases, visible re-acquires.
 function electWriter(){
-  if(typeof navigator==='undefined'||!navigator.locks||!navigator.locks.request)return;
-  writerRole='pending';
+  if(!lockSupported()){ writerRole='writer'; return; }
+  if(lockRelease)return;                       // already holding
   try{
     navigator.locks.request('bayoaks-round-writer',{mode:'exclusive',ifAvailable:true},function(lock){
-      if(lock){ writerRole='writer'; showSaveState(); return new Promise(function(){}); }
-      writerRole='reader'; showSaveState(); return undefined;
+      if(!lock){ writerRole='reader'; showSaveState(); return undefined; }
+      writerRole='writer'; saveReadOnly=false; showSaveState();
+      return new Promise(function(resolve){ lockRelease=function(){ lockRelease=null; resolve(); }; });
     });
   }catch(e){ writerRole='writer'; }
 }
-// The holder releases its lock when its tab closes or is discarded. Without re-electing, the
-// surviving tab would stay read-only and be unable to record a score -- a worse failure than
-// the one the lock prevents. Re-probe whenever this tab comes back to the front.
-function reelectWriter(){ if(writerRole==='reader')electWriter(); }
+function releaseWriter(){
+  if(!lockRelease)return;
+  lockRelease();
+  writerRole='reader';
+}
+function reelectWriter(){ if(writerRole!=='writer')electWriter(); }
 
 // The losing draft has to outlive a reload, or "reload" is advice to destroy it.
 function stashRecovery(){
   try{
     localStorage.setItem(RECOVERY,JSON.stringify({date:state.date,mode:state.mode,pin:state.pin,
       tee:state.tee,holes:state.holes,stashedAt:new Date().toISOString(),tab:TAB_ID}));
-  }catch(e){}
+    stashFailed=false;
+  }catch(e){
+    // The copy that makes "reload" survivable could not be written either. Say so; do not
+    // let the advice below imply a safety net that is not there.
+    stashFailed=true;
+  }
 }
 function loadRecovery(){
   try{
@@ -208,6 +231,43 @@ function recoverDraft(){
   recovered=null;
   render();
   showView('summaryView');
+}
+// v32: a tab that fell behind could never persist what it held -- safe, but it meant the
+// round in your hand was unsaveable. Adopt the newer round, then re-apply only the holes this
+// tab holds that the newer round has nothing for. Anything genuinely contested is named and
+// left alone; this never silently picks a winner, and it is only ever user-initiated.
+function heldEntryDiff(){
+  var read=readStored();
+  if(read.status!=='ok'||!read.value||!read.value.holes)return {ok:false,reason:'unreadable'};
+  var disk=read.value, mine=state.holes, conflicts=[], applied=[];
+  for(var i=0;i<18;i++){
+    var m=mine[i], d=disk.holes[i];
+    if(!holeHasData(m))continue;
+    if(JSON.stringify(m)===JSON.stringify(d))continue;
+    if(holeHasData(d))conflicts.push(i+1); else applied.push(i+1);
+  }
+  return {ok:true, disk:disk, conflicts:conflicts, applied:applied};
+}
+function mergeHeldEntries(){
+  var d=heldEntryDiff();
+  if(!d.ok){ saveUnreadable=true; showSaveState(); return false; }
+  if(d.conflicts.length){
+    mergeBlocked=d.conflicts.slice();
+    showSaveState();
+    return false;
+  }
+  var mine=state.holes.map(function(h){return Object.assign({},h);});
+  var disk=d.disk;
+  state.rev=disk.rev; state.writer=disk.writer; state.date=disk.date||state.date;
+  state.mode=disk.mode||state.mode; state.tee=disk.tee||state.tee; state.pin=disk.pin||state.pin;
+  state.rounds=disk.rounds||state.rounds;
+  state.holes=disk.holes; holes=state.holes;
+  d.applied.forEach(function(n){ holes[n-1]=mine[n-1]; });
+  saveConflict=''; mergeBlocked=null;
+  var ok=save();
+  cur=clampCur(cur);
+  render();
+  return ok;
 }
 function dismissRecovery(){
   recovered=null;
@@ -278,7 +338,7 @@ function save(){
   if(after.status==='ok'&&after.value&&after.value.writer&&after.value.writer!==TAB_ID){
     saveConflict='overwritten'; stashRecovery(); showSaveState(); return false;
   }
-  saveFailed=false; saveConflict=''; saveUnreadable=false; saveReadOnly=false;
+  saveFailed=false; saveConflict=''; saveUnreadable=false; saveReadOnly=false; mergeBlocked=null; stashFailed=false;
   try{localStorage.removeItem(RECOVERY);}catch(e){}
   showSaveState(); return true;
 }
@@ -300,27 +360,42 @@ function showSaveState(){
   var b=document.getElementById('saveAlert'); if(!b)return;
   var recoverBtn=' <button type="button" onclick="recoverDraft()">Show the kept round</button>'
     +' <button type="button" onclick="dismissRecovery()">Discard it</button>';
+  var mergeBtn=' <button type="button" onclick="mergeHeldEntries()">Add my holes to the newer round</button>';
+  // Only ever appended, never substituted for the instruction to copy first.
+  var noCopyKept=stashFailed
+    ? ' This browser could not keep a backup copy either, so Copy Log is the only thing standing between these entries and losing them.'
+    : '';
   if(saveConflict==='overwritten'){
     // The one case where data really is gone from storage. Never tell them to reload here.
     b.style.display='block';
     b.innerHTML='<b>\u26a0\ufe0f Your last save was replaced by another tab</b>'
       +'What is on this screen is now the only copy of these entries. '
-      +'Hit Export Round and Copy Log before you reload or close this tab \u2014 reloading now would lose them.';
+      +'Hit Export Round and Copy Log before you reload or close this tab \u2014 reloading now would lose them.'
+      +noCopyKept+mergeBtn;
   } else if(saveReadOnly){
     b.style.display='block';
     b.innerHTML='<b>\u26a0\ufe0f Read-only \u2014 this round is open in another tab</b>'
       +'The other tab is the one saving. Nothing here has been written and nothing there was '
-      +'changed. Copy Log if you entered anything here, then close this tab and use the other one.';
+      +'changed. Copy Log if you entered anything here, then close this tab and use the other one.'
+      +noCopyKept;
   } else if(saveUnreadable){
     b.style.display='block';
     b.innerHTML='<b>\u26a0\ufe0f Not saved \u2014 saved round unreadable</b>'
       +'This browser could not read the stored round, so nothing was written over it. '
-      +'Your entries are still on screen \u2014 Copy Log now, then reload.';
+      +'Your entries are still on screen \u2014 Copy Log now, then reload.'+noCopyKept;
+  } else if(mergeBlocked){
+    b.style.display='block';
+    b.innerHTML='<b>\u26a0\ufe0f Hole '+mergeBlocked.join(', ')+' recorded differently in both</b>'
+      +'The newer round already has a different entry on '
+      +(mergeBlocked.length>1?'those holes':'that hole')+', so nothing was merged and nothing was '
+      +'overwritten. Copy Log to keep this tab\u2019s version, then reload and re-enter '
+      +(mergeBlocked.length>1?'them':'it')+' by hand.'+noCopyKept;
   } else if(saveConflict==='refused'){
     b.style.display='block';
     b.innerHTML='<b>\u26a0\ufe0f Not saved \u2014 the round changed in another tab</b>'
       +'Nothing here was written and nothing there was overwritten, but what you have entered '
-      +'in this tab is not stored. Copy Log to keep it, then reload to pick up the other tab\u2019s round.';
+      +'in this tab is not stored. You can add these holes to the newer round, or Copy Log and reload.'
+      +noCopyKept+mergeBtn;
   } else if(recovered){
     b.style.display='block';
     b.innerHTML='<b>\u26a0\ufe0f A round that could not be saved was kept</b>'
@@ -330,7 +405,7 @@ function showSaveState(){
     b.style.display='block';
     b.innerHTML='<b>\u26a0\ufe0f Not saved</b>'
       +'This browser refused to store the round, so the last few taps exist only on this '
-      +'screen. Export the round now \u2014 a reload will lose them.';
+      +'screen. Export the round now \u2014 a reload will lose them.'+noCopyKept;
   } else {
     b.style.display='none'; b.innerHTML='';
   }
@@ -970,8 +1045,12 @@ if(typeof window!=='undefined'&&window.addEventListener){
   window.addEventListener('storage',function(e){onExternalWrite(e&&e.key);});
   window.addEventListener('focus',reelectWriter);
   window.addEventListener('pageshow',reelectWriter);
+  window.addEventListener('pagehide',releaseWriter);
   if(typeof document!=='undefined'&&document.addEventListener){
-    document.addEventListener('visibilitychange',function(){if(!document.hidden)reelectWriter();});
+    // Hidden hands the lock over, so the tab in front is always the one that can save.
+    document.addEventListener('visibilitychange',function(){
+      if(document.hidden)releaseWriter(); else electWriter();
+    });
   }
 }
 if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
