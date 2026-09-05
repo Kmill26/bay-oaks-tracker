@@ -523,18 +523,20 @@ check('bag: back pin on a deep green shifts the recommendation', (function(){
   const wrote = save();
   check('conflict: a tab behind the stored revision refuses to write', wrote===false, 'save() returned '+wrote);
   check('conflict: the refusal is shown, not swallowed',
-    els['saveAlert'].style.display==='block' && /newer round in another tab/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,80));
+    els['saveAlert'].style.display==='block' && /changed in another tab/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,80));
+  check('conflict: a refusal says plainly that nothing was overwritten',
+    /nothing there was overwritten/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,120));
   check('conflict: the stale tab did not bump the stored revision', disk.rev===9, 'disk.rev='+disk.rev);
 
   // and a storage event from the other tab raises it without waiting for a write attempt
-  saveConflict=false; showSaveState();
+  saveConflict=''; showSaveState();
   onExternalWrite(STORE);
   check('conflict: a write from another tab is noticed immediately',
     els['saveAlert'].style.display==='block', 'no banner after external write');
 
   // the same tab, once current again, writes normally and clears the banner
   disk = {...disk, rev: globalThis.state.rev};
-  saveConflict=false;
+  saveConflict='';
   let written=null;
   global.localStorage = {getItem:k => k===STORE ? JSON.stringify(disk) : null,
                          setItem:(k,v)=>{ if(k===STORE) written=JSON.parse(v); }};
@@ -666,17 +668,19 @@ const blank21 = () => Array.from({length:18}, () => ({score:null,fir:null,gir:nu
   chip:null,putts:null,lag:null,sixAtt:0,sixMade:0,pen:0,notes:'',tee:null}));
 function session21(disk){
   // disk is a plain object shared between "tabs"; mode controls injected failures.
-  const box = {mode:'ok'};
+  // `other` holds every non-round key (the recovery stash) so it is not silently dropped.
+  const box = {mode:'ok'}; const other = {};
   global.localStorage = {
     getItem(k){
       if(box.mode==='readthrow'&&k===STORE) throw new Error('injected read failure');
       if(k===STORE) return box.mode==='corrupt' ? '{not json' : (disk.raw===undefined?null:disk.raw);
-      return null;
+      return k in other ? other[k] : null;      // the recovery stash lives here
     },
     setItem(k,v){
       if(box.mode==='writethrow'&&k===STORE) throw new Error('injected QuotaExceededError');
-      if(k===STORE) disk.raw=v;
+      if(k===STORE){ disk.raw=v; } else { other[k]=v; }
     },
+    removeItem(k){ if(k===STORE){ disk.raw=undefined; } else { delete other[k]; } },
   };
   return box;
 }
@@ -740,7 +744,7 @@ function session21(disk){
   const archived = newRound();
   global.confirm = realConfirm;
   buildSummary();
-  check('recovery: an archive refused for a conflict is reported', archived===false && saveConflict===true, 'newRound returned '+archived);
+  check('recovery: an archive refused for a conflict is reported', archived===false && saveConflict==='refused', 'newRound returned '+archived+' conflict='+saveConflict);
   check('recovery: the stale note survives a refused archive and is still exportable',
     globalThis.holes[2].notes==='unique stale review note'
     && els['exportText'].textContent.includes('unique stale review note'), 'note lost');
@@ -764,14 +768,24 @@ function session21(disk){
   collided.writer = 'othertab'; collided.holes[1] = {...collided.holes[1], score:9};
   disk.raw = JSON.stringify(collided);
 
-  saveConflict=false; showSaveState();
+  saveConflict=''; showSaveState();
   onExternalWrite(STORE);
-  check('collision: an equal revision from another writer is detected', saveConflict===true, 'collision went unnoticed');
+  // Our own revision, someone else's writer id: our write was replaced, so this screen holds
+  // the only copy. That is a different situation from being behind, and gets different advice.
+  check('collision: an overwritten write is identified as overwritten, not as being behind',
+    saveConflict==='overwritten', 'saveConflict='+saveConflict);
   check('collision: it is surfaced, not just flagged',
     els['saveAlert'].style.display==='block', 'no banner');
+  check('collision: the overwritten warning never claims nothing was overwritten',
+    !/Nothing was overwritten/i.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,120));
+  check('collision: the overwritten warning never tells you to reload first',
+    !/Reload this tab to pick up/i.test(els['saveAlert'].innerHTML)
+    && /before you reload/i.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,160));
+  check('collision: the losing draft is stashed so a reload cannot destroy it',
+    (()=>{ try{ return !!JSON.parse(localStorage.getItem(RECOVERY)); }catch(e){ return false; } })(), 'no recovery stash');
 
   // and a further write from this tab is refused rather than overwriting them
-  saveConflict=false;
+  saveConflict='';
   check('collision: the colliding tab refuses to write over the other', save()===false, 'save proceeded over a collision');
   check('collision: the other writer survives', JSON.parse(disk.raw).writer==='othertab', 'writer='+JSON.parse(disk.raw).writer);
 })();
@@ -794,7 +808,7 @@ function session21(disk){
     isForeign(JSON.parse(persisted))===false, 'reload read as a collision');
   globalThis.holes[1].score = 5;
   check('collision: a tab can still save after a reload', save()===true, 'save refused after reload');
-  check('collision: no false conflict banner after a reload', saveConflict===false, 'false conflict raised');
+  check('collision: no false conflict banner after a reload', saveConflict==='', 'false conflict raised: '+saveConflict);
 })();
 
 // --- A3: unreadable storage is not an empty store ---------------------------------------
@@ -826,6 +840,85 @@ function session21(disk){
   check('read: malformed stored JSON refuses the write', save()===false, 'wrote over corrupt storage');
   check('read: malformed stored JSON reports unreadable', saveUnreadable===true, 'saveUnreadable='+saveUnreadable);
   box.mode = 'ok';
+})();
+global.localStorage = {getItem:()=>null, setItem(){}};
+
+
+// --- A2c: the store moving between the check and the write must abort, not overwrite -----
+// The review's harness arms the FIRST read so a competing tab completes a whole save while
+// this one is between its check and its write. v30 checked once and wrote regardless.
+(() => {
+  const disk = {};
+  session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[0].score = 4;
+  save();                                        // baseline on disk, written by us
+  const baseline = disk.raw;
+
+  // arm: the next STORE read returns the old bytes, while a competitor lands a real write
+  const plain = global.localStorage;
+  let armed = true;
+  global.localStorage = {
+    getItem(k){
+      if(k!==STORE) return plain.getItem(k);
+      const snapshot = disk.raw;
+      if(armed){
+        armed = false;
+        const other = JSON.parse(baseline);
+        other.rev = other.rev + 1; other.writer = 'othertab';
+        other.holes[2] = {...other.holes[2], score:6, notes:'competitor note'};
+        disk.raw = JSON.stringify(other);        // competitor's completed save
+      }
+      return snapshot;                            // we still see the stale bytes
+    },
+    setItem(k,v){ return plain.setItem(k,v); },
+    removeItem(){},
+  };
+  globalThis.holes[1].score = 5;
+  const ok = save();
+  global.localStorage = plain;
+
+  check('interleave: a save is aborted when the store moves under it', ok===false, 'save returned '+ok);
+  check('interleave: the competitor\'s acknowledged score survives',
+    JSON.parse(disk.raw).holes[2].score===6 && JSON.parse(disk.raw).holes[2].notes==='competitor note',
+    'competitor data: '+JSON.stringify(JSON.parse(disk.raw).holes[2]));
+  check('interleave: the aborted tab keeps its own entry on screen', globalThis.holes[1].score===5, 'score='+globalThis.holes[1].score);
+  check('interleave: the aborted tab did not claim a revision', JSON.parse(disk.raw).writer==='othertab', 'writer='+JSON.parse(disk.raw).writer);
+})();
+global.localStorage = {getItem:()=>null, setItem(){}};
+
+
+// --- A2d: a reader tab must be able to take over -----------------------------------------
+// Web Locks releases when the holding tab closes or is discarded. A survivor stuck read-only
+// could not record a score at all, which is a worse on-course failure than the race.
+(() => {
+  let available = false;                 // pretend another tab holds the lock
+  const realNav = global.navigator;
+  Object.defineProperty(global,'navigator',{value:{locks:{request(name,opts,fn){
+    return Promise.resolve(fn(available?{name}:null));
+  }}},configurable:true});
+
+  electWriter();
+  check('writer: a second tab is read-only while another holds the lock', writerRole==='reader', 'role='+writerRole);
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[0].score = 4;
+  check('writer: a read-only tab refuses to write', save()===false, 'read-only tab wrote');
+  check('writer: it says the round is open elsewhere and does not tell you to reload',
+    /open in another tab/.test(els['saveAlert'].innerHTML) && !/Reload this tab/i.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,110));
+  check('writer: its entries are stashed so they survive', (()=>{try{return !!JSON.parse(localStorage.getItem(RECOVERY));}catch(e){return false;}})(), 'no stash');
+
+  available = true;                      // the holder closed
+  reelectWriter();
+  check('writer: the survivor takes over when the lock frees', writerRole==='writer', 'role='+writerRole);
+  saveReadOnly=false;
+  check('writer: and can save again', save()===true, 'still refusing after takeover');
+  Object.defineProperty(global,'navigator',{value:realNav,configurable:true});
+  writerRole='writer';
 })();
 global.localStorage = {getItem:()=>null, setItem(){}};
 

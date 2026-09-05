@@ -150,7 +150,8 @@ function load(){
   cur=clampCur(loadCursor());                    // reads the cursor key, then v28's state.cur
   delete state.cur;                              // v28 field; the cursor has its own key now
   saveCursor();
-  saveConflict=false; saveFailed=false;
+  saveConflict=''; saveFailed=false; saveUnreadable=false; saveReadOnly=false;
+  recovered=loadRecovery();
   ensureDate();
   loadTheme();
 }
@@ -159,7 +160,60 @@ function load(){
 // write and says so, instead of winning by being last. And a failed write is no longer
 // swallowed -- a full-storage phone mid-round used to keep accepting taps that went nowhere.
 var TAB_ID=Math.random().toString(36).slice(2,10);
-var saveConflict=false, saveFailed=false, saveUnreadable=false;
+var RECOVERY='bayoaks-recovery-v1';
+// '' | 'refused' (nothing was written) | 'overwritten' (our write was replaced)
+var saveConflict='', saveFailed=false, saveUnreadable=false, saveReadOnly=false, recovered=null;
+
+// v31: real exclusion where the browser offers it. One tab holds the writer lock for its
+// lifetime; the others are read-only and say so, which is a truthful description of what
+// was already happening silently. Chrome on Android has Web Locks; where it is missing this
+// is inert and the synchronous guards below carry the weight.
+var writerRole='writer';
+function electWriter(){
+  if(typeof navigator==='undefined'||!navigator.locks||!navigator.locks.request)return;
+  writerRole='pending';
+  try{
+    navigator.locks.request('bayoaks-round-writer',{mode:'exclusive',ifAvailable:true},function(lock){
+      if(lock){ writerRole='writer'; showSaveState(); return new Promise(function(){}); }
+      writerRole='reader'; showSaveState(); return undefined;
+    });
+  }catch(e){ writerRole='writer'; }
+}
+// The holder releases its lock when its tab closes or is discarded. Without re-electing, the
+// surviving tab would stay read-only and be unable to record a score -- a worse failure than
+// the one the lock prevents. Re-probe whenever this tab comes back to the front.
+function reelectWriter(){ if(writerRole==='reader')electWriter(); }
+
+// The losing draft has to outlive a reload, or "reload" is advice to destroy it.
+function stashRecovery(){
+  try{
+    localStorage.setItem(RECOVERY,JSON.stringify({date:state.date,mode:state.mode,pin:state.pin,
+      tee:state.tee,holes:state.holes,stashedAt:new Date().toISOString(),tab:TAB_ID}));
+  }catch(e){}
+}
+function loadRecovery(){
+  try{
+    var r=JSON.parse(localStorage.getItem(RECOVERY));
+    if(!r||!r.holes)return null;
+    // Only interesting if it holds something the round on screen does not.
+    var same=JSON.stringify(r.holes)===JSON.stringify(state.holes);
+    return same?null:r;
+  }catch(e){return null;}
+}
+function recoverDraft(){
+  if(!recovered)return;
+  state.holes=recovered.holes; holes=state.holes;
+  state.date=recovered.date||state.date; state.mode=recovered.mode||state.mode;
+  state.pin=recovered.pin||state.pin; state.tee=recovered.tee||state.tee;
+  recovered=null;
+  render();
+  showView('summaryView');
+}
+function dismissRecovery(){
+  recovered=null;
+  try{localStorage.removeItem(RECOVERY);}catch(e){}
+  showSaveState();
+}
 
 // v30: three outcomes, not two. v29 caught read and parse errors and returned null -- the
 // same value as a genuinely empty store -- so an unreadable revision looked like permission
@@ -190,26 +244,43 @@ function isForeign(stored){
 
 function save(){
   if(!state)return false;
+  if(writerRole==='reader'){ saveReadOnly=true; stashRecovery(); showSaveState(); return false; }
   var read=readStored();
-  if(read.status==='unreadable'){ saveUnreadable=true; showSaveState(); return false; }
-  if(isForeign(read.value)){ saveConflict=true; showSaveState(); return false; }
+  if(read.status==='unreadable'){ saveUnreadable=true; stashRecovery(); showSaveState(); return false; }
+  if(isForeign(read.value)){ saveConflict='refused'; stashRecovery(); showSaveState(); return false; }
   if(typeof state.rev!=='number')state.rev=0;
   var prevRev=state.rev, prevWriter=state.writer;
   state.rev++; state.writer=TAB_ID;
+  var payload=JSON.stringify(state);
+  var abort=function(){ state.rev=prevRev; state.writer=prevWriter; };
+
+  // v31: re-read IMMEDIATELY before the write. v30 checked the revision, then did all the
+  // work of serialising state, then wrote -- and anything another tab did in that gap was
+  // invisible. Comparing the raw bytes means any change at all under us aborts, instead of
+  // being overwritten and reported as success. The window this cannot close is the one
+  // between this read and the setItem below; localStorage has no compare-and-set and the
+  // HTML spec is explicit that there is no storage mutex. Web Locks closes it above where
+  // the browser provides it. This narrows it to as small as the language allows.
+  var again=readStored();
+  if(again.status==='unreadable'){ abort(); saveUnreadable=true; stashRecovery(); showSaveState(); return false; }
+  if(again.raw!==read.raw){ abort(); saveConflict='refused'; stashRecovery(); showSaveState(); return false; }
+
   try{
-    localStorage.setItem(STORE,JSON.stringify(state));
+    localStorage.setItem(STORE,payload);
   }catch(e){
-    state.rev=prevRev; state.writer=prevWriter;   // never claim a revision we did not write
-    saveFailed=true; showSaveState(); return false;
+    abort();                                       // never claim a revision we did not write
+    saveFailed=true; stashRecovery(); showSaveState(); return false;
   }
-  // Read back. localStorage has no compare-and-set and the HTML spec is explicit that there
-  // is no storage mutex, so this cannot PREVENT a simultaneous write -- it detects one, and
-  // the storage event below catches the case where the other tab wrote after we did.
+  // Residual case: someone wrote between our check and our setItem. Our data is gone from
+  // disk and this screen holds the only copy, which is a different situation from a refusal
+  // and gets different advice.
   var after=readStored();
   if(after.status==='ok'&&after.value&&after.value.writer&&after.value.writer!==TAB_ID){
-    saveConflict=true; showSaveState(); return false;
+    saveConflict='overwritten'; stashRecovery(); showSaveState(); return false;
   }
-  saveFailed=false; saveConflict=false; saveUnreadable=false; showSaveState(); return true;
+  saveFailed=false; saveConflict=''; saveUnreadable=false; saveReadOnly=false;
+  try{localStorage.removeItem(RECOVERY);}catch(e){}
+  showSaveState(); return true;
 }
 
 // Fires when another tab writes the round. Separate from save() so the oracle can drive it.
@@ -217,20 +288,44 @@ function onExternalWrite(key){
   if(key&&key!==STORE)return;
   var read=readStored();
   if(read.status==='unreadable'){ saveUnreadable=true; showSaveState(); return; }
-  if(isForeign(read.value)){ saveConflict=true; showSaveState(); }
+  if(!isForeign(read.value))return;
+  // If the stored revision is the one we wrote and the writer is not us, our write was
+  // replaced -- this screen is the only copy left. Otherwise we are simply behind.
+  var mine=(read.value&&read.value.rev===state.rev&&state.writer===TAB_ID);
+  saveConflict=mine?'overwritten':'refused';
+  stashRecovery();
+  showSaveState();
 }
 function showSaveState(){
   var b=document.getElementById('saveAlert'); if(!b)return;
-  if(saveUnreadable){
+  var recoverBtn=' <button type="button" onclick="recoverDraft()">Show the kept round</button>'
+    +' <button type="button" onclick="dismissRecovery()">Discard it</button>';
+  if(saveConflict==='overwritten'){
+    // The one case where data really is gone from storage. Never tell them to reload here.
+    b.style.display='block';
+    b.innerHTML='<b>\u26a0\ufe0f Your last save was replaced by another tab</b>'
+      +'What is on this screen is now the only copy of these entries. '
+      +'Hit Export Round and Copy Log before you reload or close this tab \u2014 reloading now would lose them.';
+  } else if(saveReadOnly){
+    b.style.display='block';
+    b.innerHTML='<b>\u26a0\ufe0f Read-only \u2014 this round is open in another tab</b>'
+      +'The other tab is the one saving. Nothing here has been written and nothing there was '
+      +'changed. Copy Log if you entered anything here, then close this tab and use the other one.';
+  } else if(saveUnreadable){
     b.style.display='block';
     b.innerHTML='<b>\u26a0\ufe0f Not saved \u2014 saved round unreadable</b>'
       +'This browser could not read the stored round, so nothing was written over it. '
-      +'Your entries are still on screen \u2014 export them now, then reload.';
-  } else if(saveConflict){
+      +'Your entries are still on screen \u2014 Copy Log now, then reload.';
+  } else if(saveConflict==='refused'){
     b.style.display='block';
-    b.innerHTML='<b>\u26a0\ufe0f Not saved \u2014 newer round in another tab</b>'
-      +'This tab is showing an older copy of the round. Nothing was overwritten. '
-      +'Reload this tab to pick up the newer version before entering anything else.';
+    b.innerHTML='<b>\u26a0\ufe0f Not saved \u2014 the round changed in another tab</b>'
+      +'Nothing here was written and nothing there was overwritten, but what you have entered '
+      +'in this tab is not stored. Copy Log to keep it, then reload to pick up the other tab\u2019s round.';
+  } else if(recovered){
+    b.style.display='block';
+    b.innerHTML='<b>\u26a0\ufe0f A round that could not be saved was kept</b>'
+      +'Entries from '+(recovered.date||'an earlier session')+' were never written to storage. '
+      +'They are still here.'+recoverBtn;
   } else if(saveFailed){
     b.style.display='block';
     b.innerHTML='<b>\u26a0\ufe0f Not saved</b>'
@@ -868,11 +963,16 @@ function shareExport(){
   copyExport(true);
 }
 
-load(); render();
+load(); render(); electWriter(); showSaveState();
 // v29: another tab writing the round is a fact this tab needs to know before it tries to
 // write over it. onExternalWrite() lives above so the oracle can drive it directly.
 if(typeof window!=='undefined'&&window.addEventListener){
   window.addEventListener('storage',function(e){onExternalWrite(e&&e.key);});
+  window.addEventListener('focus',reelectWriter);
+  window.addEventListener('pageshow',reelectWriter);
+  if(typeof document!=='undefined'&&document.addEventListener){
+    document.addEventListener('visibilitychange',function(){if(!document.hidden)reelectWriter();});
+  }
 }
 if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
   navigator.serviceWorker.register('sw.js').then(function(reg){
