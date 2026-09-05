@@ -159,33 +159,74 @@ function load(){
 // write and says so, instead of winning by being last. And a failed write is no longer
 // swallowed -- a full-storage phone mid-round used to keep accepting taps that went nowhere.
 var TAB_ID=Math.random().toString(36).slice(2,10);
-var saveConflict=false, saveFailed=false;
-function readStored(){try{return JSON.parse(localStorage.getItem(STORE));}catch(e){return null;}}
-function isStale(stored){
-  return !!(stored&&typeof stored.rev==='number'&&typeof state.rev==='number'&&stored.rev>state.rev);
+var saveConflict=false, saveFailed=false, saveUnreadable=false;
+
+// v30: three outcomes, not two. v29 caught read and parse errors and returned null -- the
+// same value as a genuinely empty store -- so an unreadable revision looked like permission
+// to initialise a fresh one, and a stale tab overwrote a newer round reporting success.
+// Absent is the ONLY state that permits a blind first write.
+function readStored(){
+  var raw;
+  try{ raw=localStorage.getItem(STORE); }
+  catch(e){ return {status:'unreadable', raw:null, value:null}; }
+  if(raw===null||raw===undefined||raw==='') return {status:'absent', raw:null, value:null};
+  try{ return {status:'ok', raw:raw, value:JSON.parse(raw)}; }
+  catch(e){ return {status:'unreadable', raw:raw, value:null}; }   // keep the bytes; never clobber them
 }
+
+// v30: v29 asked only "is disk ahead of me". Two tabs that both read rev 1 then both wrote
+// rev 2 were invisible to that test -- equal revisions, different writers, one score gone,
+// neither tab told. The writer id was already being stored and never used. It is used now.
+function isForeign(stored){
+  if(!stored||typeof stored.rev!=='number'||typeof state.rev!=='number')return false;
+  if(stored.rev>state.rev)return true;                                 // someone is ahead
+  // Compared against the writer recorded in OUR copy, not against TAB_ID. After a reload
+  // this tab holds someone else's writer id legitimately -- that is being in sync, not a
+  // collision. It is a collision only when the revision we hold was overwritten by someone
+  // whose id differs from the one we loaded or last wrote.
+  if(stored.rev===state.rev&&stored.writer!==state.writer)return true;
+  return false;
+}
+
 function save(){
   if(!state)return false;
-  var stored=readStored();
-  if(isStale(stored)){ saveConflict=true; showSaveState(); return false; }
+  var read=readStored();
+  if(read.status==='unreadable'){ saveUnreadable=true; showSaveState(); return false; }
+  if(isForeign(read.value)){ saveConflict=true; showSaveState(); return false; }
   if(typeof state.rev!=='number')state.rev=0;
+  var prevRev=state.rev, prevWriter=state.writer;
   state.rev++; state.writer=TAB_ID;
   try{
     localStorage.setItem(STORE,JSON.stringify(state));
-    saveFailed=false; saveConflict=false; showSaveState(); return true;
   }catch(e){
-    state.rev--;                      // never claim a revision we did not write
+    state.rev=prevRev; state.writer=prevWriter;   // never claim a revision we did not write
     saveFailed=true; showSaveState(); return false;
   }
+  // Read back. localStorage has no compare-and-set and the HTML spec is explicit that there
+  // is no storage mutex, so this cannot PREVENT a simultaneous write -- it detects one, and
+  // the storage event below catches the case where the other tab wrote after we did.
+  var after=readStored();
+  if(after.status==='ok'&&after.value&&after.value.writer&&after.value.writer!==TAB_ID){
+    saveConflict=true; showSaveState(); return false;
+  }
+  saveFailed=false; saveConflict=false; saveUnreadable=false; showSaveState(); return true;
 }
+
 // Fires when another tab writes the round. Separate from save() so the oracle can drive it.
 function onExternalWrite(key){
   if(key&&key!==STORE)return;
-  if(isStale(readStored())){ saveConflict=true; showSaveState(); }
+  var read=readStored();
+  if(read.status==='unreadable'){ saveUnreadable=true; showSaveState(); return; }
+  if(isForeign(read.value)){ saveConflict=true; showSaveState(); }
 }
 function showSaveState(){
   var b=document.getElementById('saveAlert'); if(!b)return;
-  if(saveConflict){
+  if(saveUnreadable){
+    b.style.display='block';
+    b.innerHTML='<b>\u26a0\ufe0f Not saved \u2014 saved round unreadable</b>'
+      +'This browser could not read the stored round, so nothing was written over it. '
+      +'Your entries are still on screen \u2014 export them now, then reload.';
+  } else if(saveConflict){
     b.style.display='block';
     b.innerHTML='<b>\u26a0\ufe0f Not saved \u2014 newer round in another tab</b>'
       +'This tab is showing an older copy of the round. Nothing was overwritten. '
@@ -230,16 +271,36 @@ function newRound(){
       msg='Archive this round ('+state.date+') and start a new one?';
     }
     if(!confirm(msg))return;
-    state.rounds.push({id:'log-'+state.date+'-'+Date.now().toString(36), date:state.date,
-      mode:state.mode||'full', tee:state.tee||'blue', source:'logged', suspect:false,
-      pin:(state.pin&&state.pin!=='?')?state.pin:null,
-      holes:holes.map(function(h){return Object.assign({},h);}), summary:null});
   }
+  // v30: v29 pushed the archive, blanked the round, then called save() and ignored the
+  // answer. A refused write left the archived round in memory only and replaced the export
+  // with a blank card -- so the banner said "export the round now" while the thing worth
+  // exporting was no longer reachable. Build the next state, commit it, and only then
+  // change what is on screen.
   var prevMode=state.mode||'full';
   var prevTee=state.tee||'blue';
-  state.date=today(); state.holes=mk(); holes=state.holes; cur=(prevMode==='back'?9:0); saveCursor(); state.dirty=false; state.exported=false; state.pin='?'; state.mode=prevMode; state.tee=prevTee;
-  save(); render();
+  var keep={date:state.date, holes:state.holes, rounds:state.rounds, pin:state.pin,
+            dirty:state.dirty, exported:state.exported, cur:cur};
+  if(hasData){
+    state.rounds=state.rounds.concat([{id:'log-'+state.date+'-'+Date.now().toString(36), date:state.date,
+      mode:prevMode, tee:prevTee, source:'logged', suspect:false,
+      pin:(state.pin&&state.pin!=='?')?state.pin:null,
+      holes:holes.map(function(h){return Object.assign({},h);}), summary:null}]);
+  }
+  state.date=today(); state.holes=mk(); state.dirty=false; state.exported=false;
+  state.pin='?'; state.mode=prevMode; state.tee=prevTee;
+  if(!save()){
+    // Put the player back exactly where they were, with everything still exportable.
+    state.date=keep.date; state.holes=keep.holes; state.rounds=keep.rounds; state.pin=keep.pin;
+    state.dirty=keep.dirty; state.exported=keep.exported;
+    holes=state.holes; cur=keep.cur;
+    render(); showView('holeView');
+    return false;
+  }
+  holes=state.holes; cur=(prevMode==='back'?9:0); saveCursor();
+  render();
   showView('holeView');
+  return true;
 }
 
 // v18: reads the bag rather than hardcoding it. Behaviour is unchanged -- the slot ceilings

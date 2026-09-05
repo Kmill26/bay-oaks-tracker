@@ -658,6 +658,178 @@ check('bag: back pin on a deep green shifts the recommendation', (function(){
     /bayoaks-v\[0-9\]\+/.test(ci) && /PREV.*=.*CURR|\[ "\$PREV" = "\$CURR" \]/.test(ci), 'CI still only checks that sw.js changed');
 })();
 
+// Case 21 (v30): a transition must not destroy what it failed to save.
+// v29 made save() report failure and then had callers ignore the answer. These drive the
+// three recovery paths the follow-up review reproduced.
+
+const blank21 = () => Array.from({length:18}, () => ({score:null,fir:null,gir:null,ss:null,
+  chip:null,putts:null,lag:null,sixAtt:0,sixMade:0,pen:0,notes:'',tee:null}));
+function session21(disk){
+  // disk is a plain object shared between "tabs"; mode controls injected failures.
+  const box = {mode:'ok'};
+  global.localStorage = {
+    getItem(k){
+      if(box.mode==='readthrow'&&k===STORE) throw new Error('injected read failure');
+      if(k===STORE) return box.mode==='corrupt' ? '{not json' : (disk.raw===undefined?null:disk.raw);
+      return null;
+    },
+    setItem(k,v){
+      if(box.mode==='writethrow'&&k===STORE) throw new Error('injected QuotaExceededError');
+      if(k===STORE) disk.raw=v;
+    },
+  };
+  return box;
+}
+
+// --- A1: a refused archive leaves the round on screen and in the export ----------------
+(() => {
+  const disk = {};
+  const box = session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.cur = 0;
+  globalThis.holes[0].score = 4; touch();
+  const diskAfterGoodSave = JSON.parse(disk.raw);
+
+  box.mode = 'writethrow';
+  globalThis.holes[0].score = 5;
+  globalThis.holes[0].notes = 'unsaved review note';
+  touch();
+  const realConfirm = global.confirm; global.confirm = () => true;
+  const archived = newRound();
+  global.confirm = realConfirm;
+  buildSummary();
+
+  check('recovery: a refused archive reports failure', archived===false && saveFailed===true, 'newRound returned '+archived);
+  check('recovery: the round stays on screen after a refused archive', globalThis.holes[0].score===5, 'score='+globalThis.holes[0].score);
+  check('recovery: the note the warning tells you to export is still in the export',
+    els['exportText'].textContent.includes('unsaved review note'), 'note missing from export');
+  check('recovery: nothing was archived into a buffer the user cannot reach', globalThis.state.rounds.length===0, 'rounds='+globalThis.state.rounds.length);
+  check('recovery: the persisted round is untouched by the failed archive',
+    JSON.parse(disk.raw).holes[0].score===diskAfterGoodSave.holes[0].score, 'disk score='+JSON.parse(disk.raw).holes[0].score);
+
+  // the retry, once storage works again, archives exactly once
+  box.mode = 'ok';
+  const realConfirm2 = global.confirm; global.confirm = () => true;
+  const archived2 = newRound();
+  global.confirm = realConfirm2;
+  check('recovery: the retry succeeds', archived2===true, 'newRound returned '+archived2);
+  check('recovery: the retry archives exactly once, with the recovered data',
+    globalThis.state.rounds.length===1 && globalThis.state.rounds[0].holes[0].score===5
+    && globalThis.state.rounds[0].holes[0].notes==='unsaved review note',
+    'rounds='+globalThis.state.rounds.length);
+  check('recovery: the archive reached disk before the screen reset',
+    JSON.parse(disk.raw).rounds.length===1 && globalThis.holes[0].score===null, 'disk rounds='+JSON.parse(disk.raw).rounds.length);
+})();
+
+// --- A1b: an archive refused for a conflict behaves the same way ------------------------
+(() => {
+  const disk = {};
+  session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.cur = 0;
+  globalThis.holes[2].notes = 'unique stale review note'; touch();
+  // another tab moves ahead
+  const ahead = JSON.parse(disk.raw);
+  ahead.rev = globalThis.state.rev + 5; ahead.writer = 'othertab';
+  disk.raw = JSON.stringify(ahead);
+  const realConfirm = global.confirm; global.confirm = () => true;
+  const archived = newRound();
+  global.confirm = realConfirm;
+  buildSummary();
+  check('recovery: an archive refused for a conflict is reported', archived===false && saveConflict===true, 'newRound returned '+archived);
+  check('recovery: the stale note survives a refused archive and is still exportable',
+    globalThis.holes[2].notes==='unique stale review note'
+    && els['exportText'].textContent.includes('unique stale review note'), 'note lost');
+  check('recovery: the newer round on disk is left intact', JSON.parse(disk.raw).writer==='othertab', 'disk writer='+JSON.parse(disk.raw).writer);
+})();
+
+// --- A2: two writers landing on the same revision must both be told --------------------
+// v29 asked only "is disk ahead of me". Both tabs writing rev 2 was invisible: equal
+// revisions, different writers, one score gone, neither tab warned.
+(() => {
+  const disk = {};
+  session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[0].score = 4;
+  check('collision: the first write succeeds', save()===true, 'save refused');
+
+  // another tab lands on the SAME revision with a different writer id
+  const collided = JSON.parse(disk.raw);
+  collided.writer = 'othertab'; collided.holes[1] = {...collided.holes[1], score:9};
+  disk.raw = JSON.stringify(collided);
+
+  saveConflict=false; showSaveState();
+  onExternalWrite(STORE);
+  check('collision: an equal revision from another writer is detected', saveConflict===true, 'collision went unnoticed');
+  check('collision: it is surfaced, not just flagged',
+    els['saveAlert'].style.display==='block', 'no banner');
+
+  // and a further write from this tab is refused rather than overwriting them
+  saveConflict=false;
+  check('collision: the colliding tab refuses to write over the other', save()===false, 'save proceeded over a collision');
+  check('collision: the other writer survives', JSON.parse(disk.raw).writer==='othertab', 'writer='+JSON.parse(disk.raw).writer);
+})();
+
+// --- A2b: a reload must not look like a collision ---------------------------------------
+// The first cut of the collision test compared the stored writer against this tab's id.
+// After a reload a tab legitimately holds the previous writer's id, so every save would
+// have been refused as a collision. Being in sync is not a collision.
+(() => {
+  const disk = {};
+  session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[0].score = 4; save();                 // written by this tab
+  const persisted = disk.raw;
+  saveConflict=false;
+  load();                                                 // fresh "tab" adopts that writer id
+  check('collision: a reload adopting a stored writer id is not a collision',
+    isForeign(JSON.parse(persisted))===false, 'reload read as a collision');
+  globalThis.holes[1].score = 5;
+  check('collision: a tab can still save after a reload', save()===true, 'save refused after reload');
+  check('collision: no false conflict banner after a reload', saveConflict===false, 'false conflict raised');
+})();
+
+// --- A3: unreadable storage is not an empty store ---------------------------------------
+(() => {
+  const disk = {};
+  const box = session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[0].score = 4;
+  check('read: an absent store still permits the first write', save()===true, 'first write refused');
+  const good = disk.raw;
+
+  box.mode = 'readthrow';
+  saveFailed=false; saveConflict=false; saveUnreadable=false;
+  globalThis.holes[1].score = 6;
+  check('read: a read exception refuses the write', save()===false, 'wrote over unreadable storage');
+  check('read: the failure is reported as unreadable, not as a quota failure', saveUnreadable===true && saveFailed===false, 'saveUnreadable='+saveUnreadable+' saveFailed='+saveFailed);
+  check('read: the user is told the stored round could not be read',
+    /unreadable/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,70));
+  box.mode = 'ok';
+  check('read: the previously stored bytes were not overwritten', disk.raw===good, 'stored bytes changed');
+  buildSummary();
+  check('read: the unsaved entry is still exportable', els['exportText'].textContent.includes('S6'), 'entry lost from export');
+
+  // malformed stored JSON is the same class of problem, and must not be clobbered either
+  box.mode = 'corrupt';
+  saveUnreadable=false;
+  check('read: malformed stored JSON refuses the write', save()===false, 'wrote over corrupt storage');
+  check('read: malformed stored JSON reports unreadable', saveUnreadable===true, 'saveUnreadable='+saveUnreadable);
+  box.mode = 'ok';
+})();
+global.localStorage = {getItem:()=>null, setItem(){}};
+
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
 
