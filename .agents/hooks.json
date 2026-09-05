@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/kennymiller/Documents/bay-oaks-tracker-v10/.agents/oracle-gate.sh",
+            "command": "/Users/kennymiller/Documents/Golf-Bay-Oaks/bay-oaks-tracker-v10/.agents/oracle-gate.sh",
             "timeout": 120
           }
         ]
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/kennymiller/Documents/bay-oaks-tracker-v10/.agents/oracle-echo.sh",
+            "command": "/Users/kennymiller/Documents/Golf-Bay-Oaks/bay-oaks-tracker-v10/.agents/oracle-echo.sh",
             "timeout": 120
           }
         ]

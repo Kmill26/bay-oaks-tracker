@@ -28,10 +28,22 @@ jobs:
 
       - name: Guard - sw cache version must bump when app code changes
         run: |
-          if ! git diff --quiet HEAD~1 HEAD -- index.html; then
-            if git diff --quiet HEAD~1 HEAD -- sw.js; then
-              echo "::error::index.html changed but sw.js cache version did not — phones would serve stale code."
-              exit 1
-            fi
+          # v28: this used to watch index.html only, and asked whether sw.js *changed*
+          # rather than whether its cache version changed. Either hole lets a phone keep
+          # serving stale code behind a green check. AGENTS.md and .agents/oracle-gate.sh
+          # have always required the bump for js/ and styles.css too; now CI agrees.
+          if git diff --quiet HEAD~1 HEAD -- index.html styles.css js/; then
+            echo "No app code changed in this commit; cache bump not required."
+            exit 0
           fi
-          echo "sw cache: $(grep -o 'bayoaks-v[0-9]*' sw.js | head -1)"
+          PREV=$(git show HEAD~1:sw.js 2>/dev/null | grep -oE 'bayoaks-v[0-9]+' | head -1 || true)
+          CURR=$(grep -oE 'bayoaks-v[0-9]+' sw.js | head -1)
+          echo "sw cache: ${PREV:-<none>} -> ${CURR:-<none>}"
+          if [ -z "$CURR" ]; then
+            echo "::error::sw.js has no bayoaks-vN cache version string."
+            exit 1
+          fi
+          if [ "$PREV" = "$CURR" ]; then
+            echo "::error::App code changed (index.html / styles.css / js/) but the sw.js cache version is still $CURR — phones would serve stale code."
+            exit 1
+          fi

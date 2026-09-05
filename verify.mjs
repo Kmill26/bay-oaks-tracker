@@ -12,7 +12,7 @@ const js = appSrc.replace(/load\(\); render\(\);[\s\S]*$/, ''); // skip boot
 // Minimal DOM/browser stubs
 const els = {};
 const el = id => els[id] || (els[id] = {textContent:'', innerHTML:'', value:'', style:{display:''}, className:'', appendChild(){}, classList:{add(){},remove(){},toggle(){return false;}}});
-global.document = {getElementById: el, createElement:()=>({classList:{add(){},remove(){},toggle(){return false;}},appendChild(){}}), body:{appendChild(){},removeChild(){},classList:{add(){},remove(){},toggle(){return false;}}}};
+global.document = {getElementById: el, createElement:()=>({value:'', select(){}, classList:{add(){},remove(){},toggle(){return false;}},appendChild(){}}), body:{appendChild(){},removeChild(){},classList:{add(){},remove(){},toggle(){return false;}}}};
 global.localStorage = {getItem:()=>null, setItem(){}};
 Object.defineProperty(global,"navigator",{value:{},configurable:true});
 global.confirm = () => true;
@@ -224,7 +224,11 @@ const ss1 = roundStats(seededRound);
 check('roundStats(summary): 07-15 reads 94 (+22), FIR 7/14', ss1.score===94 && ss1.par===72 && ss1.fir.n===7 && ss1.fir.d===14, JSON.stringify(ss1.fir));
 // Built from COURSE rather than reusing globalThis.holes -- earlier cases mutate that array,
 // and a stats test that depends on cumulative mutation tests the test order, not the code.
-const fixtureHoles = COURSE.map((c,i)=>({score:c.par, fir:(c.par>3?'y':null), gir:true, ss:null,
+// gir mirrors the chip: the UI only enables the chip row on a missed green, so a chip
+// recorded next to GIR=Yes cannot happen by entry -- only by a later correction, which is
+// the v28 bug. The fixture now matches what the app can actually produce; the CHIP6
+// expectation below is unchanged at 12 recorded / 6 inside.
+const fixtureHoles = COURSE.map((c,i)=>({score:c.par, fir:(c.par>3?'y':null), gir:(i%3===2), ss:null,
   chip:(i%3===0?'in':(i%3===1?'out':null)), putts:2, sixAtt:1, sixMade:1, pen:0}));
 const expFirD = COURSE.filter(c=>c.par>3).length;
 const loggedRound = {date:'2026-08-20', source:'logged', holes:fixtureHoles, summary:null};
@@ -276,9 +280,11 @@ check('backfill: summary dropped once holes exist (single computation path)', se
 check('backfill: 08-19 carries its pin letter (D)', seedToRound(SEED_ROUNDS[4]).pin==='D', seedToRound(SEED_ROUNDS[4]).pin);
 check('backfill: unplayed holes decode as empty, not zero', decodeSeedHoles(SEED_HOLES['2026-08-19'])[9].score===null, JSON.stringify(decodeSeedHoles(SEED_HOLES['2026-08-19'])[9]));
 
-// scrambling semantics: saves / greens MISSED (matches buildSummary and every historical export)
+// SS is SHORT-SIDED, not scrambling and not sand saves. The denominator is every missed
+// green, so an unrecorded answer cannot flatter the rate. (The comment that used to sit
+// here said "scrambling" and misled three readers -- see the 2026-08-25 review.)
 const ssFix = roundStats(seedToRound(SEED_ROUNDS[3]));
-check('scramble: denominator is greens missed, not holes where ss was recorded', ssFix.ss.d===12 && ssFix.ss.n===3, ssFix.ss.n+'/'+ssFix.ss.d);
+check('short-side: denominator is greens missed, not holes where ss was recorded', ssFix.ss.d===12 && ssFix.ss.n===3, ssFix.ss.n+'/'+ssFix.ss.d);
 
 // aggregate must still match the independently-maintained vault trends table
 globalThis.state.rounds = SEED_ROUNDS.map(seedToRound);
@@ -407,6 +413,138 @@ check('bag: back pin on a deep green shifts the recommendation', (function(){
   globalThis.state.pin='?';
   return back.eff===127 && front.eff===113;
 })(), 'pin adjustment lost');
+
+// Case 20 (v28): the two calculation paths must agree, and the ship gate must be reachable.
+// Each check below pins a defect that was confirmed by hand review while this oracle was
+// green -- which is the point: these live where the old checks structurally could not look.
+
+// --- 20a: one calculation policy -------------------------------------------------------
+// A chip recorded on a missed green, then GIR corrected to Yes. buildSummary dropped it,
+// roundStats kept it, and the archived round disagreed with the screen that produced it.
+(() => {
+  const h = Array.from({length:18}, () => ({score:null,fir:null,gir:null,ss:null,chip:null,
+    putts:null,lag:null,sixAtt:0,sixMade:0,pen:0,notes:'',tee:null}));
+  h[0] = {...h[0], score:4, gir:true, chip:'in'};          // corrected: chip is now stale
+  h[1] = {...h[1], score:5, gir:false, chip:'in'};         // genuine chip inside 6 ft
+  const st = roundStats({holes:h, summary:null});
+  check('policy: a chip left behind by a GIR correction is not counted', st.chip6.d===1 && st.chip6.n===1, JSON.stringify(st.chip6));
+})();
+
+// Putts entered before the score -- the order Kenny actually logs a hole.
+(() => {
+  const h = Array.from({length:18}, () => ({score:null,fir:null,gir:null,ss:null,chip:null,
+    putts:null,lag:null,sixAtt:0,sixMade:0,pen:0,notes:'',tee:null}));
+  h[0] = {...h[0], putts:3, gir:false, ss:true, sixAtt:1, sixMade:0, pen:1};
+  const st = roundStats({holes:h, summary:null});
+  check('policy: recorded stats on a not-yet-scored hole still count', st.putts===3 && st.ss.d===1 && st.p36.d===1 && st.pen===1, JSON.stringify({putts:st.putts,ss:st.ss,p36:st.p36,pen:st.pen}));
+  check('policy: an unscored hole still contributes no strokes', st.played===0 && st.score===0 && st.par===0, JSON.stringify({played:st.played,score:st.score,par:st.par}));
+})();
+
+// The generic invariant, so this can never drift again by any route: the TOT line the user
+// reads and the archive the trends read must be derived from the same numbers.
+(() => {
+  globalThis.state.mode='full'; globalThis.state.pin='?';
+  const h = globalThis.state.holes;
+  for(let i=0;i<18;i++) h[i] = {score:null,fir:null,gir:null,ss:null,chip:null,putts:null,
+    lag:null,sixAtt:0,sixMade:0,pen:0,notes:'',tee:null};
+  h[0]={...h[0],score:4,fir:'y',gir:true,chip:'in',putts:2,sixAtt:1,sixMade:1};   // stale chip
+  h[1]={...h[1],score:6,fir:'l',gir:false,ss:true,chip:'out',putts:3,sixAtt:2,sixMade:1,pen:1};
+  h[2]={...h[2],putts:2,gir:false,ss:false,chip:'in'};                             // no score yet
+  h[3]={...h[3],score:5,fir:'r',gir:false,ss:true,chip:'na',putts:2};
+  globalThis.holes=h;
+  buildSummary();
+  const line = els['exportText'].textContent.split('\n').find(l=>l.startsWith('TOT'));
+  const st = roundStats({holes:h, summary:null});
+  const expect = 'FIR:'+st.fir.n+'/'+st.fir.d+' (L:'+st.fir.l+' R:'+st.fir.r+') GIR:'+st.gir.n+'/'+st.gir.d
+    +' PUTTS:'+st.putts+' CHIP6:'+st.chip6.n+'/'+st.chip6.d+' SS:'+st.ss.n+'/'+st.ss.d
+    +' P36:'+st.p36.n+'/'+st.p36.d+' PEN:'+st.pen;
+  check('policy: the export TOT line is derived from roundStats, not a second loop', line.includes(expect), line+'\n   expected to contain: '+expect);
+  check('policy: partial total counts scored holes only', line.includes('S:15*') && line.includes('PARTIAL 3/18'), line);
+})();
+
+// --- 20b: the current hole survives a reload, inside the round mode --------------------
+(() => {
+  const blank = () => Array.from({length:18}, () => ({score:null,fir:null,gir:null,ss:null,
+    chip:null,putts:null,lag:null,sixAtt:0,sixMade:0,pen:0,notes:'',tee:null}));
+  const drive = saved => {
+    global.localStorage = {getItem:k => k===STORE ? JSON.stringify(saved) : null, setItem(){}};
+    load();
+    return globalThis.cur;
+  };
+  check('resume: a back-nine round reopens on a back-nine hole, not H1',
+    drive({date:today(),holes:blank(),mode:'back',tee:'blue',rounds:[]})===9, 'cur='+globalThis.cur);
+  check('resume: the exact hole is restored',
+    drive({date:today(),holes:blank(),mode:'back',tee:'blue',cur:14,rounds:[]})===14, 'cur='+globalThis.cur);
+  check('resume: a stored hole outside the mode is pulled back into range',
+    drive({date:today(),holes:blank(),mode:'back',tee:'blue',cur:3,rounds:[]})===9, 'cur='+globalThis.cur);
+  check('resume: front-nine mode rejects a back-nine hole',
+    drive({date:today(),holes:blank(),mode:'front',tee:'blue',cur:12,rounds:[]})===0, 'cur='+globalThis.cur);
+  check('resume: a corrupt stored value falls back to the first hole of the mode',
+    drive({date:today(),holes:blank(),mode:'back',tee:'blue',cur:'banana',rounds:[]})===9, 'cur='+globalThis.cur);
+  check('resume: the restored hole is written back to state', globalThis.state.cur===globalThis.cur, 'state.cur='+globalThis.state.cur);
+  global.localStorage = {getItem:()=>null, setItem(){}};
+})();
+
+// --- 20c: a failed copy is never reported as a success ---------------------------------
+(() => {
+  globalThis.state.exported=false;
+  const realExec = document.execCommand;
+  document.execCommand = () => false;              // browser refused the copy
+  copyExport(true);
+  check('clipboard: a refused copy does not mark the round exported', globalThis.state.exported===false, 'exported='+globalThis.state.exported);
+  check('clipboard: a refused copy says so', /Copy failed/.test(els['copiedMsg'].textContent), els['copiedMsg'].textContent);
+  document.execCommand = () => true;               // and the success path still works
+  copyExport(true);
+  check('clipboard: a successful copy still marks the round exported', globalThis.state.exported===true, 'exported='+globalThis.state.exported);
+  document.execCommand = realExec;
+})();
+
+// --- 20d: the ship gate must be reachable ----------------------------------------------
+// Both hooks hardcoded an absolute path. The repo moved, `cd "$REPO" || allow` fired, and
+// the gate silently permitted every commit for an unknown period while this oracle stayed
+// green. The oracle is the only thing that always runs, so the oracle now guards the gate.
+(() => {
+  const hooksRaw = readFileSync('.agents/hooks.json','utf8');
+  const cmds = [...hooksRaw.matchAll(/"command"\s*:\s*"([^"]+\.sh)"/g)].map(m=>m[1]);
+  const gate = readFileSync('.agents/oracle-gate.sh','utf8');
+  const echo = readFileSync('.agents/oracle-echo.sh','utf8');
+
+  check('gate: hooks.json wires both hook scripts', cmds.length===2, cmds.join(','));
+  check('gate: each wired command names a script that exists in .agents/',
+    cmds.every(c=>existsSync('.agents/'+c.split('/').pop())), cmds.join(','));
+  check('gate: both hook scripts are wired, not just one twice',
+    new Set(cmds.map(c=>c.split('/').pop())).size===2, cmds.join(','));
+
+  // The absolute path in hooks.json only resolves on the machine that runs the hooks.
+  // Verify it there; say so plainly anywhere else rather than passing on a technicality.
+  const macSide = cmds.every(c=>c.startsWith('/Users/'));
+  if (macSide && existsSync('/Users')) {
+    check('gate: the wired absolute paths resolve on this machine', cmds.every(existsSync),
+      cmds.filter(c=>!existsSync(c)).join(',')||'ok');
+  } else {
+    console.log('SKIP gate: wired absolute paths not checkable from this filesystem (hooks target /Users)');
+  }
+
+  check('gate: hooks locate the repo from their own path, not a hardcoded one',
+    /BASH_SOURCE/.test(gate) && /BASH_SOURCE/.test(echo) && !/REPO="\/Users/.test(gate+echo),
+    'a hook still hardcodes an absolute repo path');
+
+  // The specific regression: the repo-resolution failure path must deny, never allow.
+  // (`grep ... || allow` for non-git commands is correct and deliberately left alone.)
+  const repoLines = gate.split('\n').filter(l=>l.includes('$REPO') && !l.trim().startsWith('#'));
+  check('gate: no repo-resolution path falls back to allow',
+    repoLines.length>0 && !repoLines.some(l=>/\|\|\s*allow\b/.test(l)),
+    repoLines.filter(l=>/\|\|\s*allow\b/.test(l)).join(' | ')||'no $REPO lines found');
+  check('gate: an unresolvable repo is denied explicitly',
+    /! -f "\$REPO\/verify\.mjs"/.test(gate) && /deny "Ship gate could not locate/.test(gate),
+    'no explicit deny on an unresolvable repo');
+  check('gate: the sw cache guard still covers js and styles', /js\/|styles\.css/.test(gate), 'cache-bump guard narrowed');
+  const ci = readFileSync('.github/workflows/verify.yml','utf8');
+  check('gate: CI watches the same files the hook does',
+    /index\.html styles\.css js\//.test(ci), 'CI cache guard is narrower than the hook');
+  check('gate: CI compares the cache version, not just whether sw.js changed',
+    /bayoaks-v\[0-9\]\+/.test(ci) && /PREV.*=.*CURR|\[ "\$PREV" = "\$CURR" \]/.test(ci), 'CI still only checks that sw.js changed');
+})();
 
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);

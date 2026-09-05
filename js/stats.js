@@ -107,24 +107,41 @@ function legacyToRound(h){
     source:'logged', suspect:false, pin:h.pin||null, holes:h.holes||null, summary:null};
 }
 
+// v28: THE single per-round calculation. buildSummary() used to run its own copy of this
+// loop with different rules, so the on-screen summary, the export text and the archived
+// round could disagree about the same holes. Two divergences were confirmed and are both
+// closed here; buildSummary now calls this function instead of recomputing.
 function roundStats(r){
   if(r&&r.summary){var s=r.summary;
-    return {score:s.score,par:s.par,played:s.played,fir:s.fir,gir:s.gir,putts:s.putts,
+    // Seeded summaries predate per-hole capture and carry no miss direction.
+    var sf=s.fir&&{n:s.fir.n,d:s.fir.d,l:s.fir.l||0,r:s.fir.r||0};
+    return {score:s.score,par:s.par,played:s.played,fir:sf,gir:s.gir,putts:s.putts,
       chip6:s.chip6,ss:s.ss,p36:s.p36,pen:s.pen,out:s.out,inn:s.inn,
       type:s.type||(s.played+' Holes')};}
   var hs=(r&&r.holes)||[], score=0,par=0,played=0,putts=0,pen=0,out=0,inn=0;
-  var fir={n:0,d:0},gir={n:0,d:0},chip6={n:0,d:0},ss={n:0,d:0},p36={n:0,d:0};
+  var fir={n:0,d:0,l:0,r:0},gir={n:0,d:0},chip6={n:0,d:0},ss={n:0,d:0},p36={n:0,d:0};
   hs.forEach(function(h,i){
-    var c=COURSE[i]; if(!c||!h||h.score==null)return;
-    played++; score+=h.score; par+=c.par;
-    if(i<9)out+=h.score; else inn+=h.score;
+    var c=COURSE[i]; if(!c||!h)return;
+    // Score, par and the nine-splits are scored-holes-only: a hole with no score has no
+    // stroke to attribute. Everything below is different -- a recorded stat is real data
+    // whether or not the score has been tapped in yet, which is the order Kenny actually
+    // enters a hole. roundStats used to skip the whole hole on a missing score while
+    // buildSummary counted it, so a round mid-entry reported two different putt totals.
+    if(h.score!=null){
+      played++; score+=h.score; par+=c.par;
+      if(i<9)out+=h.score; else inn+=h.score;
+    }
     putts+=h.putts||0; pen+=h.pen||0;
-    if(c.par>3&&h.fir){fir.d++; if(h.fir==='y')fir.n++;}
+    if(c.par>3&&h.fir){fir.d++; if(h.fir==='y')fir.n++; else if(h.fir==='l')fir.l++; else if(h.fir==='r')fir.r++;}
     if(h.gir!=null){gir.d++; if(h.gir)gir.n++;}
-    if(h.chip==='in'||h.chip==='out'){chip6.d++; if(h.chip==='in')chip6.n++;}
-    // Scrambling is saves / greens MISSED (standard definition, and what buildSummary's
-    // export has always written). Counting only holes where ss was recorded would shrink
-    // the denominator on unrecorded holes and silently inflate the rate.
+    // CHIP6 is the first greenside shot after MISSING the green -- the UI only enables the
+    // row when GIR is No. A chip sitting next to GIR=Yes is stale data from a correction,
+    // and counting it inflated the archived rate while the summary correctly dropped it.
+    if(h.gir===false&&(h.chip==='in'||h.chip==='out')){chip6.d++; if(h.chip==='in')chip6.n++;}
+    // SS is SHORT-SIDED -- did the miss finish on the side the pin is on. It is not sand
+    // saves and it is not scrambling; the comment that used to sit here said otherwise and
+    // misled three separate readers (see the 2026-08-25 review). The denominator is every
+    // missed green, so an unrecorded answer cannot flatter the rate.
     if(h.gir===false){ss.d++; if(h.ss===true)ss.n++;}
     p36.n+=h.sixMade||0; p36.d+=h.sixAtt||0;
   });

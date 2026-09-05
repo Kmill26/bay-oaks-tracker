@@ -43,6 +43,18 @@ function pvTip(i){
 
 var state=null, holes=[], cur=0, selectedDist=null;
 
+// v28: the current hole is round state, not view state. Before this, `cur` reset to 0 on
+// every reload while state.mode persisted -- a Back 9 round reopened showing "Hole 1" under
+// a "Back 9" pill, and the very next tap wrote into holes[0]. Restored and re-validated
+// against the mode, so a stale or out-of-range value can never point outside the round.
+function clampCur(c){
+  var rr=targetHolesRange();
+  var n=parseInt(c,10);
+  if(isNaN(n)||n<rr.start||n>rr.end)return rr.start;
+  return n;
+}
+function setCur(n){cur=clampCur(n); if(state){state.cur=cur; save();} return cur;}
+
 function vibe(ms){try{if(typeof navigator!=='undefined'&&navigator.vibrate)navigator.vibrate(ms||15);}catch(e){}}
 
 // v21: bone is the default and dusk is the option -- the inverse of v20.
@@ -81,8 +93,8 @@ function setMode(m){
   vibe(15);
   ensureDate();
   state.mode=m;
-  if(m==='front'&&cur>8)cur=0;
-  if(m==='back'&&cur<9)cur=9;
+  cur=clampCur(cur);
+  state.cur=cur;
   touch();
   render();
 }
@@ -123,6 +135,8 @@ function load(){
     if(h.notes==null)h.notes='';
   });
   holes=state.holes;
+  cur=clampCur(state.cur);
+  state.cur=cur;
   ensureDate();
   loadTheme();
 }
@@ -152,7 +166,7 @@ function newRound(){
   }
   var prevMode=state.mode||'full';
   var prevTee=state.tee||'blue';
-  state.date=today(); state.holes=mk(); holes=state.holes; cur=(prevMode==='back'?9:0); state.dirty=false; state.exported=false; state.pin='?'; state.mode=prevMode; state.tee=prevTee;
+  state.date=today(); state.holes=mk(); holes=state.holes; cur=(prevMode==='back'?9:0); state.cur=cur; state.dirty=false; state.exported=false; state.pin='?'; state.mode=prevMode; state.tee=prevTee;
   save(); render();
   showView('holeView');
 }
@@ -337,9 +351,9 @@ function move(d){
   vibe(20);
   var r=targetHolesRange();
   if(r.count===9){
-    cur=r.start+((cur-r.start+9+d)%9);
+    setCur(r.start+((cur-r.start+9+d)%9));
   } else {
-    cur=(cur+18+d)%18;
+    setCur((cur+18+d)%18);
   }
   render();
 }
@@ -430,13 +444,22 @@ function buildSummary(){
   var modeTag=(m==='front'?' [FRONT 9]':(m==='back'?' [BACK 9]':''));
   var teeTag=(tp.label==='Blue'?'':' TEES:'+tp.label.toUpperCase());
   var lines=['BAY OAKS '+state.date+modeTag+teeTag+(state.pin&&state.pin!=='?'?' PIN:'+state.pin:'')];
-  var tS=0,tP=0,tPar=0,gir=0,girN=0,missed=0,chipIn=0,chipTried=0,ss=0,att=0,made=0;
-  var firHit=0,firL=0,firR=0,firN=0,out9=0,in9=0,tPen=0;
+  // v28: one calculation path. The per-hole lines below are still built here, but every
+  // total now comes from roundStats() over the same holes, so the summary, the export text
+  // and the archived round cannot drift apart again. The two confirmed divergences this
+  // closes: a chip recorded and then corrected to GIR=Yes was dropped here but kept in the
+  // archive, and putts on a not-yet-scored hole were counted here but skipped there.
+  var masked=holes.map(function(h,i){return (i>=r.start&&i<=r.end)?h:null;});
+  var S=roundStats({holes:masked,summary:null});
+  var tS=S.score, tPar=S.par, tP=S.putts, tPen=S.pen, out9=S.out, in9=S.inn;
+  var gir=S.gir.n, girN=S.gir.d, chipIn=S.chip6.n, chipTried=S.chip6.d;
+  var ss=S.ss.n, missed=S.ss.d, made=S.p36.n, att=S.p36.d;
+  var firHit=S.fir.n, firN=S.fir.d, firL=S.fir.l||0, firR=S.fir.r||0;
 
   for(var i=(m==='back'?9:0); i<=(m==='front'?8:17); i++){
     var h=holes[i];
     var n=(i+1<10?'0':'')+(i+1);
-    var pn=(h.pen==null?0:h.pen); tPen+=pn;
+    var pn=(h.pen==null?0:h.pen);
     lines.push('H'+n+' P'+COURSE[i].par+' S'+(h.score===null?'?':h.score)
       +' FIR:'+(COURSE[i].par>3?(h.fir==='y'?'Y':h.fir==='l'?'L':h.fir==='r'?'R':'?'):'-')
       +' GIR:'+fmt(h.gir,'Y','N')
@@ -447,24 +470,6 @@ function buildSummary(){
       +' P36:'+h.sixMade+'/'+h.sixAtt
       +' PEN:'+pn);
     if(h.notes&&h.notes.trim())lines.push('H'+n+' NOTE: '+h.notes.trim().replace(/\s*\n+\s*/g,' / '));
-    if(h.score!==null){
-      tS+=h.score; tPar+=COURSE[i].par;
-      if(i<9)out9+=h.score; else in9+=h.score;
-    }
-    if(h.putts!==null)tP+=h.putts;
-    if(h.gir===true)gir++; if(h.gir!==null)girN++;
-    if(h.gir===false){
-      missed++; if(h.ss===true)ss++;
-      if(h.chip==='in'){chipIn++;chipTried++;}
-      if(h.chip==='out')chipTried++;
-    }
-    if(COURSE[i].par>3&&h.fir!==null){
-      firN++;
-      if(h.fir==='y')firHit++;
-      if(h.fir==='l')firL++;
-      if(h.fir==='r')firR++;
-    }
-    att+=h.sixAtt; made+=h.sixMade;
   }
 
   var diff=tS-tPar;
@@ -645,7 +650,7 @@ function guardPartial(){
   var r=targetHolesRange();
   if(!un.length)return true;
   if(confirm(r.label+' Holes '+un.join(', ')+' have no score. Export a PARTIAL round anyway?'))return true;
-  cur=un[0]-1;
+  setCur(un[0]-1);
   showView('holeView');
   render();
   return false;
@@ -659,8 +664,15 @@ function copyExport(skipGuard){
   function ok(){if(msg)msg.textContent='Copied log — ready for Gemini.'; state.exported=true; save(); setTimeout(function(){if(msg)msg.textContent='';},2500);}
   function fallback(){
     var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
-    ta.select(); try{document.execCommand('copy'); ok();}catch(e){if(msg)msg.textContent='Long-press the text to copy.';}
+    ta.select();
+    // v28: execCommand returns false on failure rather than throwing, so the old
+    // try/catch reported "Copied log" and set state.exported=true after a copy that never
+    // happened -- which also silenced the unexported-round warning in newRound(), the last
+    // guard between a failed export and an archived round nobody has a copy of.
+    var copied=false;
+    try{copied=document.execCommand('copy')===true;}catch(e){copied=false;}
     document.body.removeChild(ta);
+    if(copied)ok(); else if(msg)msg.textContent='Copy failed \u2014 long-press the text to copy.';
   }
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(t).then(ok,function(){fallback();});
@@ -681,8 +693,15 @@ function copyGeminiPrompt(){
   function ok(){if(msg)msg.textContent='Copied prompt — ready for Gemini!'; state.exported=true; save(); setTimeout(function(){if(msg)msg.textContent='';},2500);}
   function fallback(){
     var ta=document.createElement('textarea'); ta.value=prompt; document.body.appendChild(ta);
-    ta.select(); try{document.execCommand('copy'); ok();}catch(e){if(msg)msg.textContent='Long-press the text to copy.';}
+    ta.select();
+    // v28: execCommand returns false on failure rather than throwing, so the old
+    // try/catch reported "Copied log" and set state.exported=true after a copy that never
+    // happened -- which also silenced the unexported-round warning in newRound(), the last
+    // guard between a failed export and an archived round nobody has a copy of.
+    var copied=false;
+    try{copied=document.execCommand('copy')===true;}catch(e){copied=false;}
     document.body.removeChild(ta);
+    if(copied)ok(); else if(msg)msg.textContent='Copy failed \u2014 long-press the text to copy.';
   }
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(prompt).then(ok,function(){fallback();});

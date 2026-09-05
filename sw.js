@@ -1,4 +1,4 @@
-const C='bayoaks-v30';
+const C='bayoaks-v31';
 // v17.1: the app is no longer one file. Every split asset must be precached or the PWA
 // breaks offline in a way that only shows up on the course with no signal.
 const ASSETS=['./','./index.html','./styles.css','./manifest.json','./icon-192.png','./icon-512.png',
