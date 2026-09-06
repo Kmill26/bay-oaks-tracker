@@ -167,10 +167,31 @@ check('mode front: range is 9 holes', targetHolesRange().count===9 && targetHole
 globalThis.cur = 8; move(1);
 check('mode front: navigation wraps 1-9 (cur=0 on +1 from H9)', globalThis.cur===0, globalThis.cur);
 for(let i=0; i<9; i++) { globalThis.holes[i].score = 4; }
+// v36 (F3): the mode selector is the ENTRY scope, and from v36 the export and the archive
+// both describe the holes that are actually in the round. So a Front 9 export is what a
+// front-nine ROUND produces, not what selecting Front 9 does to a round that has eighteen
+// holes of data in it. These two assertions used to run against the full July 10 fixture,
+// where selecting Front 9 hid nine holes Kenny had played from the copy while the archive
+// kept them -- which is F3 itself. The back nine is parked for the duration so the case
+// tests a real front-nine round, and the 18-hole behaviour is asserted immediately after.
+const parkedBack = globalThis.holes.slice(9).map(h => Object.assign({}, h));
+for(let i=9; i<18; i++) Object.assign(globalThis.holes[i], {score:null,fir:null,gir:null,ss:null,
+  chip:null,putts:null,lag:null,sixAtt:0,sixMade:0,pen:0,notes:''});
 buildSummary();
 let f9out = els['exportText'].textContent;
 check('mode front: header carries [FRONT 9]', f9out.split('\n')[0].includes('[FRONT 9]'), f9out.split('\n')[0]);
 check('mode front: complete front 9 has no asterisk or unscored warning', !f9out.includes('*') && !els['stats'].innerHTML.includes('Unscored'), f9out);
+check('mode front: a front-nine round exports nine holes', (f9out.match(/^H\d\d P/gm)||[]).length===9, (f9out.match(/^H\d\d P/gm)||[]).length);
+for(let i=9; i<18; i++) Object.assign(globalThis.holes[i], parkedBack[i-9]);
+buildSummary();
+const f9full = els['exportText'].textContent;
+const backWithData = globalThis.holes.map((h,i)=>(i>=9&&holeHasData(h))?i+1:0).filter(Boolean);
+const inF9full = (f9full.match(/^H(\d\d) P/gm)||[]).map(l=>+l.slice(1,3));
+check('mode front: selecting Front 9 does NOT hide back-nine holes that carry data',
+  backWithData.length>0 && backWithData.every(n=>inF9full.includes(n)) && !f9full.split('\n')[0].includes('[FRONT 9]'),
+  'back data H'+backWithData.join(',H')+' export '+inF9full.join(',')+' header '+f9full.split('\n')[0]);
+check('mode front: and it says why they are there',
+  f9full.includes('Front 9 is selected, but H'+backWithData.join(', H')), f9full.split('\n')[1]);
 
 // Case 11: Quick 9 Mode — Back 9 (v13.1)
 setMode('back');
@@ -1443,10 +1464,202 @@ global.localStorage = {getItem:()=>null, setItem(){}};
 })();
 global.localStorage = {getItem:()=>null, setItem(){}};
 
+// Case 26 (v36): F3 -- the export and the archive must describe the same round.
+// Acceptance written from the outcome before the implementation was inspected: switch
+// Full/Front/Back after entering holes in both nines, and the exported scores, the archived
+// scores, the stats, the mode label and the included hole numbers must agree. The other
+// nine must not be deleted to make them agree.
+const holesInExport = txt => (txt.match(/^H(\d\d) P/gm)||[]).map(l=>+l.slice(1,3));
+const dataHoles = hs => hs.map((h,i)=>holeHasData(h)?i+1:0).filter(Boolean);
+function f3state(mode){
+  const disk={}; session21(disk);
+  globalThis.state={date:today(),holes:blank21(),rounds:[],mode:mode,tee:'blue',pin:'?',
+    dirty:false,exported:true,rev:0};
+  globalThis.holes=globalThis.state.holes; globalThis.cur=0; save();
+  return disk;
+}
+// --- 26a: scores on both nines, then Front 9 selected ------------------------------------
+(() => {
+  f3state('full');
+  [[0,4],[1,5],[2,3]].forEach(([i,s])=>{globalThis.holes[i].score=s; globalThis.holes[i].putts=2;});
+  [[9,6],[10,5],[11,4]].forEach(([i,s])=>{globalThis.holes[i].score=s; globalThis.holes[i].putts=2;});
+  save();
+  setMode('front');
+  buildSummary();
+  const txt = els['exportText'].textContent;
+  const exported = holesInExport(txt);
+  const expScore = +(/TOT S:(\d+)/.exec(txt)||[])[1];
+  const rc=global.confirm; global.confirm=()=>true; newRound(); global.confirm=rc;
+  const arc = globalThis.state.rounds[globalThis.state.rounds.length-1];
+  const arcHoles = dataHoles(arc.holes);
+  const arcStats = roundStats(arc);
+  check('F3: every scored hole survives the archive',
+    [1,2,3,10,11,12].every(n=>arcHoles.includes(n)), 'archived data holes='+arcHoles.join(','));
+  check('F3: the exported holes and the archived holes are the same set',
+    arcHoles.every(n=>exported.includes(n)), 'export='+exported.join(',')+' archive='+arcHoles.join(','));
+  check('F3: the exported total equals the archived total',
+    expScore===arcStats.score, 'export TOT S:'+expScore+' archive '+arcStats.score);
+  check('F3: the archived mode describes the holes it carries',
+    !(arc.mode==='front'&&arcHoles.some(n=>n>9)) && !(arc.mode==='back'&&arcHoles.some(n=>n<10)),
+    'mode='+arc.mode+' holes='+arcHoles.join(','));
+  // The archive now carries null slots for holes that were neither selected nor played.
+  // Every consumer must tolerate that rather than throwing on the history screen.
+  globalThis.state.rounds = [arc];
+  buildTrends();
+  const listed = (els['hotspotList'].innerHTML.match(/H(\d+)/g)||[]).map(x=>+x.slice(1)).sort((a,b)=>a-b);
+  check('F3: an archive with unplayed slots renders in trends without inventing a hole',
+    listed.join(',')==='1,2,3,10,11,12', 'holes named in hotspots: '+listed.join(','));
+  check('F3: and its hotspot totals still equal its round totals',
+    holeStats([arc]).reduce((n,o)=>n+o.gir.d,0)===arcStats.gir.d,
+    'hotspots '+holeStats([arc]).reduce((n,o)=>n+o.gir.d,0)+' vs round '+arcStats.gir.d);
+  check('F3: the mismatch is stated, not silent',
+    /10|11|12/.test(txt.split('\n')[0]) || /H1[012]/.test(txt), 'export never mentions the back-nine holes');
+})();
+// --- 26b: an honest Front 9 round is unchanged -------------------------------------------
+(() => {
+  f3state('front');
+  [[0,4],[1,5],[2,3]].forEach(([i,s])=>{globalThis.holes[i].score=s;});
+  save(); buildSummary();
+  const txt=els['exportText'].textContent;
+  check('F3: a real Front 9 round still exports holes 1-9 only',
+    holesInExport(txt).join(',')==='1,2,3,4,5,6,7,8,9', 'got '+holesInExport(txt).join(','));
+  const rc=global.confirm; global.confirm=()=>true; newRound(); global.confirm=rc;
+  const arc=globalThis.state.rounds[globalThis.state.rounds.length-1];
+  check('F3: and archives as front', arc.mode==='front', 'mode='+arc.mode);
+  check('F3: with the same total it exported',
+    roundStats(arc).score===+(/TOT S:(\d+)/.exec(txt)||[])[1], 'archive '+roundStats(arc).score);
+})();
+// --- 26c: an honest Back 9 round is unchanged --------------------------------------------
+(() => {
+  f3state('back');
+  [[9,4],[10,5],[11,3]].forEach(([i,s])=>{globalThis.holes[i].score=s;});
+  save(); buildSummary();
+  const txt=els['exportText'].textContent;
+  check('F3: a real Back 9 round still exports holes 10-18 only',
+    holesInExport(txt).join(',')==='10,11,12,13,14,15,16,17,18', 'got '+holesInExport(txt).join(','));
+  const rc=global.confirm; global.confirm=()=>true; newRound(); global.confirm=rc;
+  const arc=globalThis.state.rounds[globalThis.state.rounds.length-1];
+  check('F3: and archives as back', arc.mode==='back', 'mode='+arc.mode);
+})();
+// --- 26d: switching the mode is a view change, never a data change -----------------------
+(() => {
+  f3state('full');
+  [[0,4],[1,5],[2,3],[9,6],[10,5],[11,4]].forEach(([i,s])=>{globalThis.holes[i].score=s;});
+  save();
+  setMode('front'); setMode('back'); setMode('full');
+  check('F3: switching Full/Front/Back does not erase a score',
+    [4,5,3,6,5,4].join(',')===[0,1,2,9,10,11].map(i=>globalThis.holes[i].score).join(','),
+    'scores='+[0,1,2,9,10,11].map(i=>globalThis.holes[i].score).join(','));
+})();
+
+// Case 27 (v36): F4 -- one validity policy, shared by every consumer of a hole.
+// Round totals, hotspots, segment data and lag coverage must answer the same question the
+// same way: a score is required only for score-derived figures; a recorded observation
+// counts whenever it was recorded; CHIP6 exists only on a hole whose green was missed.
+(() => {
+  const H = () => blank21();
+  // one hole with a chip invalidated by a GIR correction, one data-bearing unscored hole
+  const hs = H();
+  hs[0]={...hs[0], score:4, gir:true,  chip:'in',  putts:2, fir:'y', lag:'a'};
+  hs[1]={...hs[1], score:null, gir:false, chip:'out', putts:3, fir:'l', lag:'d', pen:1, ss:false};
+  hs[2]={...hs[2], score:5, gir:false, chip:'out', putts:2, fir:'r', lag:'b'};
+  const r = {id:'t',date:'2026-09-05',mode:'full',tee:'blue',source:'logged',holes:hs,summary:null};
+  const R = roundStats(r), HS = holeStats([r]), SG = segmentStats([r]), LG = lagStats([r]);
+  const sum = (a,f) => a.reduce((n,x)=>n+f(x),0);
+  check('F4: a chip invalidated by a GIR correction is dropped from the hotspots too',
+    HS[0].chip6.d===0, 'holeStats chip6.d='+HS[0].chip6.d);
+  check('F4: hotspot CHIP6 totals equal the round total',
+    sum(HS,o=>o.chip6.d)===R.chip6.d && sum(HS,o=>o.chip6.n)===R.chip6.n,
+    'holeStats '+sum(HS,o=>o.chip6.n)+'/'+sum(HS,o=>o.chip6.d)+' vs round '+R.chip6.n+'/'+R.chip6.d);
+  check('F4: hotspot GIR totals equal the round total',
+    sum(HS,o=>o.gir.d)===R.gir.d && sum(HS,o=>o.gir.n)===R.gir.n,
+    'holeStats '+sum(HS,o=>o.gir.n)+'/'+sum(HS,o=>o.gir.d)+' vs round '+R.gir.n+'/'+R.gir.d);
+  check('F4: a data-bearing unscored hole is counted in the hotspots',
+    HS[1].gir.d===1 && HS[1].threePutts===1 && HS[1].pen===1,
+    'H2 gir.d='+HS[1].gir.d+' 3putts='+HS[1].threePutts+' pen='+HS[1].pen);
+  check('F4: and its stroke average still requires a score',
+    HS[1].n===0 && HS[1].avg===null, 'H2 n='+HS[1].n+' avg='+HS[1].avg);
+  check('F4: segment fairway totals equal the round total',
+    sum(SG,o=>o.firD)===R.fir.d && sum(SG,o=>o.l)===R.fir.l && sum(SG,o=>o.y)===R.fir.n,
+    'segments '+sum(SG,o=>o.firD)+' vs round '+R.fir.d);
+  const roundThreePutts = hs.filter(threePutt).length;      // 1 here, and it is on an unscored hole
+  check('F4: segment penalties and 3-putts equal the round total',
+    sum(SG,o=>o.pen)===R.pen && sum(SG,o=>o.threePutts)===roundThreePutts && roundThreePutts===1,
+    'segments pen='+sum(SG,o=>o.pen)+' vs round '+R.pen+', 3putts='+sum(SG,o=>o.threePutts)+' vs '+roundThreePutts);
+  check('F4: hotspot 3-putts equal the round total too',
+    sum(HS,o=>o.threePutts)===roundThreePutts && sum(HS,o=>o.pen)===R.pen,
+    'holeStats 3putts='+sum(HS,o=>o.threePutts)+' pen='+sum(HS,o=>o.pen));
+  check('F4: segment strokes still require a score',
+    sum(SG,o=>o.n)===R.played, 'segments n='+sum(SG,o=>o.n)+' vs played '+R.played);
+  check('F4: lag coverage counts every hole with putts recorded',
+    LG.withPutts===3 && LG.buckets.d.n===1 && LG.buckets.d.threePutts===1,
+    'withPutts='+LG.withPutts+' d.n='+LG.buckets.d.n);
+})();
+// --- 27g: the policy is shared, not re-stated ---------------------------------------------
+(() => {
+  const stats = readFileSync('js/stats.js','utf8');
+  const preds = ['countsScore','countsFir','countsGir','countsChip6','countsSs','countsPutts',
+                 'hasFirstPutt','threePutt'];
+  check('F4: the validity rules are named functions',
+    preds.every(p=>new RegExp('function '+p+'\\(').test(stats)), 'missing predicate definitions');
+  ['holeStats','segmentStats','lagStats','roundStats'].forEach(fn => {
+    const body = (new RegExp('function '+fn+'\\([\\s\\S]*?\\n}\\n')).exec(stats);
+    check('F4: '+fn+' uses the shared rules',
+      !!body && preds.some(p=>body[0].includes(p+'(')), 'no shared predicate call in '+fn);
+  });
+  // The gate itself must exist in exactly one place: a consumer may read h.chip to pick the
+  // numerator, but only countsChip6 decides whether the attempt counts at all.
+  ['holeStats','segmentStats','roundStats'].forEach(fn => {
+    const body = (new RegExp('function '+fn+'\\([\\s\\S]*?\\n}\\n')).exec(stats);
+    check('F4: '+fn+' does not re-implement the CHIP6 gate',
+      !!body && !/chip===.out./.test(body[0]), 'inline chip gate still in '+fn);
+  });
+})();
+
+
+// v36 completion: a retained out-of-mode hole must be reachable, and equal
+// scores do not establish that another recovery draft has been persisted.
+(() => {
+  const disk=f3state('front');
+  for(let i=0;i<9;i++)globalThis.holes[i].score=COURSE[i].par;
+  globalThis.holes[9].notes='retained outside front nine';
+  touch(); buildSummary();
+  const before=disk.raw;
+  const oldConfirm=global.confirm; global.confirm=()=>false;
+  const allowed=guardPartial(); global.confirm=oldConfirm;
+  check('F3 return: declining partial export reaches the retained unscored hole',
+    allowed===false && globalThis.cur===9 && els.holeNum.textContent===10, 'cur='+globalThis.cur);
+  check('F3 return: reaching that hole writes no round data', disk.raw===before, 'round changed on navigation');
+  check('F3 return: selected nine and recorded extra hole are visible',
+    globalThis.state.mode==='front' && els.doneLbl.textContent.includes('H10'), els.doneLbl.textContent);
+  load();
+  check('F3 return: reload keeps the retained hole reachable', globalThis.cur===9, 'cur='+globalThis.cur);
+  move(-1);
+  check('F3 return: previous from retained H10 reaches H9',globalThis.cur===8,'cur='+globalThis.cur);
+  setCur(9); move(1);
+  check('F3 return: next returns to the selected nine',globalThis.cur===0,'cur='+globalThis.cur);
+})();
+(() => {
+  f3state('front');
+  globalThis.holes[0].score=4; touch();
+  const exact={roundId:state.roundId,date:state.date,mode:state.mode,tee:state.tee,pin:state.pin,
+    holes:JSON.parse(JSON.stringify(state.holes)),stashedAt:'2026-09-05T00:00:00Z',tab:'another-tab'};
+  const variants={exact:exact,
+    otherRound:{...exact,roundId:'another-round'},otherDate:{...exact,date:'2026-09-04'},
+    otherPin:{...exact,pin:'D'},otherTee:{...exact,tee:'white'},otherMode:{...exact,mode:'back'}};
+  writeDrafts(variants);
+  check('cleanup identity: metadata-only and other-round drafts are offered for recovery',
+    loadRecovery().length===5,'recovered='+loadRecovery().length);
+  check('cleanup identity: the active round saves normally',save()===true,'save refused');
+  const kept=readDrafts();
+  check('cleanup identity: only the exact persisted draft is removed',
+    !kept.exact && Object.keys(kept).length===5, Object.keys(kept).join(','));
+  check('cleanup identity: different round, date, pin, tee and mode all survive',
+    ['otherRound','otherDate','otherPin','otherTee','otherMode'].every(k=>!!kept[k]),Object.keys(kept).join(','));
+})();
 
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
-
 
 
 

@@ -1,4 +1,32 @@
 // Analysis layer: round store, migration, derived statistics. No DOM.
+// ---- v36: ONE validity policy for a hole's observations -------------------------------
+// F4: roundStats() was taught in v28 that a recorded observation is real data whether or
+// not the score has been tapped in, and that a CHIP6 sitting next to GIR=Yes is stale data
+// from a correction. The hotspot, segment and lag consumers never learned either rule, so
+// the same round answered the same question three different ways. The rules now live here
+// once and every consumer calls them.
+//
+// The policy, stated plainly:
+//   * Score-derived figures -- strokes, over-par, the nine split, "holes played" -- exist
+//     only where a score exists. There is no stroke to attribute without one.
+//   * A recorded observation -- fairway, green, short-side, chip, putts, penalty, lag,
+//     3-6 ft putts -- counts from the moment it is recorded. Kenny enters a hole in that
+//     order, so gating these on the score discards live data.
+//   * CHIP6 is the first greenside shot after MISSING the green. It exists only where
+//     GIR is explicitly No; a chip left behind by a GIR correction is not a chip attempt.
+//   * SS retains the existing missed-green denominator. Unknown-answer coverage is
+//     a separate, deferred policy decision; this fix does not change historical SS.
+//   * A fairway is only in play on a par 4 or 5.
+//   * Lag needs a first putt: a hole holed out from off the green has none.
+function countsScore(h){ return !!h && h.score!=null; }
+function countsFir(h,c){ return !!h && !!c && c.par>3 && !!h.fir; }
+function countsGir(h){ return !!h && h.gir!=null; }
+function countsSs(h){ return !!h && h.gir===false; }
+function countsChip6(h){ return countsSs(h) && (h.chip==='in' || h.chip==='out'); }
+function countsPutts(h){ return !!h && h.putts!=null; }
+function hasFirstPutt(h){ return countsPutts(h) && h.putts>0; }
+function threePutt(h){ return countsPutts(h) && h.putts>=3; }
+
 // ---- v17: per-hole and segment analytics, all derived from rounds[] ------------------
 // Sample sizes are tiny (n<=5 per hole), so every figure ships with its n and the UI
 // suppresses holes with n<2. Showing a confident average built on one round is the same
@@ -9,14 +37,13 @@ function holeStats(rounds){
   (rounds||[]).forEach(function(r){
     var hs=r.holes; if(!hs)return;
     hs.forEach(function(h,i){
-      if(!h||h.score==null||!out[i])return;
-      var o=out[i];
-      o.n++; o.strokes+=h.score; o.overPar+=(h.score-COURSE[i].par);
-      if(h.gir!=null){o.gir.d++; if(h.gir)o.gir.n++;}
-      if(h.chip==='in'||h.chip==='out'){o.chip6.d++; if(h.chip==='in')o.chip6.n++;}
-      if((h.putts||0)>=3)o.threePutts++;
+      var o=out[i], c=COURSE[i]; if(!h||!o||!c)return;
+      if(countsScore(h)){o.n++; o.strokes+=h.score; o.overPar+=(h.score-c.par);}
+      if(countsGir(h)){o.gir.d++; if(h.gir)o.gir.n++;}
+      if(countsChip6(h)){o.chip6.d++; if(h.chip==='in')o.chip6.n++;}
+      if(threePutt(h))o.threePutts++;
       o.pen+=h.pen||0;
-      if(h.fir==='l')o.firL++; else if(h.fir==='r')o.firR++; else if(h.fir==='y')o.firY++;
+      if(countsFir(h,c)){if(h.fir==='l')o.firL++; else if(h.fir==='r')o.firR++; else if(h.fir==='y')o.firY++;}
     });
   });
   out.forEach(function(o){o.avg=o.n?o.strokes/o.n:null; o.avgOver=o.n?o.overPar/o.n:null;});
@@ -32,10 +59,11 @@ function segmentStats(rounds){
     (rounds||[]).forEach(function(r){
       var hs=r.holes; if(!hs)return;
       for(var i=s.from;i<s.to;i++){
-        var h=hs[i]; if(!h||h.score==null)continue;
-        o.n++; o.strokes+=h.score; o.overPar+=(h.score-COURSE[i].par);
-        o.pen+=h.pen||0; if((h.putts||0)>=3)o.threePutts++;
-        if(COURSE[i].par>3&&h.fir){o.firD++; if(h.fir==='l')o.l++; else if(h.fir==='r')o.r++; else if(h.fir==='y')o.y++;}
+        var h=hs[i], c=COURSE[i]; if(!h||!c)continue;
+        if(countsScore(h)){o.n++; o.strokes+=h.score; o.overPar+=(h.score-c.par);}
+        o.pen+=h.pen||0;
+        if(threePutt(h))o.threePutts++;
+        if(countsFir(h,c)){o.firD++; if(h.fir==='l')o.l++; else if(h.fir==='r')o.r++; else if(h.fir==='y')o.y++;}
       }
     });
     o.leftRate=o.firD?o.l/o.firD:null;
@@ -49,7 +77,7 @@ function nineSplit(rounds){
   (rounds||[]).forEach(function(r){
     var hs=r.holes; if(!hs)return;
     hs.forEach(function(h,i){
-      if(!h||h.score==null)return;
+      if(!countsScore(h))return;
       var k=i<9?'front':'back';
       out[k].n++; out[k].over+=(h.score-COURSE[i].par);
     });
@@ -70,11 +98,11 @@ function lagStats(rounds){
   (rounds||[]).forEach(function(r){
     var hs=r.holes; if(!hs)return;
     hs.forEach(function(h){
-      if(!h||h.score==null||!h.putts)return;
+      if(!hasFirstPutt(h))return;
       withPutts++;
       if(!h.lag||!out[h.lag]){missing++; return;}
       var b=out[h.lag];
-      b.n++; b.putts+=h.putts; if(h.putts>=3)b.threePutts++;
+      b.n++; b.putts+=h.putts; if(threePutt(h))b.threePutts++;
     });
   });
   return {buckets:out, missing:missing, withPutts:withPutts,
@@ -127,22 +155,22 @@ function roundStats(r){
     // whether or not the score has been tapped in yet, which is the order Kenny actually
     // enters a hole. roundStats used to skip the whole hole on a missing score while
     // buildSummary counted it, so a round mid-entry reported two different putt totals.
-    if(h.score!=null){
+    if(countsScore(h)){
       played++; score+=h.score; par+=c.par;
       if(i<9)out+=h.score; else inn+=h.score;
     }
     putts+=h.putts||0; pen+=h.pen||0;
-    if(c.par>3&&h.fir){fir.d++; if(h.fir==='y')fir.n++; else if(h.fir==='l')fir.l++; else if(h.fir==='r')fir.r++;}
-    if(h.gir!=null){gir.d++; if(h.gir)gir.n++;}
+    if(countsFir(h,c)){fir.d++; if(h.fir==='y')fir.n++; else if(h.fir==='l')fir.l++; else if(h.fir==='r')fir.r++;}
+    if(countsGir(h)){gir.d++; if(h.gir)gir.n++;}
     // CHIP6 is the first greenside shot after MISSING the green -- the UI only enables the
     // row when GIR is No. A chip sitting next to GIR=Yes is stale data from a correction,
     // and counting it inflated the archived rate while the summary correctly dropped it.
-    if(h.gir===false&&(h.chip==='in'||h.chip==='out')){chip6.d++; if(h.chip==='in')chip6.n++;}
+    if(countsChip6(h)){chip6.d++; if(h.chip==='in')chip6.n++;}
     // SS is SHORT-SIDED -- did the miss finish on the side the pin is on. It is not sand
     // saves and it is not scrambling; the comment that used to sit here said otherwise and
     // misled three separate readers (see the 2026-08-25 review). The denominator is every
-    // missed green, so an unrecorded answer cannot flatter the rate.
-    if(h.gir===false){ss.d++; if(h.ss===true)ss.n++;}
+    // missed green. Unknown-answer coverage remains a separate policy decision.
+    if(countsSs(h)){ss.d++; if(h.ss===true)ss.n++;}
     p36.n+=h.sixMade||0; p36.d+=h.sixAtt||0;
   });
   return {score:score,par:par,played:played,fir:fir,gir:gir,putts:putts,chip6:chip6,

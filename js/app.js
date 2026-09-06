@@ -50,7 +50,10 @@ var state=null, holes=[], cur=0, selectedDist=null;
 function clampCur(c){
   var rr=targetHolesRange();
   var n=parseInt(c,10);
-  if(isNaN(n)||n<rr.start||n>rr.end)return rr.start;
+  if(isNaN(n)||n<0||n>17)return rr.start;
+  // An export can include a recorded hole outside the selected nine. Its missing
+  // score must remain reachable when the player declines a partial export.
+  if((n<rr.start||n>rr.end)&&!holeHasData(holes[n]))return rr.start;
   return n;
 }
 
@@ -101,10 +104,51 @@ function targetHolesRange(){
   return {start:0,end:17,count:18,label:'Full 18'};
 }
 
+// v36 (F3): ONE included-hole selection, shared by the export, the archive and the guards.
+// The mode buttons choose which holes the entry screen walks through -- that is navigation.
+// They were also, silently, deciding what the round IS: buildSummary() masked the export to
+// the mode range while newRound() archived all eighteen holes and stamped the selected mode
+// on them. Front 9 selected with scores on the back produced a nine-hole export and an
+// eighteen-hole archive labelled 'front' and carrying Hole 10, so the summary, the copied
+// text and the history disagreed about the same round.
+//
+// The rule: a hole is included if the mode selects it OR it has data in it. A hole Kenny
+// actually played is never dropped to make the label tidy, and the label is derived from
+// what is included rather than asserted over the top of it. Excluded holes are, by
+// construction, both out of scope and empty -- so nothing is deleted.
+function includedHoles(){
+  var r=targetHolesRange(), inc=[];
+  for(var i=0;i<18;i++){
+    if((i>=r.start&&i<=r.end)||holeHasData(holes[i]))inc.push(i);
+  }
+  return inc;
+}
+// Holes carrying data that the current mode does not select. Their presence is stated in
+// the export rather than resolved by deleting them.
+function strayHoles(){
+  var r=targetHolesRange(), out=[];
+  for(var i=0;i<18;i++){ if((i<r.start||i>r.end)&&holeHasData(holes[i]))out.push(i+1); }
+  return out;
+}
+function includedMode(inc){
+  if(!inc||!inc.length)return (state&&state.mode)||'full';
+  if(inc[inc.length-1]<9)return 'front';
+  if(inc[0]>=9)return 'back';
+  return 'full';
+}
+function includedLabel(inc){
+  var m=includedMode(inc);
+  if(m==='front'&&inc.length===9)return 'Front 9';
+  if(m==='back'&&inc.length===9)return 'Back 9';
+  return inc.length===18?'Full 18':inc.length+' Holes';
+}
+
 function setMode(m){
   vibe(15);
   ensureDate();
   state.mode=m;
+  var range=targetHolesRange();
+  if(cur<range.start||cur>range.end)cur=range.start;
   cur=clampCur(cur); saveCursor();
   touch();
   render();
@@ -274,19 +318,23 @@ function stashRecovery(slot){
 // v35: cleanup used to delete every draft this tab held for the round, which threw away a
 // displaced draft that had never been persisted. A draft is safe to drop only when the bytes
 // just written ARE that draft -- identity by content, not by ownership.
-function clearPersistedDrafts(persistedHoles){
+function draftMetadata(d){
+  return JSON.stringify([d.roundId||null,d.date||null,d.mode||'full',d.tee||'blue',d.pin||'?']);
+}
+function draftContent(d){return JSON.stringify([draftMetadata(d),d.holes]);}
+function clearPersistedDrafts(persistedContent){
   var box=readDrafts(), touched=false;
   for(var k in box){
     if(!box[k]||!box[k].holes)continue;
-    if(JSON.stringify(box[k].holes)===persistedHoles){ delete box[k]; touched=true; }
+    if(draftContent(box[k])===persistedContent){ delete box[k]; touched=true; }
   }
   if(touched)writeDrafts(box);
 }
 function loadRecovery(){
-  var box=readDrafts(), mine=JSON.stringify(state.holes), out=[];
+  var box=readDrafts(), mine=draftContent(state), out=[];
   for(var k in box){
     if(!box[k]||!box[k].holes)continue;
-    if(JSON.stringify(box[k].holes)===mine)continue;   // already what is on screen
+    if(draftContent(box[k])===mine)continue;   // exact round and metadata, not just matching scores
     out.push(Object.assign({key:k},box[k]));
   }
   out.sort(function(a,b){return String(b.stashedAt||'').localeCompare(String(a.stashedAt||''));});
@@ -355,7 +403,7 @@ function mergeHeldEntries(){
   var mine=state.holes.map(function(h){return Object.assign({},h);});
   // The draft this tab was holding is about to be incorporated. Once the merge is written it
   // has been saved -- just not byte-identically -- so it must stop being offered as lost.
-  var mergedFrom=JSON.stringify(state.holes);
+  var mergedFrom=draftContent(state), mergedMetadata=draftMetadata(state);
   var disk=d.disk;
   state.rev=disk.rev; state.writer=disk.writer; state.date=disk.date||state.date;
   state.mode=disk.mode||state.mode; state.tee=disk.tee||state.tee; state.pin=disk.pin||state.pin;
@@ -364,7 +412,10 @@ function mergeHeldEntries(){
   d.applied.forEach(function(n){ holes[n-1]=mine[n-1]; });
   saveConflict=''; mergeBlocked=null; crossRound=false; metaClash=null;
   var ok=save();
-  if(ok){ clearPersistedDrafts(mergedFrom); recovered=loadRecovery(); showSaveState(); }
+  if(ok){
+    if(draftMetadata(state)===mergedMetadata)clearPersistedDrafts(mergedFrom);
+    recovered=loadRecovery(); showSaveState();
+  }
   cur=clampCur(cur);
   render();
   return ok;
@@ -448,7 +499,7 @@ function save(){
     saveConflict='overwritten'; stashRecovery(); showSaveState(); return false;
   }
   saveFailed=false; saveConflict=''; saveUnreadable=false; saveReadOnly=false; mergeBlocked=null; stashFailed=false; crossRound=false; metaClash=null; restoreRefused=false;
-  clearPersistedDrafts(JSON.stringify(state.holes));
+  clearPersistedDrafts(draftContent(state));
   recovered=loadRecovery();
   showSaveState(); return true;
 }
@@ -580,10 +631,18 @@ function newRound(){
   var keep={date:state.date, holes:state.holes, rounds:state.rounds, pin:state.pin,
             dirty:state.dirty, exported:state.exported, roundId:state.roundId, cur:cur};
   if(hasData){
+    // v36 (F3): archive exactly what was exported. This used to keep all eighteen holes and
+    // stamp the SELECTED mode on them, so a Front 9 selection with back-nine scores archived
+    // an eighteen-hole round labelled 'front' -- and history then disagreed with the copy
+    // Kenny had just taken. includedHoles() is the same selection buildSummary() masks with,
+    // and the mode is read off it. Excluded holes are out of scope AND empty by construction,
+    // so nothing a player entered is dropped to make the two agree.
+    var inc=includedHoles();
+    var archMode=includedMode(inc);
     state.rounds=state.rounds.concat([{id:'log-'+state.date+'-'+Date.now().toString(36), date:state.date,
-      mode:prevMode, tee:prevTee, source:'logged', suspect:false,
+      mode:archMode, tee:prevTee, source:'logged', suspect:false,
       pin:(state.pin&&state.pin!=='?')?state.pin:null,
-      holes:holes.map(function(h){return Object.assign({},h);}), summary:null}]);
+      holes:holes.map(function(h,i){return inc.indexOf(i)>-1?Object.assign({},h):null;}), summary:null}]);
   }
   state.date=today(); state.holes=mk(); state.dirty=false; state.exported=false;
   state.pin='?'; state.mode=prevMode; state.tee=prevTee;
@@ -807,7 +866,9 @@ function setNote(v){ensureDate(); holes[cur].notes=v; touch(); buildSummary();}
 function move(d){
   vibe(20);
   var r=targetHolesRange();
-  if(r.count===9){
+  if(cur<r.start||cur>r.end){
+    setCur(d<0?r.end:r.start);
+  } else if(r.count===9){
     setCur(r.start+((cur-r.start+9+d)%9));
   } else {
     setCur((cur+18+d)%18);
@@ -833,7 +894,8 @@ function render(){
   var done=0;
   for(var i=r.start; i<=r.end; i++){if(holes[i].score!==null)done++;}
   var dl=document.getElementById('doneLbl');
-  if(dl)dl.textContent=state.date+' · '+done+'/'+r.count+' holes ('+r.label+')';
+  if(dl)dl.textContent=state.date+' · '+done+'/'+r.count+' holes ('+r.label+')'
+    +(strayHoles().length?' · Also recorded: H'+strayHoles().join(', H'):'');
 
   seg('scoreBtns',[{label:'-1',val:c.par-1},{label:'E',val:c.par},{label:'+1',val:c.par+1},{label:'+2',val:c.par+2}],'score');
   seg('penBtns',[{label:'0',val:0},{label:'1',val:1},{label:'2',val:2},{label:'3',val:3}],'pen');
@@ -868,18 +930,18 @@ function render(){
 function fmt(v,y,n){return v===null?'?':(v===true?y:(v===false?n:v));}
 
 function unscoredHoles(){
-  var r=targetHolesRange();
-  var u=[];
-  for(var i=r.start; i<=r.end; i++){
-    if(holes[i].score===null)u.push(i+1);
+  var inc=includedHoles(), u=[];
+  for(var j=0;j<inc.length;j++){
+    if(holes[inc[j]].score===null)u.push(inc[j]+1);
   }
   return u;
 }
 
 function getTeeProfile(){
-  var r=targetHolesRange();
+  var inc=includedHoles();
   var tips=0, blue=0, white=0, yds=0;
-  for(var i=r.start; i<=r.end; i++){
+  for(var j=0,i=inc[0]; j<inc.length; j++){
+    i=inc[j];
     var t=holeTee(i);
     if(t==='tips')tips++;
     else if(t==='white')white++;
@@ -887,16 +949,18 @@ function getTeeProfile(){
     yds+=holeYardage(i,t);
   }
   var label='Blue';
-  if(tips===r.count)label='Tips';
-  else if(white===r.count)label='White';
+  if(tips===inc.length)label='Tips';
+  else if(white===inc.length)label='White';
   else if(tips>0&&blue>0)label='Combo ('+tips+' Tips / '+blue+' Blue)';
   else if(tips>0)label='Combo ('+tips+' Tips)';
   return {tips:tips, blue:blue, white:white, yds:yds, label:label};
 }
 
 function buildSummary(){
-  var m=(state&&state.mode)||'full';
-  var r=targetHolesRange();
+  // v36: the export describes the included holes, and its label is derived from them.
+  var inc=includedHoles();
+  var m=includedMode(inc);
+  var stray=strayHoles();
   var tp=getTeeProfile();
   var modeTag=(m==='front'?' [FRONT 9]':(m==='back'?' [BACK 9]':''));
   var teeTag=(tp.label==='Blue'?'':' TEES:'+tp.label.toUpperCase());
@@ -906,14 +970,19 @@ function buildSummary(){
   // and the archived round cannot drift apart again. The two confirmed divergences this
   // closes: a chip recorded and then corrected to GIR=Yes was dropped here but kept in the
   // archive, and putts on a not-yet-scored hole were counted here but skipped there.
-  var masked=holes.map(function(h,i){return (i>=r.start&&i<=r.end)?h:null;});
+  var masked=holes.map(function(h,i){return inc.indexOf(i)>-1?h:null;});
   var S=roundStats({holes:masked,summary:null});
   var tS=S.score, tPar=S.par, tP=S.putts, tPen=S.pen, out9=S.out, in9=S.inn;
   var gir=S.gir.n, girN=S.gir.d, chipIn=S.chip6.n, chipTried=S.chip6.d;
   var ss=S.ss.n, missed=S.ss.d, made=S.p36.n, att=S.p36.d;
   var firHit=S.fir.n, firN=S.fir.d, firL=S.fir.l||0, firR=S.fir.r||0;
 
-  for(var i=(m==='back'?9:0); i<=(m==='front'?8:17); i++){
+  // v36: the mode selector chose the entry scope, not the record. If holes outside it hold
+  // data, the export says so instead of dropping them.
+  if(stray.length)lines.push('NOTE: '+targetHolesRange().label+' is selected, but H'+stray.join(', H')
+    +(stray.length===1?' also has data. It is':' also have data. They are')+' included below, so the copy and the archive agree.');
+  for(var j=0;j<inc.length;j++){
+    var i=inc[j];
     var h=holes[i];
     var n=(i+1<10?'0':'')+(i+1);
     var pn=(h.pen==null?0:h.pen);
@@ -931,10 +1000,10 @@ function buildSummary(){
 
   var diff=tS-tPar;
   var un=unscoredHoles();
-  var scoredN=r.count-un.length;
+  var scoredN=inc.length-un.length;
   var totLbl;
   if(un.length){
-    totLbl='TOT S:'+tS+'* (PARTIAL '+scoredN+'/'+r.count+', '+(diff>=0?'+':'')+diff+' thru scored) UNSCORED:H'+un.join(',H');
+    totLbl='TOT S:'+tS+'* (PARTIAL '+scoredN+'/'+inc.length+', '+(diff>=0?'+':'')+diff+' thru scored) UNSCORED:H'+un.join(',H');
   } else {
     totLbl='TOT S:'+tS+' ('+(diff>=0?'+':'')+diff+')'+modeTag;
   }
@@ -948,7 +1017,7 @@ function buildSummary(){
   var st=document.getElementById('stats');
   if(st){
     st.innerHTML=
-      (un.length?'<div class="stat"><span class="warn">Unscored '+(r.count===18?'holes':'('+r.label+')')+'</span> <b class="warn">'+un.join(', ')+'</b></div>':'')
+      (un.length?'<div class="stat"><span class="warn">Unscored '+(inc.length===18?'holes':'('+includedLabel(inc)+')')+'</span> <b class="warn">'+un.join(', ')+'</b></div>':'')
       +'<div class="stat">Tees &amp; Total Yardage <b>'+tp.label+' ('+tp.yds.toLocaleString()+' yds)</b></div>'
       +(m==='full'?'<div class="stat">Out / In / Total <b>'+out9+' / '+in9+' / '+tS+(un.length?'*':'')+'</b></div>'
         :(m==='front'?'<div class="stat">Front 9 Score <b>'+tS+' (OUT: '+out9+')</b></div>'
@@ -1107,9 +1176,8 @@ function toggleTrends(){
 
 function guardPartial(){
   var un=unscoredHoles();
-  var r=targetHolesRange();
   if(!un.length)return true;
-  if(confirm(r.label+' Holes '+un.join(', ')+' have no score. Export a PARTIAL round anyway?'))return true;
+  if(confirm(includedLabel(includedHoles())+' Holes '+un.join(', ')+' have no score. Export a PARTIAL round anyway?'))return true;
   setCur(un[0]-1);
   showView('holeView');
   render();
@@ -1145,9 +1213,9 @@ function copyGeminiPrompt(){
   vibe(20);
   if(!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
-  var r=targetHolesRange();
+  var inc=includedHoles();
   var tp=getTeeProfile();
-  var modeLabel=(r.count===9?' ('+r.label+')':'');
+  var modeLabel=(inc.length===18?'':' ('+includedLabel(inc)+')');
   var teeLabel=' played from the '+tp.label+' tees ('+tp.yds.toLocaleString()+' yds)';
   var prompt='Analyze my Bay Oaks round'+modeLabel+teeLabel+' from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
   var msg=document.getElementById('copiedMsg');
@@ -1176,9 +1244,9 @@ function shareExport(){
   buildSummary();
   if(!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
-  var r=targetHolesRange();
+  var inc=includedHoles();
   var tp=getTeeProfile();
-  var modeLabel=(r.count===9?' ('+r.label+')':'');
+  var modeLabel=(inc.length===18?'':' ('+includedLabel(inc)+')');
   var teeLabel=' played from the '+tp.label+' tees ('+tp.yds.toLocaleString()+' yds)';
   var prompt='Analyze my Bay Oaks round'+modeLabel+teeLabel+' from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
   if(navigator.clipboard&&navigator.clipboard.writeText){

@@ -66,7 +66,7 @@ record('A1-failed-archive-clears-exportable-data', s.c.saveFailed &&
   s.c.holes[0].score === null && !s.elements.exportText.textContent.includes('unsaved review note'), {
     diskScore: disk.holes[0].score,
     currentScore: s.c.holes[0].score,
-    archivedOnlyInMemoryScore: s.c.state.rounds.at(-1).holes[0].score,
+    archivedOnlyInMemoryScore: s.c.state.rounds.at(-1)?.holes[0]?.score ?? null,
     currentExportContainsUnsavedNote: s.elements.exportText.textContent.includes('unsaved review note'),
     saveFailed: s.c.saveFailed
   });
@@ -82,7 +82,7 @@ record('A1b-conflict-archive-clears-exportable-data', b.c.saveConflict &&
   !b.elements.exportText.textContent.includes('unique stale review note'), {
     conflict: b.c.saveConflict,
     currentNotes: b.c.holes[2].notes,
-    notesOnlyInMemoryArchive: b.c.state.rounds.at(-1).holes[2].notes,
+    notesOnlyInMemoryArchive: b.c.state.rounds.at(-1)?.holes[2]?.notes ?? null,
     persistedArchives: JSON.parse(shared.get(b.c.STORE)).rounds.length
   });
 
