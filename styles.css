@@ -244,3 +244,48 @@ h1{margin-top:3px;}
 .footer button{border-width:1px;}
 .footer button:last-child{background:var(--oxblood);color:var(--on-oxblood);border-color:var(--oxblood);}
 @media(max-width:360px){h1{font-size:32px;}}
+
+/* v42: one paper scorecard, not a stack of unrelated form cards. */
+body{padding-top:18px;}
+.headerWrap{border-bottom:1px solid var(--line-strong);padding-bottom:14px;}
+h1{font-size:39px;letter-spacing:-.05em;}
+.brand .eyebrow{font-size:9px;letter-spacing:.2em;}
+.themeToggle{border-radius:20px;font-size:12px;}
+.modeWrap{background:transparent;border:0;border-bottom:1px solid var(--line-strong);border-radius:0;padding:0 0 10px;gap:5px;margin-bottom:14px;}
+.modeBtn{font-size:12px;border:1px solid var(--line-strong);border-radius:4px;}
+.modeBtn.on{border:1px solid var(--oxblood);}
+.nav{background:var(--panel);color:var(--ink);border:1px solid var(--line-strong);border-top:4px solid var(--oxblood);border-bottom:0;box-shadow:none;border-radius:3px 3px 0 0;padding:12px;}
+.nav button{background:var(--oxblood);color:var(--on-oxblood);border:0;border-radius:50%;}
+.holeLbl .num{color:var(--muted);font-size:11px;gap:10px;}
+#holeNum{font-size:66px;color:var(--ink);line-height:1;}
+.holeLbl .meta{color:var(--ink);font-size:12px;font-weight:600;}
+.holeLbl .done{color:var(--muted);font-size:11px;margin-top:4px;}
+.tip{border-radius:0 0 3px 3px;padding:10px 14px 14px;position:relative;}
+.tip:before{content:"";display:block;border-top:1px solid var(--line);margin-bottom:10px;}
+.tip b{font-size:10px;letter-spacing:.16em;}
+#holeView>.row{background:transparent;border:0;border-bottom:1px solid var(--line-strong);border-radius:0;padding:12px 0 15px;margin-bottom:0;}
+.lbl{font-size:13px;text-transform:none;letter-spacing:0;font-weight:700;line-height:1.4;margin-bottom:10px;}
+.btns button,.stepper button,.mini{background:var(--panel);border-radius:4px;}
+.btns button.on{background:var(--oxblood);box-shadow:inset 0 0 0 2px var(--oxblood),inset 0 0 0 3px var(--brass);}
+#holeView>.scoreCard{margin:16px 0 4px;padding:14px;background:var(--hero);border:1px solid var(--hero);border-radius:5px;}
+.scoreCard .lbl{color:var(--hero-ink);font-size:11px;text-transform:uppercase;letter-spacing:.14em;}
+.scoreCard .scoreNow{color:var(--hero-ink);font-size:28px;}
+.scoreCard .btns button,.scoreCard .mini{background:var(--panel);color:var(--ink);border-color:var(--brass);}
+.scoreCard .btns button.on{background:var(--brass);color:#2C211A;box-shadow:inset 0 0 0 2px var(--brass),inset 0 0 0 3px #63351F;}
+.inlineWrap{margin-top:14px;}
+.inlineWrap .row{background:transparent;border:0;padding:4px;}
+.inlineWrap .row+ .row{border-left:1px solid var(--line-strong);border-radius:0;}
+.noteBox{background:var(--panel);border-radius:3px;}
+.footer{border-top:1px solid var(--line-strong);box-shadow:0 -3px 0 var(--ground);}
+.footer button{font-size:14px;border-radius:4px;}
+.stat{padding:14px 0;}
+.metricBox{background:transparent;border:0;border-bottom:2px solid var(--line-strong);border-radius:0;}
+.metricBox .mLbl{font-size:11px;letter-spacing:.07em;}
+.metricBox .mVal{font-family:Georgia,"Times New Roman",serif;font-size:34px;}
+@media(max-width:360px){h1{font-size:34px;}.brand .eyebrow{font-size:8px;letter-spacing:.13em;}#holeNum{font-size:56px;}#holeView>.scoreCard{padding:10px;}.scoreWrap .btns{min-width:194px;}}
+
+/* Keep score entry above the bottom toolbar on a typical phone. */
+.nav{padding-block:8px;}
+.tip{margin-bottom:8px;}
+#holeView>.row:not(.scoreCard){padding-block:9px 11px;}
+.scoreWrap .btns{min-width:194px;}
