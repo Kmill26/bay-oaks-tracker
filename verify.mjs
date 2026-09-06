@@ -1333,6 +1333,117 @@ global.localStorage = {getItem:()=>null, setItem(){}};
 global.localStorage = {getItem:()=>null, setItem(){}};
 
 
+// Case 25 (v35): dictation ownership, and cleanup that identifies the exact draft saved.
+
+// --- 25a: saving one draft must not delete another draft that was never persisted -------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; save();
+  const id = globalThis.state.roundId;
+  const ahead = JSON.parse(disk.raw); ahead.rev+=5; ahead.writer='x'; ahead.roundId=id;
+  disk.raw = JSON.stringify(ahead);
+  globalThis.holes[1].notes='draft A'; save();          // refused -> draft A stashed
+  load();
+  globalThis.holes[5].notes='draft B';                  // new work in this tab
+  recoverDraft();                                        // swap to A, B goes to the displaced slot
+  // storage frees up; the restored draft A is saved
+  const fixed = JSON.parse(disk.raw); fixed.rev = globalThis.state.rev; fixed.writer = globalThis.state.writer;
+  disk.raw = JSON.stringify(fixed);
+  check('cleanup: the restored draft saves', save()===true, 'save refused');
+  const all = JSON.stringify(localStorage.getItem(RECOVERY)||'');
+  check('cleanup: the draft that was actually persisted is cleared', !all.includes('draft A'), 'persisted draft still queued');
+  check('cleanup: the draft that was NOT persisted survives', all.includes('draft B'), 'draft B deleted though it was never saved');
+})();
+
+// --- 25b: another tab's draft of the same round is not collateral ------------------------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; save();
+  const id = globalThis.state.roundId;
+  const box = readDrafts();
+  box[id+'|othertab'] = {date:today(),mode:'full',pin:'?',tee:'blue',roundId:id,
+    holes:blank21(), stashedAt:'2020-01-01T00:00:00Z', tab:'othertab'};
+  box[id+'|othertab'].holes[9] = {...box[id+'|othertab'].holes[9], notes:'other tab draft'};
+  writeDrafts(box);
+  globalThis.holes[0].score = 4;
+  check('cleanup: this tab can still save', save()===true, 'save refused');
+  check('cleanup: the other tab\'s draft of the same round is untouched',
+    JSON.stringify(localStorage.getItem(RECOVERY)||'').includes('other tab draft'), 'other tab draft deleted');
+})();
+
+// --- 25c: F6 -- a transcript belongs to the hole and round it was started on -------------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; globalThis.cur = 0; save();
+
+  // navigate while speaking
+  let sess = beginDictation();
+  setCur(1);
+  applyDictation(sess, 'driver down the middle');
+  check('dictation: the result reaches the hole it was started on',
+    globalThis.holes[0].notes==='driver down the middle', 'H1 notes='+globalThis.holes[0].notes);
+  check('dictation: and not the hole navigated to', !globalThis.holes[1].notes, 'H2 notes='+globalThis.holes[1].notes);
+
+  // a score entered while speaking must not discard the note
+  globalThis.cur = 2;
+  sess = beginDictation();
+  globalThis.holes[2].score = 5; touch();            // whole-round revision moves
+  check('dictation: entering a score while speaking does not discard the note',
+    applyDictation(sess,'pured it')===true && globalThis.holes[2].notes==='pured it', 'notes='+globalThis.holes[2].notes);
+
+  // text typed while recognition is pending is preserved, not overwritten
+  globalThis.cur = 3;
+  sess = beginDictation();
+  globalThis.holes[3].notes = 'typed while waiting';
+  applyDictation(sess, 'and the transcript');
+  check('dictation: typed text survives a pending transcript',
+    globalThis.holes[3].notes.indexOf('typed while waiting')===0 && /and the transcript/.test(globalThis.holes[3].notes),
+    'notes='+globalThis.holes[3].notes);
+
+  // stop and restart: a late result from the first recording cannot land in the second
+  globalThis.cur = 4;
+  const first = beginDictation();
+  const second = beginDictation();
+  check('dictation: a late result from a superseded recording is dropped',
+    applyDictation(first,'stale audio')===false && !globalThis.holes[4].notes, 'notes='+globalThis.holes[4].notes);
+  check('dictation: the current recording still lands',
+    applyDictation(second,'live audio')===true && globalThis.holes[4].notes==='live audio', 'notes='+globalThis.holes[4].notes);
+
+  // a new round must never receive the previous round's transcript
+  globalThis.cur = 5;
+  const beforeRound = beginDictation();
+  const rc = global.confirm; global.confirm = () => true; newRound(); global.confirm = rc;
+  check('dictation: a transcript from the previous round cannot enter the new one',
+    applyDictation(beforeRound,'from the old round')===false && !globalThis.holes[5].notes, 'notes='+globalThis.holes[5].notes);
+})();
+
+// --- 25d: if the transcript cannot be saved it stays visible and recoverable -------------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; globalThis.cur = 0; save();
+  const ahead = JSON.parse(disk.raw); ahead.rev+=5; ahead.writer='x'; ahead.roundId=globalThis.state.roundId;
+  disk.raw = JSON.stringify(ahead);                    // every further save will be refused
+  const sess = beginDictation();
+  const landed = applyDictation(sess, 'note that cannot be saved');
+  check('dictation: the transcript is still applied in memory', globalThis.holes[0].notes==='note that cannot be saved', 'notes lost');
+  check('dictation: a refused save is reported, not swallowed', landed===false, 'reported success');
+  check('dictation: and the transcript is recoverable',
+    JSON.stringify(localStorage.getItem(RECOVERY)||'').includes('note that cannot be saved'), 'not stashed');
+  buildSummary();
+  check('dictation: it is in the export too',
+    els['exportText'].textContent.includes('note that cannot be saved'), 'missing from export');
+})();
+global.localStorage = {getItem:()=>null, setItem(){}};
+
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
 

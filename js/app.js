@@ -271,9 +271,15 @@ function stashRecovery(slot){
   stashFailed=!writeDrafts(box);
   return !stashFailed;
 }
-function clearOwnDraft(){
+// v35: cleanup used to delete every draft this tab held for the round, which threw away a
+// displaced draft that had never been persisted. A draft is safe to drop only when the bytes
+// just written ARE that draft -- identity by content, not by ownership.
+function clearPersistedDrafts(persistedHoles){
   var box=readDrafts(), touched=false;
-  [draftKey(),draftKey('displaced')].forEach(function(k){ if(box[k]){delete box[k]; touched=true;} });
+  for(var k in box){
+    if(!box[k]||!box[k].holes)continue;
+    if(JSON.stringify(box[k].holes)===persistedHoles){ delete box[k]; touched=true; }
+  }
   if(touched)writeDrafts(box);
 }
 function loadRecovery(){
@@ -347,6 +353,9 @@ function mergeHeldEntries(){
     return false;
   }
   var mine=state.holes.map(function(h){return Object.assign({},h);});
+  // The draft this tab was holding is about to be incorporated. Once the merge is written it
+  // has been saved -- just not byte-identically -- so it must stop being offered as lost.
+  var mergedFrom=JSON.stringify(state.holes);
   var disk=d.disk;
   state.rev=disk.rev; state.writer=disk.writer; state.date=disk.date||state.date;
   state.mode=disk.mode||state.mode; state.tee=disk.tee||state.tee; state.pin=disk.pin||state.pin;
@@ -355,6 +364,7 @@ function mergeHeldEntries(){
   d.applied.forEach(function(n){ holes[n-1]=mine[n-1]; });
   saveConflict=''; mergeBlocked=null; crossRound=false; metaClash=null;
   var ok=save();
+  if(ok){ clearPersistedDrafts(mergedFrom); recovered=loadRecovery(); showSaveState(); }
   cur=clampCur(cur);
   render();
   return ok;
@@ -438,7 +448,7 @@ function save(){
     saveConflict='overwritten'; stashRecovery(); showSaveState(); return false;
   }
   saveFailed=false; saveConflict=''; saveUnreadable=false; saveReadOnly=false; mergeBlocked=null; stashFailed=false; crossRound=false; metaClash=null; restoreRefused=false;
-  clearOwnDraft();
+  clearPersistedDrafts(JSON.stringify(state.holes));
   recovered=loadRecovery();
   showSaveState(); return true;
 }
@@ -685,7 +695,36 @@ function checkFatigue(){
   }
 }
 
-var recognizer=null, isRecording=false;
+var recognizer=null, isRecording=false, speechSeq=0;
+
+// v35: the result handler read holes[cur] when the transcript arrived, so a note landed on
+// whatever hole was on screen by then. Binding is to the round, the hole, and the recording
+// session -- deliberately NOT to the round revision, because entering a score while speaking
+// must not throw away a perfectly good note.
+function beginDictation(){ return {seq:++speechSeq, roundId:state.roundId, hole:cur}; }
+function applyDictation(session, transcript){
+  var msg=document.getElementById('copiedMsg');
+  var text=String(transcript||'').trim();
+  if(!session||!text)return false;
+  if(session.seq!==speechSeq)return false;                       // a later recording superseded this one
+  if(session.roundId!==state.roundId){
+    // Nowhere sensible to put it; show it rather than dropping it silently.
+    if(msg)msg.textContent='Not added — that dictation belongs to the previous round: "'+text+'"';
+    return false;
+  }
+  var h=holes[session.hole];
+  if(!h)return false;
+  // Read the note as it stands NOW, so anything typed while recognition was pending survives.
+  var existing=h.notes||'';
+  var merged=existing?(existing+' / '+text):text;
+  h.notes=merged;
+  if(session.hole===cur){ var nb=document.getElementById('noteBox'); if(nb)nb.value=merged; }
+  ensureDate();
+  var ok=touch();
+  if(!ok&&msg)msg.textContent='Note kept on hole '+(session.hole+1)+' but not saved — Copy Log before reloading.';
+  buildSummary();
+  return ok;
+}
 function toggleVoice(){
   vibe(25);
   var btn=document.getElementById('micBtn');
@@ -707,12 +746,9 @@ function toggleVoice(){
       isRecording=true;
       if(btn){btn.className='micBtn listening'; btn.textContent='🔴 Listening...';}
     };
+    var session=beginDictation();
     recognizer.onresult=function(e){
-      var transcript=e.results[0][0].transcript;
-      var curVal=holes[cur].notes||'';
-      var newVal=curVal?(curVal+' / '+transcript):transcript;
-      setNote(newVal);
-      var nb=document.getElementById('noteBox'); if(nb)nb.value=newVal;
+      applyDictation(session, e.results[0][0].transcript);
     };
     recognizer.onerror=function(){
       isRecording=false;
