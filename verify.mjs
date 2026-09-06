@@ -701,6 +701,8 @@ function session21(disk){
       if(box.mode==='writethrow'&&k===STORE) throw new Error('injected QuotaExceededError');
       if(k===STORE){ disk.raw=v; } else { other[k]=v; }
     },
+    get length(){return Object.keys(other).length;},
+    key(i){return Object.keys(other)[i]||null;},
     removeItem(k){ if(k===STORE){ disk.raw=undefined; } else { delete other[k]; } },
   };
   return box;
@@ -803,7 +805,7 @@ function session21(disk){
     !/Reload this tab to pick up/i.test(els['saveAlert'].innerHTML)
     && /before you reload/i.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,160));
   check('collision: the losing draft is stashed so a reload cannot destroy it',
-    (()=>{ try{ return !!JSON.parse(localStorage.getItem(RECOVERY)); }catch(e){ return false; } })(), 'no recovery stash');
+    (()=>{ try{ return Object.keys(readDrafts()||{}).length>0; }catch(e){ return false; } })(), 'no recovery stash');
 
   // and a further write from this tab is refused rather than overwriting them
   saveConflict='';
@@ -931,7 +933,7 @@ global.localStorage = {getItem:()=>null, setItem(){}};
   check('writer: a read-only tab refuses to write', save()===false, 'read-only tab wrote');
   check('writer: it says the round is open elsewhere and does not tell you to reload',
     /open in another tab/.test(els['saveAlert'].innerHTML) && !/Reload this tab/i.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,110));
-  check('writer: its entries are stashed so they survive', (()=>{try{return !!JSON.parse(localStorage.getItem(RECOVERY));}catch(e){return false;}})(), 'no stash');
+  check('writer: its entries are stashed so they survive', (()=>{try{return Object.keys(readDrafts()||{}).length>0;}catch(e){return false;}})(), 'no stash');
 
   available = true;                      // the holder closed
   reelectWriter();
@@ -961,7 +963,7 @@ global.localStorage = {getItem:()=>null, setItem(){}};
   globalThis.holes[1].score = 7; globalThis.holes[1].notes = 'refused entry note';
   check('recover: the entry is refused, not written', save()===false, 'save succeeded');
   check('recover: a copy is stashed under its own key',
-    (()=>{try{return !!JSON.parse(localStorage.getItem(RECOVERY));}catch(e){return false;}})(), 'no stash');
+    (()=>{try{return Object.keys(readDrafts()||{}).length>0;}catch(e){return false;}})(), 'no stash');
 
   load();                                     // the reload the banner used to demand
   check('recover: the reload picks the stash up', !!recovered, 'nothing recovered');
@@ -1139,7 +1141,7 @@ global.localStorage = {getItem:()=>null, setItem(){}};
     !/Add my holes to the newer round/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,160));
   check('identity: the archived copy is untouched', after.rounds.length===1, 'rounds='+after.rounds.length);
   check('identity: the held round is still recoverable',
-    (()=>{try{return !!JSON.parse(localStorage.getItem(RECOVERY));}catch(e){return false;}})(), 'no stash');
+    (()=>{try{return Object.keys(readDrafts()||{}).length>0;}catch(e){return false;}})(), 'no stash');
   check('identity: a round carries an id that survives the round, not just its date',
     typeof yesterdayId==='string' && yesterdayId!==fresh.roundId, 'roundId='+yesterdayId);
   mergeBlocked=null; crossRound=false;
@@ -1179,7 +1181,7 @@ global.localStorage = {getItem:()=>null, setItem(){}};
   check('identity: the disk copy is intact after a blocked merge', JSON.parse(disk.raw).holes[4].score===5, 'disk changed');
   check('identity: this tab\'s copy is intact after a blocked merge', globalThis.holes[4].score===8, 'memory changed');
   check('identity: recovery is still on offer after a blocked merge',
-    (()=>{try{return !!JSON.parse(localStorage.getItem(RECOVERY));}catch(e){return false;}})(), 'stash gone');
+    (()=>{try{return Object.keys(readDrafts()||{}).length>0;}catch(e){return false;}})(), 'stash gone');
   mergeBlocked=null;
 })();
 
@@ -1254,7 +1256,7 @@ global.localStorage = {getItem:()=>null, setItem(){}};
   check('recovery-fail: the current round is still on screen',
     globalThis.holes[5].score===3 && globalThis.holes[5].notes==='current round work', 'current round destroyed');
   check('recovery-fail: the existing recovery copy is untouched',
-    (()=>{try{return JSON.stringify(localStorage.getItem(RECOVERY)).includes('draft A');}catch(e){return false;}})(), 'stash damaged');
+    (()=>{try{return JSON.stringify(readDrafts()).includes('draft A');}catch(e){return false;}})(), 'stash damaged');
   check('recovery-fail: and it says why', /could not keep|not enough room|could not be kept/i.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,140));
 })();
 
@@ -1273,7 +1275,7 @@ global.localStorage = {getItem:()=>null, setItem(){}};
   recoverDraft();                                                               // swap to draft A
   check('recovery-reload: draft A is on screen after restoring', globalThis.holes[1].notes==='draft A', 'restore failed');
   load();                                                                       // immediate reload
-  const all = JSON.stringify(localStorage.getItem(RECOVERY)||'');
+  const all = JSON.stringify(readDrafts()||{});
   check('recovery-reload: draft B survived the swap', all.includes('draft B'), 'draft B lost');
   check('recovery-reload: draft A is still recoverable too', all.includes('draft A'), 'draft A lost on reload');
 })();
@@ -1290,7 +1292,7 @@ global.localStorage = {getItem:()=>null, setItem(){}};
   globalThis.holes[2].notes='tab one draft'; save();          // tab one stashes
   TAB_ID = 'secondtab';
   globalThis.holes[2].notes='tab two draft'; save();          // tab two stashes
-  const all = JSON.stringify(localStorage.getItem(RECOVERY)||'');
+  const all = JSON.stringify(readDrafts()||{});
   check('recovery-tabs: the first tab\'s draft survives the second', all.includes('tab one draft'), 'first draft overwritten');
   check('recovery-tabs: the second tab\'s draft is there too', all.includes('tab two draft'), 'second draft missing');
   TAB_ID = realTab;
@@ -1373,7 +1375,7 @@ global.localStorage = {getItem:()=>null, setItem(){}};
   const fixed = JSON.parse(disk.raw); fixed.rev = globalThis.state.rev; fixed.writer = globalThis.state.writer;
   disk.raw = JSON.stringify(fixed);
   check('cleanup: the restored draft saves', save()===true, 'save refused');
-  const all = JSON.stringify(localStorage.getItem(RECOVERY)||'');
+  const all = JSON.stringify(readDrafts()||{});
   check('cleanup: the draft that was actually persisted is cleared', !all.includes('draft A'), 'persisted draft still queued');
   check('cleanup: the draft that was NOT persisted survives', all.includes('draft B'), 'draft B deleted though it was never saved');
 })();
@@ -1393,7 +1395,7 @@ global.localStorage = {getItem:()=>null, setItem(){}};
   globalThis.holes[0].score = 4;
   check('cleanup: this tab can still save', save()===true, 'save refused');
   check('cleanup: the other tab\'s draft of the same round is untouched',
-    JSON.stringify(localStorage.getItem(RECOVERY)||'').includes('other tab draft'), 'other tab draft deleted');
+    JSON.stringify(readDrafts()||{}).includes('other tab draft'), 'other tab draft deleted');
 })();
 
 // --- 25c: F6 -- a transcript belongs to the hole and round it was started on -------------
@@ -1457,7 +1459,7 @@ global.localStorage = {getItem:()=>null, setItem(){}};
   check('dictation: the transcript is still applied in memory', globalThis.holes[0].notes==='note that cannot be saved', 'notes lost');
   check('dictation: a refused save is reported, not swallowed', landed===false, 'reported success');
   check('dictation: and the transcript is recoverable',
-    JSON.stringify(localStorage.getItem(RECOVERY)||'').includes('note that cannot be saved'), 'not stashed');
+    JSON.stringify(readDrafts()||{}).includes('note that cannot be saved'), 'not stashed');
   buildSummary();
   check('dictation: it is in the export too',
     els['exportText'].textContent.includes('note that cannot be saved'), 'missing from export');
@@ -1656,6 +1658,69 @@ function f3state(mode){
     !kept.exact && Object.keys(kept).length===5, Object.keys(kept).join(','));
   check('cleanup identity: different round, date, pin, tee and mode all survive',
     ['otherRound','otherDate','otherPin','otherTee','otherMode'].every(k=>!!kept[k]),Object.keys(kept).join(','));
+})();
+
+// v37: recovery entries survive failed legacy reads and competing tab writes.
+(() => {
+  f3state('full');
+  holes[0].score=6;
+  const legacy={date:state.date,roundId:state.roundId,mode:'full',tee:'blue',pin:'?',
+    holes:JSON.parse(JSON.stringify(holes)),tab:'old',stashedAt:'2020-01-01'};
+  const raw=JSON.stringify({drafts:{old:legacy}});
+  localStorage.setItem(RECOVERY,raw);
+  const get=localStorage.getItem;
+  localStorage.getItem=function(k){if(k===RECOVERY)throw Error('injected recovery read');return get(k);};
+  holes[1].score=7;
+  check('recovery independent: stash succeeds without reading the old collection',stashRecovery()===true,'stash refused');
+  check('recovery independent: unreadable legacy bytes survive unchanged',get(RECOVERY)===raw,'legacy overwritten');
+  check('recovery independent: unreadable is not an empty collection',readDrafts()===null,'read failed open');
+  localStorage.getItem=get;
+  check('recovery independent: both backups become readable after recovery',Object.keys(readDrafts()).length===2,'backup lost');
+  localStorage.setItem(RECOVERY,'{broken');
+  check('recovery independent: corrupt legacy bytes do not block a separate backup',stashRecovery()===true,'stash refused');
+  clearPersistedDrafts(draftContent(state));
+  check('recovery independent: cleanup never replaces corrupt bytes',get(RECOVERY)==='{broken','corrupt bytes replaced');
+  localStorage.setItem(RECOVERY,raw);
+  // Retiring legacy data uses an exact-content receipt, leaving its original bytes intact.
+  clearPersistedDrafts(draftContent(legacy));
+  check('recovery legacy: retired draft is hidden and original bytes preserved',
+    !readDrafts()['v2|old']&&get(RECOVERY)===raw,'legacy cleanup unsafe');
+  legacy.holes[0].score=8;
+  localStorage.setItem(RECOVERY,JSON.stringify({drafts:{old:legacy}}));
+  check('recovery legacy: a newer version is not hidden by an old receipt',
+    readDrafts()['v2|old'].holes[0].score===8,'newer draft hidden');
+})();
+(() => {
+  f3state('full'); holes[0].score=6;
+  const get=localStorage.getItem;
+  let once=true;
+  localStorage.getItem=function(k){
+    const old=get(k);
+    if(k.startsWith(DRAFT_PREFIX)&&once){
+      once=false;
+      const mine=state.holes;
+      state.holes=mk(); state.holes[1].score=7;
+      check('recovery race: competing stash succeeds',stashRecovery()===true,'other stash failed');
+      state.holes=mine;
+    }
+    return old;
+  };
+  check('recovery race: first stash also succeeds',stashRecovery()===true,'first stash failed');
+  localStorage.getItem=get;
+  const drafts=Object.values(readDrafts());
+  check('recovery race: both independent scores survive',drafts.length===2&&
+    drafts.some(d=>d.holes[0].score===6)&&drafts.some(d=>d.holes[1].score===7),'competing draft lost');
+  recovered=loadRecovery();
+  dismissRecovery();
+  check('recovery discard: discarding the offered draft keeps the other backup',
+    Object.values(readDrafts()).some(d=>d.holes[0].score===6),'unrelated draft discarded');
+})();
+(() => {
+  f3state('full'); holes[0].tee='white';buildSummary();
+  check('mixed tees: white and blue are both named',getTeeProfile().label==='Combo (17 Blue / 1 White)',getTeeProfile().label);
+  check('mixed tees: export carries the combination',els.exportText.textContent.includes('TEES:COMBO (17 BLUE / 1 WHITE)'),els.exportText.textContent.split('\n')[0]);
+  holes[1].tee='tips';buildSummary();
+  check('mixed tees: all three colors are represented',getTeeProfile().label==='Combo (1 Tips / 16 Blue / 1 White)',getTeeProfile().label);
 })();
 
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');

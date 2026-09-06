@@ -290,28 +290,51 @@ function reelectWriter(){ if(writerRole!=='writer')electWriter(); }
 // now a keyed collection -- one slot per round per tab -- so nothing a refusal saved can be
 // destroyed by the next refusal.
 function draftKey(slot){ return (state.roundId||'unknown')+'|'+TAB_ID+(slot?'|'+slot:''); }
+var DRAFT_PREFIX='bayoaks-draft-v3:', DRAFT_REMOVED='bayoaks-draft-removed-v3:', draftSeq=0;
+// Independent immutable entries: stashing never reads or replaces another tab's backup.
+// Legacy collections stay untouched; per-entry receipts hide only the exact retired copy.
 function readDrafts(){
   var box={};
+  function legacy(key,draft){
+    if(localStorage.getItem(DRAFT_REMOVED+key)!==JSON.stringify(draft))box[key]=draft;
+  }
   try{
     var raw=localStorage.getItem(RECOVERY);
-    if(raw){ var parsed=JSON.parse(raw); if(parsed&&parsed.drafts)box=parsed.drafts; }
-  }catch(e){}
-  try{                                            // fold a v1 single-slot draft in once
+    if(raw){var parsed=JSON.parse(raw); if(!parsed||!parsed.drafts)throw Error('Invalid recovery');
+      Object.keys(parsed.drafts).forEach(function(k){legacy('v2|'+k,parsed.drafts[k]);});}
     var old=localStorage.getItem(RECOVERY_V1);
-    if(old){ var o=JSON.parse(old); if(o&&o.holes)box[(o.roundId||'legacy')+'|'+(o.tab||'v1')]=o; }
-  }catch(e){}
-  return box;
+    if(old){var o=JSON.parse(old); if(!o||!o.holes)throw Error('Invalid recovery'); legacy('v1',o);}
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k&&k.indexOf(DRAFT_PREFIX)===0){
+        var value=localStorage.getItem(k);
+        if(value!==null)box[k.slice(DRAFT_PREFIX.length)]=JSON.parse(value);
+      }
+    }
+    return box;
+  }catch(e){return null;} // unknown is never permission to replace or delete backups
 }
 function writeDrafts(box){
-  try{ localStorage.setItem(RECOVERY,JSON.stringify({drafts:box})); return true; }
-  catch(e){ return false; }
+  try{
+    for(var k in box){
+      var key=DRAFT_PREFIX+k, value=JSON.stringify(box[k]), old=localStorage.getItem(key);
+      if(old!==null&&old!==value)return false;
+      localStorage.setItem(key,value);
+    }
+    return true;
+  }catch(e){return false;}
+}
+function retireDraft(key,draft){
+  try{
+    if(key==='v1'||key.indexOf('v2|')===0)localStorage.setItem(DRAFT_REMOVED+key,JSON.stringify(draft));
+    else if(localStorage.getItem(DRAFT_PREFIX+key)===JSON.stringify(draft))localStorage.removeItem(DRAFT_PREFIX+key);
+  }catch(e){} // leaving an extra copy is safer than deleting an unknown one
 }
 function stashRecovery(slot){
-  var box=readDrafts();
-  box[draftKey(slot)]={date:state.date,mode:state.mode,pin:state.pin,tee:state.tee,
+  var key=draftKey(slot)+'|'+Date.now().toString(36)+'|'+(++draftSeq)+'|'+Math.random().toString(36).slice(2);
+  var box={};
+  box[key]={date:state.date,mode:state.mode,pin:state.pin,tee:state.tee,
     roundId:state.roundId,holes:state.holes,stashedAt:new Date().toISOString(),tab:TAB_ID};
-  // The copy that makes "reload" survivable. If it cannot be written, say so rather than
-  // letting the advice imply a safety net that is not there.
   stashFailed=!writeDrafts(box);
   return !stashFailed;
 }
@@ -323,18 +346,20 @@ function draftMetadata(d){
 }
 function draftContent(d){return JSON.stringify([draftMetadata(d),d.holes]);}
 function clearPersistedDrafts(persistedContent){
-  var box=readDrafts(), touched=false;
+  var box=readDrafts(); if(!box)return;
   for(var k in box){
     if(!box[k]||!box[k].holes)continue;
-    if(draftContent(box[k])===persistedContent){ delete box[k]; touched=true; }
+    if(draftContent(box[k])===persistedContent){ retireDraft(k,box[k]); }
   }
-  if(touched)writeDrafts(box);
 }
 function loadRecovery(){
-  var box=readDrafts(), mine=draftContent(state), out=[];
+  var box=readDrafts(), mine=draftContent(state), out=[], seen={};
+  if(!box)return null;
   for(var k in box){
     if(!box[k]||!box[k].holes)continue;
-    if(draftContent(box[k])===mine)continue;   // exact round and metadata, not just matching scores
+    var content=draftContent(box[k]);
+    if(content===mine||seen[content])continue;
+    seen[content]=true;   // exact round and metadata, not just matching scores
     out.push(Object.assign({key:k},box[k]));
   }
   out.sort(function(a,b){return String(b.stashedAt||'').localeCompare(String(a.stashedAt||''));});
@@ -421,8 +446,11 @@ function mergeHeldEntries(){
   return ok;
 }
 function dismissRecovery(){
-  recovered=null;
-  try{localStorage.removeItem(RECOVERY); localStorage.removeItem(RECOVERY_V1);}catch(e){}
+  if(recovered&&recovered.length){
+    var target=recovered[0], box=readDrafts();
+    if(box)for(var k in box)if(draftContent(box[k])===draftContent(target))retireDraft(k,box[k]);
+  }
+  recovered=loadRecovery();
   showSaveState();
 }
 
@@ -951,8 +979,13 @@ function getTeeProfile(){
   var label='Blue';
   if(tips===inc.length)label='Tips';
   else if(white===inc.length)label='White';
-  else if(tips>0&&blue>0)label='Combo ('+tips+' Tips / '+blue+' Blue)';
-  else if(tips>0)label='Combo ('+tips+' Tips)';
+  else if(tips||white){
+    var parts=[];
+    if(tips)parts.push(tips+' Tips');
+    if(blue)parts.push(blue+' Blue');
+    if(white)parts.push(white+' White');
+    label='Combo ('+parts.join(' / ')+')';
+  }
   return {tips:tips, blue:blue, white:white, yds:yds, label:label};
 }
 
