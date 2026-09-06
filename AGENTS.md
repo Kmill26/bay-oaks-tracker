@@ -3,14 +3,26 @@
 Personal round tracker and caddy for Bay Oaks CC. Built for Kenny, used on a
 phone, on a course. Not a product. There are no other users.
 
-Global operating rules live at `~/.gemini/GEMINI.md` and are canonical for
-behaviour. This file is canonical for **this repo**. If they disagree on repo
-mechanics, this file wins; on behaviour, the global file wins.
+Global operating rules for behaviour live at `~/.gemini/GEMINI.md`. **That file
+is a condensed copy, not the source** — the canonical rules are
+`~/Documents/vault/meta/agent-operating-rules.md`, and the copy exists only
+because Antigravity caps a rules file at 12,000 characters. This file is
+canonical for **this repo**. If they disagree on repo mechanics, this file wins;
+on behaviour, the global file wins.
 
 ## Confirm before starting
 
 Read `~/.gemini/GEMINI.md`, then reply with one line — `rules loaded, version: N`
 — before doing any work. N is the `rules_version` in that file's header.
+
+**Check that N is current before you trust it.** `head -5
+~/Documents/vault/meta/agent-operating-rules.md` gives the canonical version. If
+the copy is behind, say so in that same line rather than proceeding quietly —
+announcing a stale N reads as a freshness confirmation and is the opposite of
+one. The copy sat at 64 against a canonical 75 for seventeen days in Aug-Sep
+2026, and every agent that announced "version: 64" in this repo was confirming
+rules that had already moved. The vault now checks this on its weekly `--full`
+run, but the check is machine-local and weekly; your read is immediate.
 
 ## The oracle is the ship gate
 
