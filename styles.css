@@ -1,42 +1,20 @@
+/* v40: sunlit scorecard. Opaque surfaces, dark ink, system fonts, no network assets.
+   Keep legacy token names because generated summary/trend markup uses them. */
 :root{
-    /* Bone -- the default. Golf happens in daylight; dark ink on warm paper is
-       the most legible thing there is in direct Houston sun, and it is what a
-       scorecard already is. Ratios below are computed against --ground. */
-    --ground:#EFE9DC;        /* page background -- warm bone, not white */
-    --panel:#F7F2E8;         /* card surface, one step lighter than ground */
-    --panel2:#E5DCCB;        /* interactive element surface, one step darker */
-    --ink:#16181A;           /* primary text            14.72:1 */
-    --oxblood:#5C1F1B;       /* structure + active      10.41:1 */
-    --muted:#6B5A4E;         /* labels, secondary text   5.43:1 */
-    --line:#D6CDBC;          /* card borders, hairlines */
-    --line-strong:#C4B7A2;   /* interactive borders */
-    --line-soft:#E0D7C6;     /* row dividers inside cards */
-    --on-oxblood:#F7F2E8;    /* text on an oxblood fill 11.29:1 */
-
-    /* Semantic only -- never decorative. */
-    --green:#2E6B4F;         /* under par                5.21:1 */
-    --red:#A32E24;           /* over par, penalties      5.84:1 */
-    --warn:#8A3324;          /* partial-round warnings   6.73:1 */
-
-    /* System stacks only -- no font files, because this runs with no signal. */
-    --numerals: ui-monospace, "SF Mono", "Roboto Mono", "DejaVu Sans Mono", monospace;
-  }
-  /* Dusk -- the option, for evening nines and reading indoors. */
-  body.dusk{
-    --ground:#3A1310;
-    --panel:#4A1A16;
-    --panel2:#5C1F1B;
-    --ink:#EFE9DC;           /* 13.56:1 on ground */
-    --oxblood:#C9A88F;       /* accent inverts to clay   7.40:1 */
-    --muted:#C9A88F;
-    --line:#5C1F1B;
-    --line-strong:#7A2E28;
-    --line-soft:#4E1B17;
-    --on-oxblood:#3A1310;
-    --green:#6FD3A0;
-    --red:#E8836F;
-    --warn:#E8A87C;
-  }
+  color-scheme:light;
+  --ground:#F2F4F7; --panel:#FFFFFF; --panel2:#E7EBF1;
+  --ink:#101B2B; --oxblood:#123FC1; --muted:#3D4D63;
+  --line:#BDC6D3; --line-strong:#62718A; --line-soft:#D6DEE8;
+  --on-oxblood:#FFFFFF; --green:#17613D; --red:#A12520; --warn:#8A3518;
+  --numerals:ui-monospace,"SF Mono","Roboto Mono","DejaVu Sans Mono",monospace;
+}
+body.dusk{
+  color-scheme:dark;
+  --ground:#101E19; --panel:#192D24; --panel2:#233D30;
+  --ink:#F5F6EC; --oxblood:#BDE58C; --muted:#B7C9BB;
+  --line:#516858; --line-strong:#809783; --line-soft:#3C5445;
+  --on-oxblood:#14281C; --green:#A9E4B5; --red:#FFB2A5; --warn:#FFD09A;
+}
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   body{margin:0; background:var(--ground); color:var(--ink);
     font-family:Roboto,"Google Sans",system-ui,-apple-system,sans-serif;
@@ -147,3 +125,98 @@
   .metricBox .mVal{font-size:20px; font-weight:700; color:var(--oxblood); margin-top:2px;}
   .leakRank{font-size:13px; line-height:1.5; color:var(--ink);}
   .leakRank li{margin-bottom:4px;}
+
+/* Course edition: typography and structure do the work, not faint shadows. */
+body{padding:18px 14px calc(102px + env(safe-area-inset-bottom));max-width:520px;}
+.headerWrap{gap:12px;margin-bottom:18px;align-items:center;}
+.brand{border-left:5px solid var(--oxblood);padding-left:12px;}
+.brand .eyebrow{display:block;font-size:10px;letter-spacing:.22em;font-weight:800;color:var(--muted);margin-bottom:2px;}
+h1{font-family:Georgia,"Times New Roman",serif;font-size:32px;line-height:1.1;letter-spacing:-.04em;text-transform:none;color:var(--ink);}
+.themeToggle{min-height:44px;padding:10px 12px;border-radius:24px;font-size:13px;white-space:nowrap;}
+.modeWrap{background:var(--panel2);padding:5px;border:1px solid var(--line-strong);border-radius:14px;gap:4px;margin-bottom:14px;}
+.modeBtn{min-height:44px;padding:8px 2px;background:transparent;border-color:transparent;border-radius:9px;font-size:12px;}
+.modeBtn.on{box-shadow:inset 0 0 0 1px var(--on-oxblood);}
+.nav{position:relative;gap:8px;padding:20px 12px;background:var(--oxblood);border-radius:18px 18px 0 0;margin-bottom:0;color:var(--on-oxblood);}
+.nav button{flex:0 0 44px;width:44px;height:48px;background:transparent;border:1px solid currentColor;color:var(--on-oxblood);border-radius:50%;}
+.holeLbl{min-width:0;}
+.holeLbl .num{font-size:17px;letter-spacing:.02em;color:var(--on-oxblood);display:flex;justify-content:center;align-items:baseline;gap:8px;}
+#holeNum{font-size:52px;line-height:1.05;letter-spacing:-.06em;}
+.holeLbl .meta{font-size:12px;line-height:1.6;color:var(--on-oxblood);}
+.holeLbl .done{font-size:12px;line-height:1.5;color:var(--on-oxblood);margin-top:5px;}
+.tip{border:1px solid var(--oxblood);border-top:0;border-radius:0 0 18px 18px;padding:16px;margin-bottom:16px;font-size:15px;line-height:1.55;}
+.tip b{color:var(--oxblood);font-size:11px;letter-spacing:.17em;margin-bottom:6px;}
+.row,.trendCard{padding:15px;border-radius:14px;border-color:var(--line-strong);margin-bottom:12px;}
+.lbl,.metricBox .mLbl,.trendCard .lbl{font-size:12px;letter-spacing:.07em;line-height:1.45;}
+.btns{gap:6px;}
+.btns button{min-height:48px;font-weight:650;border-radius:9px;}
+.btns button.on,.clubChip.active{box-shadow:inset 0 0 0 2px var(--on-oxblood);outline:2px solid var(--oxblood);outline-offset:-1px;}
+.scoreNow{font-size:23px;}
+.scoreWrap{flex-wrap:wrap;gap:6px;}
+.scoreWrap .btns{min-width:180px;}
+.caddyBox{padding:0;background:transparent;border:0;}
+.caddyClubs{gap:8px;padding:3px 2px 9px;}
+.clubChip{font-size:14px;font-weight:700;min-height:48px;border-radius:24px;}
+.caddyRec{font-size:14px;line-height:1.5;border-top:1px solid var(--line);padding-top:10px;}
+.micBtn{min-height:44px;font-size:13px;padding:8px 12px;}
+.noteBox{min-height:90px;background:var(--panel);line-height:1.6;}
+.noteBox::placeholder{opacity:1;}
+.inlineWrap .lbl{white-space:normal;overflow:visible;text-overflow:clip;min-height:36px;}
+.inlineWrap .stepper{gap:4px;}
+.inlineWrap .stepper button{flex:0 0 44px;}
+.footer{max-width:520px;border-top:2px solid var(--oxblood);padding:10px 12px calc(10px + env(safe-area-inset-bottom));gap:7px;}
+.footer button{font-size:14px;min-height:48px;border-radius:10px;}
+.footer button:last-child{background:var(--oxblood);color:var(--on-oxblood);}
+.stat{gap:16px;font-size:15px;padding:13px 0;line-height:1.45;}
+.stat b{text-align:right;}
+.metricBox{padding:14px 8px;}
+.metricBox .mVal{font-size:26px;}
+.fatigueBanner{font-size:14px;padding:14px;border-width:2px;}
+.fatigueBanner button{min-height:44px;margin:6px 4px 0 0;padding:8px 12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line-strong);border-radius:8px;font:inherit;font-weight:700;}
+.copied{height:auto;min-height:20px;line-height:1.5;}
+button{font-family:inherit;cursor:pointer;}
+button:focus-visible,textarea:focus-visible{outline:3px solid var(--ink);outline-offset:3px;}
+button:active{transform:translateY(1px);}
+@media(max-width:360px){body{padding-inline:10px;}.row{padding:12px 10px;}.nav{padding-inline:8px;}.holeLbl .meta{font-size:11px;}.btns{gap:4px;}h1{font-size:29px;}.inlineWrap{gap:6px;}}
+@media(max-width:360px){#pinBtns,#puttBtns{gap:2px;}}
+@media(prefers-reduced-motion:reduce){body{transition:none;}.micBtn.listening{animation:none;}}
+
+/* Bold course instrument. Lime is an accent; readable dark text does not depend on it. */
+:root{--electric:#D9FF43;--hero:#123FC1;--hero-ink:#FFFFFF;}
+body.dusk{--electric:#D9FF43;--hero:#244CD4;--hero-ink:#FFFFFF;--ground:#101722;--panel:#192433;--panel2:#253348;--ink:#F7F9FF;--oxblood:#B9CDFF;--muted:#BECBE0;--line-strong:#8294AF;--line:#52647E;--line-soft:#394D68;--on-oxblood:#101B2B;}
+body{padding-top:20px;}
+.brand{border:0;padding:0;}
+.brand .eyebrow{font-size:10px;letter-spacing:.2em;color:var(--muted);}
+h1{font-family:system-ui,-apple-system,sans-serif;font-weight:850;font-style:normal;font-size:32px;letter-spacing:-.055em;text-transform:none;line-height:1;}
+.headerWrap{padding-bottom:16px;border-bottom:3px solid var(--ink);margin-bottom:14px;}
+.themeToggle{border-radius:6px;border:2px solid var(--ink);color:var(--ink);background:var(--panel);}
+.modeWrap{padding:0;border:2px solid var(--ink);gap:0;border-radius:6px;overflow:hidden;background:var(--panel);}
+.modeBtn{border-radius:0;font-weight:800;border-right:1px solid var(--ink);}
+.modeBtn:last-child{border-right:0;}
+.modeBtn.on{background:var(--electric);color:#101B2B;border-color:#101B2B;box-shadow:none;}
+.nav{background:var(--hero);color:var(--hero-ink);border-radius:10px 10px 0 0;padding:14px 12px;border-bottom:3px solid var(--electric);}
+.nav button{color:var(--hero-ink);border-radius:6px;border-width:2px;position:relative;}
+.holeLbl{position:relative;}
+.holeLbl .num{color:var(--hero-ink);text-transform:uppercase;font-size:13px;font-weight:800;letter-spacing:.1em;}
+#holeNum{font-size:58px;font-weight:800;letter-spacing:-.06em;line-height:1;font-family:var(--numerals);}
+.holeLbl .meta,.holeLbl .done{color:var(--hero-ink);}
+.holeLbl .done{font-weight:700;}
+.tip{border:2px solid var(--ink);border-top:0;border-radius:0 0 10px 10px;padding:15px;}
+.tip b{display:block;background:transparent;color:var(--oxblood);padding:0;margin-bottom:6px;}
+#tipText{display:block;}
+.row,.trendCard{border-radius:8px;border-width:2px;border-color:var(--line-strong);}
+.lbl{font-weight:850;letter-spacing:.06em;color:var(--ink);}
+.btns button,.mini,.stepper button{border-radius:5px;border-width:2px;font-weight:800;}
+.btns button.on,.clubChip.active{background:var(--oxblood);color:var(--on-oxblood);box-shadow:inset 0 -4px 0 var(--electric);outline:none;}
+.clubChip{border-radius:6px;border-width:2px;}
+.scoreNow{font-size:28px;}
+.footer{border-top:3px solid var(--ink);background:var(--panel);}
+.footer button{border-radius:6px;border-width:2px;font-weight:800;}
+.footer button:last-child{background:var(--electric);color:#101B2B;border-color:#101B2B;}
+.metricBox{border-radius:6px;}
+.metricBox .mVal{font-size:30px;}
+@media(max-width:360px){h1{font-size:29px;}.brand .eyebrow{font-size:9px;letter-spacing:.1em;}#holeNum{font-size:52px;}#pinBtns,#puttBtns{gap:0;} .btns button{padding-inline:0;}}
+
+/* Compact course layout: scoring, not decoration, gets the space. */
+.headerWrap{padding-bottom:12px;margin-bottom:12px;}
+.tip{font-size:14px;line-height:1.45;padding:12px;}
+.row{padding:12px;border-width:1px;}

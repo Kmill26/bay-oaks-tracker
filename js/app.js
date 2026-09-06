@@ -55,7 +55,7 @@ function pvTip(i){
   return t;
 }
 
-var state=null, holes=[], cur=0, selectedDist=null;
+var state=null, holes=[], cur=0;
 
 // v28: the current hole is round state, not view state. Before this, `cur` reset to 0 on
 // every reload while state.mode persisted -- a Back 9 round reopened showing "Hole 1" under
@@ -90,7 +90,7 @@ function vibe(ms){try{if(typeof navigator!=='undefined'&&navigator.vibrate)navig
 function applyTheme(isDusk){
   document.body.classList.toggle('dusk',isDusk);
   var btn=document.getElementById('themeToggle');
-  if(btn)btn.textContent=isDusk?'☀️ Bone':'🌙 Dusk';
+  if(btn)btn.textContent=isDusk?'☀️ Daylight':'🌙 Dusk';
 }
 function toggleTheme(){
   vibe(20);
@@ -821,32 +821,6 @@ function recommendClub(dist, holeIdx){
   return {club:last.club, swing:last.swing, carry:last.carry, eff:eff};
 }
 
-function renderCaddySelector(){
-  var box=document.getElementById('caddyChips');
-  if(!box)return;
-  box.innerHTML='';
-  var distances=bagDistances();
-  distances.forEach(function(yds){
-    var chip=document.createElement('button');
-    chip.className='clubChip'+(selectedDist===yds?' active':'');
-    chip.textContent=yds+'y';
-    chip.onclick=function(){
-      vibe(15);
-      selectedDist=(selectedDist===yds?null:yds);
-      renderCaddySelector();
-    };
-    box.appendChild(chip);
-  });
-  var recEl=document.getElementById('caddyRecText');
-  if(!recEl)return;
-  if(selectedDist){
-    var rec=recommendClub(selectedDist, cur);
-    recEl.innerHTML='<b>'+selectedDist+'y Target:</b> '+rec.club+' &mdash; <i>'+rec.swing+'</i>';
-  } else {
-    recEl.textContent='Select distance to calculate pin-adjusted club & swing';
-  }
-}
-
 function renderTeeSelector(){
   var box=document.getElementById('holeTeeBtns');
   if(!box)return;
@@ -854,8 +828,7 @@ function renderTeeSelector(){
   var activeT=holeTee(cur);
   var tees=[
     {id:'blue', label:'Blue '+COURSE[cur].cy+'y'},
-    {id:'tips', label:'Tips '+PV[cur].by+'y'},
-    {id:'white', label:'White '+COURSE[cur].ry+'y'}
+    {id:'tips', label:'Tips '+PV[cur].by+'y'}
   ];
   tees.forEach(function(t){
     var btn=document.createElement('button');
@@ -1062,7 +1035,6 @@ function render(){
   var missed=(h.gir===false);
   var sr=document.getElementById('ssRow'); if(sr)sr.className='row'+(missed?'':' disabled');
   var cr=document.getElementById('chipRow'); if(cr)cr.className='row'+(missed?'':' disabled');
-  renderCaddySelector();
   checkFatigue();
   buildSummary();
   buildTrends();

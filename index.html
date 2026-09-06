@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#EFE9DC">
+<meta name="theme-color" content="#F2F4F7">
 <meta name="color-scheme" content="light dark">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -13,7 +13,7 @@
 <body>
 
 <div class="headerWrap">
-  <h1>Bay Oaks &middot; Diagnostic</h1>
+  <div class="brand"><span class="eyebrow">BAY OAKS COUNTRY CLUB</span><h1>Bay Oaks</h1></div>
   <button id="themeToggle" class="themeToggle" onclick="toggleTheme()">🌙 Dusk</button>
 </div>
 
@@ -28,24 +28,16 @@
 
 <div id="holeView">
   <div class="nav">
-    <button onclick="move(-1)">&#8592;</button>
+    <button aria-label="Previous hole" onclick="move(-1)">&#8592;</button>
     <div class="holeLbl">
       <div class="num">Hole <span id="holeNum">1</span></div>
       <div class="meta" id="holeMeta"></div>
       <div class="done" id="doneLbl"></div>
     </div>
-    <button onclick="move(1)">&#8594;</button>
+    <button aria-label="Next hole" onclick="move(1)">&#8594;</button>
   </div>
 
   <div class="tip"><b>Game plan</b><span id="tipText"></span></div>
-
-  <div class="row">
-    <div class="lbl">🎯 Caddy Club Selector</div>
-    <div class="caddyBox">
-      <div class="caddyClubs" id="caddyChips"></div>
-      <div class="caddyRec" id="caddyRecText">Select distance to calculate recommendation</div>
-    </div>
-  </div>
 
   <div class="row">
     <div class="lbl">
