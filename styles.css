@@ -2,10 +2,10 @@
    Keep legacy token names because generated summary/trend markup uses them. */
 :root{
   color-scheme:light;
-  --ground:#F2F4F7; --panel:#FFFFFF; --panel2:#E7EBF1;
-  --ink:#101B2B; --oxblood:#123FC1; --muted:#3D4D63;
-  --line:#BDC6D3; --line-strong:#62718A; --line-soft:#D6DEE8;
-  --on-oxblood:#FFFFFF; --green:#17613D; --red:#A12520; --warn:#8A3518;
+  --ground:#EDE1C9; --panel:#FFF8E9; --panel2:#E8D7B9;
+  --ink:#2C211A; --oxblood:#63351F; --muted:#604B38;
+  --line:#C5AC85; --line-strong:#887052; --line-soft:#DBC9A9;
+  --on-oxblood:#FFF8E9; --green:#17613D; --red:#A12520; --warn:#8A3518;
   --numerals:ui-monospace,"SF Mono","Roboto Mono","DejaVu Sans Mono",monospace;
 }
 body.dusk{
@@ -180,20 +180,20 @@ button:active{transform:translateY(1px);}
 @media(max-width:360px){#pinBtns,#puttBtns{gap:2px;}}
 @media(prefers-reduced-motion:reduce){body{transition:none;}.micBtn.listening{animation:none;}}
 
-/* Bold course instrument. Lime is an accent; readable dark text does not depend on it. */
-:root{--electric:#D9FF43;--hero:#123FC1;--hero-ink:#FFFFFF;}
-body.dusk{--electric:#D9FF43;--hero:#244CD4;--hero-ink:#FFFFFF;--ground:#101722;--panel:#192433;--panel2:#253348;--ink:#F7F9FF;--oxblood:#B9CDFF;--muted:#BECBE0;--line-strong:#8294AF;--line:#52647E;--line-soft:#394D68;--on-oxblood:#101B2B;}
+/* Parchment and tobacco. Brass is trim; all text uses high-contrast ink. */
+:root{--brass:#D5B477;--hero:#432B20;--hero-ink:#FFF3DB;}
+body.dusk{--brass:#CDA66D;--hero:#35251D;--hero-ink:#FFF3DB;--ground:#201A15;--panel:#30261F;--panel2:#443426;--ink:#FFF3DB;--oxblood:#E5BD82;--muted:#D7C2A3;--line-strong:#A58B69;--line:#756044;--line-soft:#574735;--on-oxblood:#2C211A;}
 body{padding-top:20px;}
 .brand{border:0;padding:0;}
 .brand .eyebrow{font-size:10px;letter-spacing:.2em;color:var(--muted);}
-h1{font-family:system-ui,-apple-system,sans-serif;font-weight:850;font-style:normal;font-size:32px;letter-spacing:-.055em;text-transform:none;line-height:1;}
+h1{font-family:Georgia,"Times New Roman",serif;font-weight:700;font-style:normal;font-size:36px;letter-spacing:-.045em;text-transform:none;line-height:1;}
 .headerWrap{padding-bottom:16px;border-bottom:3px solid var(--ink);margin-bottom:14px;}
 .themeToggle{border-radius:6px;border:2px solid var(--ink);color:var(--ink);background:var(--panel);}
 .modeWrap{padding:0;border:2px solid var(--ink);gap:0;border-radius:6px;overflow:hidden;background:var(--panel);}
 .modeBtn{border-radius:0;font-weight:800;border-right:1px solid var(--ink);}
 .modeBtn:last-child{border-right:0;}
-.modeBtn.on{background:var(--electric);color:#101B2B;border-color:#101B2B;box-shadow:none;}
-.nav{background:var(--hero);color:var(--hero-ink);border-radius:10px 10px 0 0;padding:14px 12px;border-bottom:3px solid var(--electric);}
+.modeBtn.on{background:var(--brass);color:#2C211A;border-color:#2C211A;box-shadow:none;}
+.nav{background:var(--hero);color:var(--hero-ink);border-radius:10px 10px 0 0;padding:14px 12px;border-bottom:3px solid var(--brass);}
 .nav button{color:var(--hero-ink);border-radius:6px;border-width:2px;position:relative;}
 .holeLbl{position:relative;}
 .holeLbl .num{color:var(--hero-ink);text-transform:uppercase;font-size:13px;font-weight:800;letter-spacing:.1em;}
@@ -206,12 +206,12 @@ h1{font-family:system-ui,-apple-system,sans-serif;font-weight:850;font-style:nor
 .row,.trendCard{border-radius:8px;border-width:2px;border-color:var(--line-strong);}
 .lbl{font-weight:850;letter-spacing:.06em;color:var(--ink);}
 .btns button,.mini,.stepper button{border-radius:5px;border-width:2px;font-weight:800;}
-.btns button.on,.clubChip.active{background:var(--oxblood);color:var(--on-oxblood);box-shadow:inset 0 -4px 0 var(--electric);outline:none;}
+.btns button.on,.clubChip.active{background:var(--oxblood);color:var(--on-oxblood);box-shadow:inset 0 -4px 0 var(--brass);outline:none;}
 .clubChip{border-radius:6px;border-width:2px;}
 .scoreNow{font-size:28px;}
 .footer{border-top:3px solid var(--ink);background:var(--panel);}
 .footer button{border-radius:6px;border-width:2px;font-weight:800;}
-.footer button:last-child{background:var(--electric);color:#101B2B;border-color:#101B2B;}
+.footer button:last-child{background:var(--brass);color:#2C211A;border-color:#2C211A;}
 .metricBox{border-radius:6px;}
 .metricBox .mVal{font-size:30px;}
 @media(max-width:360px){h1{font-size:29px;}.brand .eyebrow{font-size:9px;letter-spacing:.1em;}#holeNum{font-size:52px;}#pinBtns,#puttBtns{gap:0;} .btns button{padding-inline:0;}}
@@ -220,3 +220,27 @@ h1{font-family:system-ui,-apple-system,sans-serif;font-weight:850;font-style:nor
 .headerWrap{padding-bottom:12px;margin-bottom:12px;}
 .tip{font-size:14px;line-height:1.45;padding:12px;}
 .row{padding:12px;border-width:1px;}
+
+/* A little character at the edges; clean paper beneath every score and label. */
+body{background-image:radial-gradient(ellipse at top left,rgba(255,248,233,.28),transparent 65%);}
+.headerWrap{border-bottom:3px double var(--line-strong);padding-bottom:14px;}
+.brand .eyebrow{letter-spacing:.17em;font-weight:750;}
+h1{margin-top:3px;}
+.themeToggle{border-width:1px;border-color:var(--line-strong);border-radius:5px;font-weight:650;}
+.modeWrap{border:1px solid var(--line-strong);padding:3px;gap:3px;background:var(--panel);}
+.modeBtn{border:0;border-radius:3px;font-weight:700;}
+.modeBtn.on{background:var(--oxblood);color:var(--on-oxblood);border:0;}
+.nav{border-radius:8px 8px 0 0;border:1px solid var(--hero);border-bottom:3px solid var(--brass);box-shadow:inset 0 0 0 5px var(--hero),inset 0 0 0 6px var(--brass);padding:12px 12px;}
+.nav button{border-color:var(--brass);border-width:1px;}
+#holeNum{font-family:Georgia,"Times New Roman",serif;font-weight:400;}
+.holeLbl .num{letter-spacing:.12em;}
+.holeLbl .done{font-weight:500;}
+.tip{border:1px solid var(--line-strong);border-top:0;}
+.row,.trendCard{border-color:var(--line-strong);border-radius:6px;}
+.lbl{font-weight:750;}
+.btns button,.mini,.stepper button{border-width:1px;font-weight:750;}
+.btns button.on{box-shadow:inset 0 0 0 2px var(--oxblood),inset 0 0 0 3px var(--brass);font-weight:800;}
+.footer{border-top:3px double var(--line-strong);}
+.footer button{border-width:1px;}
+.footer button:last-child{background:var(--oxblood);color:var(--on-oxblood);border-color:var(--oxblood);}
+@media(max-width:360px){h1{font-size:32px;}}
