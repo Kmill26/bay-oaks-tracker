@@ -330,13 +330,80 @@ function retireDraft(key,draft){
     else if(localStorage.getItem(DRAFT_PREFIX+key)===JSON.stringify(draft))localStorage.removeItem(DRAFT_PREFIX+key);
   }catch(e){} // leaving an extra copy is safer than deleting an unknown one
 }
+// v38: v37 wrote one immutable entry per stash and never removed one. Nine holes of
+// ordinary entry with saves refused left 36 entries; a later successful save retired
+// exactly one, and five such rounds accumulated 180 entries / 468 KB with nothing to prune
+// them. A backup store that grows without bound eventually becomes the storage failure it
+// exists to survive. Retention is therefore SUPERSESSION, not age: an older snapshot is
+// retired only when a newer one demonstrably contains everything it held.
+var DRAFT_GROUP_CAP=12;
+// A field counts as recorded when it holds something a player put there. sixAtt/sixMade/pen
+// default to 0 and notes to '' -- those are absence, not data.
+function fieldRecorded(v,k){
+  if(v===null||v===undefined)return false;
+  if(k==='notes')return !!String(v).trim();
+  if(k==='sixAtt'||k==='sixMade'||k==='pen')return v>0;
+  return true;
+}
+var DRAFT_FIELDS=['score','putts','fir','gir','ss','chip','lag','sixAtt','sixMade','pen','notes','tee'];
+// Does `newer` hold everything `older` held? Same round identity, and every recorded field
+// in the old snapshot present and equal in the new one. A correction that CLEARS a field
+// (GIR No -> Yes drops the chip) fails this test, so that snapshot is kept.
+function supersedes(newer,older){
+  if(!newer||!older||!newer.holes||!older.holes)return false;
+  if(draftMetadata(newer)!==draftMetadata(older))return false;
+  for(var i=0;i<older.holes.length;i++){
+    var o=older.holes[i], nn=newer.holes[i];
+    if(!o)continue;
+    if(!nn)return false;
+    for(var f=0;f<DRAFT_FIELDS.length;f++){
+      var k=DRAFT_FIELDS[f];
+      if(fieldRecorded(o[k],k)&&o[k]!==nn[k])return false;
+    }
+  }
+  return true;
+}
+// roundId|tab[|slot] -- the trailing three segments are the stamp, sequence and salt that
+// make each entry unique. Grouping by the prefix keeps the 'displaced' slot separate, which
+// is the draft v35 lost when cleanup deleted by ownership.
+function draftGroup(key){
+  var parts=String(key).split('|');
+  return parts.length>3?parts.slice(0,parts.length-3).join('|'):String(key);
+}
+function draftStamp(key){
+  var parts=String(key).split('|');
+  if(parts.length<3)return [0,0];
+  return [parseInt(parts[parts.length-3],36)||0, parseInt(parts[parts.length-2],10)||0];
+}
 function stashRecovery(slot){
   var key=draftKey(slot)+'|'+Date.now().toString(36)+'|'+(++draftSeq)+'|'+Math.random().toString(36).slice(2);
-  var box={};
-  box[key]={date:state.date,mode:state.mode,pin:state.pin,tee:state.tee,
+  var box={}, entry={date:state.date,mode:state.mode,pin:state.pin,tee:state.tee,
     roundId:state.roundId,holes:state.holes,stashedAt:new Date().toISOString(),tab:TAB_ID};
+  box[key]=entry;
   stashFailed=!writeDrafts(box);
+  if(!stashFailed)pruneSupersededDrafts(key,entry);
   return !stashFailed;
+}
+// Retire the entries this one made redundant. Only within its own group, only entries it
+// supersedes -- so nothing another tab, another round or another slot holds is ever at risk.
+// The cap is a backstop for a round of corrections that never supersede: losing the oldest
+// snapshot of one round beats filling the origin and losing the ability to save at all.
+function pruneSupersededDrafts(newKey,newEntry){
+  var box=readDrafts();
+  if(!box)return;                       // unknown is never permission to delete
+  var group=draftGroup(newKey), mine=[];
+  for(var k in box){
+    if(k===newKey||!box[k]||!box[k].holes)continue;
+    if(k==='v1'||k.indexOf('v2|')===0)continue;          // legacy keeps its own receipts
+    if(draftGroup(k)!==group)continue;
+    if(supersedes(newEntry,box[k])){ retireDraft(k,box[k]); continue; }
+    mine.push(k);
+  }
+  if(mine.length>=DRAFT_GROUP_CAP){
+    mine.sort(function(a,b){var x=draftStamp(a),y=draftStamp(b); return x[0]-y[0]||x[1]-y[1];});
+    var over=mine.length-(DRAFT_GROUP_CAP-1);
+    for(var i=0;i<over;i++)retireDraft(mine[i],box[mine[i]]);
+  }
 }
 // v35: cleanup used to delete every draft this tab held for the round, which threw away a
 // displaced draft that had never been persisted. A draft is safe to drop only when the bytes
@@ -345,11 +412,17 @@ function draftMetadata(d){
   return JSON.stringify([d.roundId||null,d.date||null,d.mode||'full',d.tee||'blue',d.pin||'?']);
 }
 function draftContent(d){return JSON.stringify([draftMetadata(d),d.holes]);}
-function clearPersistedDrafts(persistedContent){
+// v38: exact-content match retired one entry out of the pile a refused stretch left behind.
+// What was actually written supersedes every snapshot it contains, so retire those too --
+// still lossless: a snapshot holding something the saved round does not keep stays.
+function clearPersistedDrafts(persistedContent,persistedState){
   var box=readDrafts(); if(!box)return;
   for(var k in box){
     if(!box[k]||!box[k].holes)continue;
-    if(draftContent(box[k])===persistedContent){ retireDraft(k,box[k]); }
+    if(draftContent(box[k])===persistedContent){ retireDraft(k,box[k]); continue; }
+    if(persistedState&&k!=='v1'&&k.indexOf('v2|')!==0&&supersedes(persistedState,box[k])){
+      retireDraft(k,box[k]);
+    }
   }
 }
 function loadRecovery(){
@@ -362,7 +435,15 @@ function loadRecovery(){
     seen[content]=true;   // exact round and metadata, not just matching scores
     out.push(Object.assign({key:k},box[k]));
   }
-  out.sort(function(a,b){return String(b.stashedAt||'').localeCompare(String(a.stashedAt||''));});
+  // v38: stashedAt is millisecond-resolution, so a burst of stashes ties and the order fell
+  // back to whatever the store enumerated -- and "Show the kept round" restores out[0]. The
+  // monotonic sequence already in the key breaks the tie.
+  out.sort(function(a,b){
+    var t=String(b.stashedAt||'').localeCompare(String(a.stashedAt||''));
+    if(t)return t;
+    var x=draftStamp(a.key), y=draftStamp(b.key);
+    return (y[0]-x[0])||(y[1]-x[1]);
+  });
   return out.length?out:null;
 }
 function recoverDraft(key){
@@ -445,10 +526,20 @@ function mergeHeldEntries(){
   render();
   return ok;
 }
+// v38: this retired only entries whose bytes matched the offered one exactly. After a
+// refused stretch that was one snapshot out of dozens, "Discard it" removed the newest copy
+// and left the banner claiming the rest -- clearing it meant tapping Discard once per tap of
+// the round. Discarding the offered draft now also discards every snapshot it SUPERSEDES,
+// which is the pile that led up to it. Matching the round identity instead would be one step
+// too wide: two tabs can hold genuinely different states of the same round, and neither
+// contains the other, so discarding one must leave the other alone.
 function dismissRecovery(){
   if(recovered&&recovered.length){
-    var target=recovered[0], box=readDrafts();
-    if(box)for(var k in box)if(draftContent(box[k])===draftContent(target))retireDraft(k,box[k]);
+    var target=recovered[0], content=draftContent(target), box=readDrafts();
+    if(box)for(var k in box){
+      if(!box[k])continue;
+      if(draftContent(box[k])===content||supersedes(target,box[k]))retireDraft(k,box[k]);
+    }
   }
   recovered=loadRecovery();
   showSaveState();
@@ -527,7 +618,7 @@ function save(){
     saveConflict='overwritten'; stashRecovery(); showSaveState(); return false;
   }
   saveFailed=false; saveConflict=''; saveUnreadable=false; saveReadOnly=false; mergeBlocked=null; stashFailed=false; crossRound=false; metaClash=null; restoreRefused=false;
-  clearPersistedDrafts(draftContent(state));
+  clearPersistedDrafts(draftContent(state),state);
   recovered=loadRecovery();
   showSaveState(); return true;
 }
@@ -604,8 +695,16 @@ function showSaveState(){
       +'rather than replaced, and the kept round is still waiting. Copy Log now, then try again.';
   } else if(recovered&&recovered.length){
     b.style.display='block';
-    b.innerHTML='<b>\u26a0\ufe0f '+(recovered.length===1?'A round that could not be saved was kept'
-        :recovered.length+' rounds that could not be saved were kept')+'</b>'
+    // v38: this counted ENTRIES and called them rounds. One round of refused saves read
+    // "36 rounds that could not be saved were kept", which is both wrong and alarming on a
+    // course. Count distinct rounds; the entries behind them are an implementation detail.
+    var roundsKept={}, nKept=0;
+    for(var ri=0;ri<recovered.length;ri++){
+      var rk=draftMetadata(recovered[ri]);
+      if(!roundsKept[rk]){roundsKept[rk]=1; nKept++;}
+    }
+    b.innerHTML='<b>\u26a0\ufe0f '+(nKept===1?'A round that could not be saved was kept'
+        :nKept+' rounds that could not be saved were kept')+'</b>'
       +'Entries from '+(recovered[0].date||'an earlier session')+' were never written to storage. '
       +'They are still here.'+recoverBtn;
   } else if(saveFailed){

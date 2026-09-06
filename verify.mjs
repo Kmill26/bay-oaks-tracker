@@ -1722,6 +1722,139 @@ function f3state(mode){
   holes[1].tee='tips';buildSummary();
   check('mixed tees: all three colors are represented',getTeeProfile().label==='Combo (1 Tips / 16 Blue / 1 White)',getTeeProfile().label);
 })();
+// Case 28 (v38): the recovery store must stay a recovery store.
+// v37 made every stash an independent immutable entry, which fixed two-tabs-share-one-blob
+// and must not be undone. But nothing pruned them: nine holes of ordinary entry with saves
+// refused left 36 entries, the banner reported "36 rounds that could not be saved were
+// kept", and the only control that shrank that number deleted the newest copy first. These
+// assertions are written from what Kenny needs on the course, not from the mechanism.
+const draftKeysIn = other => Object.keys(other).filter(k => k.indexOf(DRAFT_PREFIX)===0);
+function refusedRound(other, disk, holesToPlay){
+  // seat a round, save once so there is a baseline, then make every later save refuse
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:true,rev:0};
+  globalThis.holes = globalThis.state.holes; globalThis.cur = 0; save();
+  const ahead = JSON.parse(disk.raw); ahead.rev += 5; ahead.writer = 'other-tab';
+  disk.raw = JSON.stringify(ahead);
+  for(let h=0; h<holesToPlay; h++){
+    globalThis.cur = h;
+    globalThis.holes[h].score = 4; touch();
+    globalThis.holes[h].putts = 2; touch();
+    globalThis.holes[h].fir = 'y'; touch();
+    globalThis.holes[h].gir = true; touch();
+  }
+}
+// --- 28a: a round of refused saves leaves a handful of backups, not one per tap ---------
+(() => {
+  const disk = {}; const box = session21(disk); const other = box.other || null;
+  // session21 keeps non-round keys in a closure; reach them through localStorage itself
+  refusedRound(null, disk, 9);
+  const keys = []; for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i); if(k&&k.indexOf(DRAFT_PREFIX)===0)keys.push(k);}
+  check('recovery retention: a round of refused saves does not keep one backup per tap',
+    keys.length <= 4, keys.length+' backup entries after 9 holes (36 refused saves)');
+  // loadRecovery() correctly hides a backup identical to the round on screen, so ask
+  // storage directly: the surviving entry must be the one carrying all nine holes.
+  let kept = null;
+  for(let i=0;i<localStorage.length;i++){
+    const k = localStorage.key(i);
+    if(k&&k.indexOf(DRAFT_PREFIX)===0){
+      const d = JSON.parse(localStorage.getItem(k));
+      if(!kept||(d.holes||[]).filter(h=>h&&h.score!==null).length>(kept.holes||[]).filter(h=>h&&h.score!==null).length)kept=d;
+    }
+  }
+  const keptScored = kept?(kept.holes||[]).filter(h=>h&&h.score!==null).length:0;
+  check('recovery retention: and the surviving backup is the complete round, not an early snapshot',
+    keptScored===9, keptScored+' scored holes in the kept backup, 9 were entered');
+})();
+// --- 28b: after a reload the first thing offered is the fullest round -------------------
+(() => {
+  const disk = {}; session21(disk);
+  refusedRound(null, disk, 9);
+  // reload: fresh in-memory round, same storage
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:true,rev:0,roundId:'r-after-reload'};
+  globalThis.holes = globalThis.state.holes; globalThis.cur = 0;
+  recovered = loadRecovery();
+  const n = (recovered||[]).length;
+  recoverDraft();                                    // exactly what the one button does
+  const scored = globalThis.holes.filter(h => h && h.score !== null).length;
+  check('recovery restore: the one button gives back the fullest round, not an early snapshot',
+    scored === 9, scored+' scored holes restored out of the 9 that were entered (from '+n+' offered)');
+})();
+// --- 28c: the banner counts rounds, because that is what it says ------------------------
+(() => {
+  const disk = {}; session21(disk);
+  refusedRound(null, disk, 9);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:true,rev:0,roundId:'r-after-reload'};
+  globalThis.holes = globalThis.state.holes;
+  // a reload starts with clean banner flags; without this the save-conflict message wins
+  saveConflict=''; saveFailed=false; saveUnreadable=false; saveReadOnly=false;
+  mergeBlocked=null; crossRound=false; metaClash=null; restoreRefused=false; stashFailed=false;
+  recovered = loadRecovery(); showSaveState();
+  const text = String(els['saveAlert'].innerHTML).replace(/<[^>]+>/g,' ');
+  check('recovery banner: one round of refused saves is reported as one round',
+    /\b1 round\b/.test(text) || /A round that could not be saved/.test(text),
+    text.replace(/\s+/g,' ').trim().slice(0,90));
+})();
+// --- 28d: Discard clears that round, and only that round -------------------------------
+(() => {
+  const disk = {}; session21(disk);
+  refusedRound(null, disk, 4);
+  const firstRound = globalThis.state.roundId;
+  globalThis.state.roundId = 'r-a-different-round';
+  globalThis.state.holes = blank21(); globalThis.holes = globalThis.state.holes;
+  globalThis.holes[0].score = 7; globalThis.holes[0].notes = 'the other round'; touch();
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:true,rev:0,roundId:'r-neither-of-them'};
+  globalThis.holes = globalThis.state.holes;
+  recovered = loadRecovery();
+  const target = recovered && recovered[0] && recovered[0].roundId;
+  dismissRecovery();
+  const left = loadRecovery() || [];
+  check('recovery discard: one tap clears the round it offered, not one snapshot of it',
+    !left.some(d => d.roundId === target), left.filter(d=>d.roundId===target).length+' entries of that round survived the discard');
+  check('recovery discard: and the other round is untouched',
+    left.some(d => d.roundId && d.roundId !== target),
+    'rounds still kept: '+[...new Set(left.map(d=>d.roundId))].join(', '));
+})();
+// --- 28e: retention must never eat the draft a restore displaced (the v35 failure class) -
+(() => {
+  const disk = {}; session21(disk);
+  refusedRound(null, disk, 2);
+  recovered = loadRecovery();
+  globalThis.state.holes = blank21(); globalThis.holes = globalThis.state.holes;
+  globalThis.holes[11].score = 6; globalThis.holes[11].notes = 'displaced by the restore';
+  recovered = loadRecovery();
+  recoverDraft();                                    // displaces the round on screen
+  for(let i=0;i<12;i++){ globalThis.holes[0].putts = 1+(i%4); touch(); }   // churn the default slot
+  const left = JSON.stringify(loadRecovery() || []);
+  check('recovery retention: pruning never removes the round a restore displaced',
+    left.includes('displaced by the restore'), 'displaced draft is gone after 12 further refused saves');
+})();
+// --- 28f: two backups stashed in the same millisecond still have a definite order --------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:true,rev:0,roundId:'r-burst'};
+  globalThis.holes = globalThis.state.holes; save();
+  const stamp = new Date().toISOString();
+  const mk = (seq, note) => {
+    const hs = blank21(); hs[0].score = 4; hs[0].notes = note;
+    localStorage.setItem(DRAFT_PREFIX+'r-burst|tabX|abc|'+seq+'|zz'+seq,
+      JSON.stringify({date:today(),mode:'full',pin:'?',tee:'blue',roundId:'r-burst',
+        holes:hs,stashedAt:stamp,tab:'tabX'}));
+  };
+  mk(1,'stashed first'); mk(2,'stashed second'); mk(3,'stashed last');
+  globalThis.state.roundId = 'r-not-burst';
+  const offered = loadRecovery() || [];
+  check('recovery order: same-millisecond backups are still ordered by when they were stashed',
+    offered.length>0 && JSON.stringify(offered[0].holes).includes('stashed last'),
+    'first offered carries: '+(offered[0]?String(JSON.stringify(offered[0].holes).match(/stashed \w+/)):'nothing'));
+})();
+globalThis.localStorage = {getItem:()=>null, setItem(){}};
+global.localStorage = {getItem:()=>null, setItem(){}};
+
 
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
