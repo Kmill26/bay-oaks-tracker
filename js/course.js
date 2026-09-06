@@ -32,7 +32,7 @@ var COURSE=[
   tipsTip:"TIPS: 356y. 4-hybrid off tee leaves ~146 (stock 9i) or Driver leaves ~86 (54° wedge)."},
  {par:5,hcp:2, cy:543,ry:491,tip:"Longest hole, HCP 2. Driver, 5-iron, full 58 from ~78. Left edge targets all three swings -- most room on the card, so swing freely.",
   tipsTip:"TIPS: 569y Par 5 (Longest hole). Driver, 4-hybrid (210), full 58 from ~89. Left edge targets all three swings."},
- {par:4,hcp:8, cy:390,ry:350,tip:"DANGER HOLE: dogleg right, water right of green. Tee ball down the left half; smooth PW aimed LEFT half, never at a right pin -- a thin or toe strike leaks right and that side is wet. Bogey here beats double.",
+ {par:4,hcp:8, cy:390,ry:350,tip:"DANGER HOLE: dogleg right, water right of green. Tee ball down the left half; smooth PW aimed at the calm right-mid pocket -- that pocket is the shot regardless of pin. Do not chase a pin past it; right of the pocket is wet, and a thin or toe strike leaks that way. Bogey here beats double.",
   tipsTip:"TIPS: 435y (+45y longer!). Dogleg right, water right. Driver down left half leaves ~165 (7-iron/8-iron) aimed at right-mid calm pocket."},
  {par:4,hcp:6, cy:420,ry:381,tip:"Water left of green -- a right miss is safe here. Driver, 8-iron to the center. Swing free and close it out.",
   tipsTip:"TIPS: 450y. Driver leaves ~180 (6-iron). Deepest green (42.7y). Water left; all misses right. Close it out strong."}

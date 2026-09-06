@@ -27,6 +27,20 @@ function pvTip(i){
   var tee=holeTee(i);
   if(tee==='tips'&&COURSE[i].tipsTip){
     t=COURSE[i].tipsTip;
+  } else if(tee==='white'){
+    // v39: every tip except the Tips variant was written for Blue, and pvTip only ever
+    // branched on 'tips'. White is 6,092 yds against Blue's 6,594 -- nine holes are 25-52
+    // yds apart -- so a tip naming a club ("Smooth PW from ~117") is systematically one club
+    // long from White. There are 18 tipsTip entries and no whiteTip entries, and inventing
+    // eighteen sets of club numbers is not something this file should do on its own. Until
+    // they are authored, say which tee the number came from instead of quietly being wrong.
+    if(COURSE[i].whiteTip){
+      t=COURSE[i].whiteTip;
+    } else {
+      var wy=+holeYardage(i,'white'), by=+holeYardage(i,'blue'), dy=by-wy;
+      t='WHITE: '+wy+'y'+(dy>0?' ('+dy+'y shorter than Blue)':'')+'. '+t
+        +(dy>0?'\nThe clubs above are BLUE numbers -- from White you are '+dy+'y closer, so club down.':'');
+    }
   }
   if(p.note)t+='\nBook: '+p.note;
   var b=pinBucket(i);
@@ -1107,6 +1121,12 @@ function buildSummary(){
   var tS=S.score, tPar=S.par, tP=S.putts, tPen=S.pen, out9=S.out, in9=S.inn;
   var gir=S.gir.n, girN=S.gir.d, chipIn=S.chip6.n, chipTried=S.chip6.d;
   var ss=S.ss.n, missed=S.ss.d, made=S.p36.n, att=S.p36.d;
+  // v39: the denominator is still every missed green, so no historical figure moves. An
+  // unanswered SS used to be indistinguishable from a green missed on the fat side, and the
+  // error only ever ran in Kenny's favour. Coverage is shown only when it is short, so a
+  // fully answered round exports byte-for-byte as before.
+  var ssA=(S.ss&&S.ss.a!=null)?S.ss.a:missed;
+  var ssCov=(ssA<missed)?' ('+ssA+' ans)':'';
   var firHit=S.fir.n, firN=S.fir.d, firL=S.fir.l||0, firR=S.fir.r||0;
 
   // v36: the mode selector chose the entry scope, not the record. If holes outside it hold
@@ -1142,7 +1162,7 @@ function buildSummary(){
 
   var splitScores=(m==='front'?' OUT:'+out9:(m==='back'?' IN:'+in9:' OUT:'+out9+' IN:'+in9));
   lines.push(totLbl+' FIR:'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+') GIR:'+gir+'/'+girN
-    +' PUTTS:'+tP+' CHIP6:'+chipIn+'/'+chipTried+' SS:'+ss+'/'+missed
+    +' PUTTS:'+tP+' CHIP6:'+chipIn+'/'+chipTried+' SS:'+ss+'/'+missed+ssCov
     +' P36:'+made+'/'+att+' PEN:'+tPen+splitScores);
   var et=document.getElementById('exportText'); if(et)et.textContent=lines.join('\n');
   var pct=function(a,b){return b?Math.round(100*a/b)+'%':'–';};
@@ -1158,7 +1178,8 @@ function buildSummary(){
       +'<div class="stat">Fairways <b>'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+')</b></div>'
       +'<div class="stat">GIR <b>'+gir+'/'+girN+'</b></div>'
       +'<div class="stat">First chip inside 6 ft <b>'+chipIn+'/'+chipTried+' ('+pct(chipIn,chipTried)+')</b></div>'
-      +'<div class="stat">Short-sided on missed greens <b>'+ss+'/'+missed+'</b></div>'
+      +'<div class="stat">Short-sided on missed greens <b>'+ss+'/'+missed+'</b>'
+        +(ssA<missed?' <span class="warn">'+ssA+' of '+missed+' answered</span>':'')+'</div>'
       +'<div class="stat">Total putts <b>'+tP+'</b></div>'
       +'<div class="stat">3–6 ft putts made <b>'+made+'/'+att+' ('+pct(made,att)+')</b></div>'
       +'<div class="stat">Penalty strokes <b>'+tPen+'</b></div>';

@@ -1855,6 +1855,76 @@ function refusedRound(other, disk, holesToPlay){
 globalThis.localStorage = {getItem:()=>null, setItem(){}};
 global.localStorage = {getItem:()=>null, setItem(){}};
 
+// Case 29 (v39): the caddy must not give Blue numbers from the White tees, H17 must stop
+// contradicting its own book note, and an SS rate must show how much of it was answered.
+(() => {
+  // --- white tees: 6,092 yds against Blue's 6,594, and nine holes 25-52 yds apart. The
+  // Blue tips name specific clubs, so from White they are systematically long. There are 18
+  // tipsTip entries and no whiteTip entries at all, and pvTip only ever branched on 'tips'.
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'white',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; globalThis.cur = 0;
+  const w = pvTip(0);
+  check('white tees: the tip names the White yardage rather than the Blue one',
+    w.indexOf('362')>-1, w.slice(0,110));
+  check('white tees: and says the club numbers below it are Blue numbers',
+    /WHITE/i.test(w) && /blue/i.test(w), w.slice(0,140));
+  // a hole that HAS white-specific advice must use it instead
+  const savedWhiteTip = COURSE[1].whiteTip;
+  COURSE[1].whiteTip = 'WHITE: authored advice for this hole.';
+  globalThis.cur = 1;
+  check('white tees: an authored whiteTip is used when one exists',
+    pvTip(1).indexOf('authored advice for this hole')>-1, pvTip(1).slice(0,110));
+  COURSE[1].whiteTip = savedWhiteTip;
+  globalThis.state.tee = 'blue';
+  check('blue tees: unchanged by the white branch',
+    pvTip(0).indexOf('Smooth PW from ~117')>-1 && !/WHITE/i.test(pvTip(0)), pvTip(0).slice(0,110));
+})();
+(() => {
+  // --- H17: the tip said "never at a right pin" while the book note appended directly
+  // beneath it said "one calm pocket right-mid. Aim there regardless of pin." Kenny reads
+  // both on the tee. Resolved in favour of the book note, which the Tips text already agrees
+  // with; the water warning stays, because the water is real.
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; globalThis.cur = 16;
+  const t = pvTip(16);
+  check('H17: the tip no longer tells him never to aim at a right pin',
+    t.indexOf('never at a right pin')===-1, t.slice(0,160));
+  check('H17: it names the calm right-mid pocket the book note names',
+    /right-mid/.test(t), t.slice(0,160));
+  check('H17: and still warns that right of it is water',
+    /water|wet/i.test(t), t.slice(0,160));
+  check('H17: the book note is still shown', t.indexOf('Aim there regardless of pin')>-1, 'book note missing');
+})();
+(() => {
+  // --- SS coverage. The denominator stays every missed green, so no historical figure
+  // moves; an unanswered SS just stops being invisible.
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  [0,1,2].forEach(i => { globalThis.holes[i].score = 5; globalThis.holes[i].gir = false; });
+  globalThis.holes[0].ss = true; globalThis.holes[1].ss = false;   // holes[2].ss stays unanswered
+  const st = roundStats({holes:globalThis.holes, summary:null});
+  check('SS: the denominator is still every missed green',
+    st.ss.d===3 && st.ss.n===1, 'ss '+st.ss.n+'/'+st.ss.d);
+  check('SS: and the round reports how many were answered',
+    st.ss.a===2, 'answered='+st.ss.a);
+  buildSummary();
+  const txt = els['exportText'].textContent;
+  check('SS: the export shows the coverage when an answer is missing',
+    /SS:1\/3\s*\(2 ans\)/.test(txt), (txt.match(/SS:\S+(\s*\([^)]*\))?/g)||[]).slice(-1)[0]);
+  check('SS: and the stats panel does too',
+    els['stats'].innerHTML.indexOf('2 of 3 answered')>-1,
+    (els['stats'].innerHTML.match(/Short-sided[^<]*<b>[^<]*<\/b>[^<]*/)||[''])[0]);
+  // a fully answered round must render exactly as before -- no format churn on real rounds
+  globalThis.holes[2].ss = true;
+  buildSummary();
+  check('SS: a fully answered round is unchanged',
+    /SS:2\/3 /.test(els['exportText'].textContent+' ') && els['exportText'].textContent.indexOf(' ans)')===-1,
+    (els['exportText'].textContent.match(/SS:\S+/g)||[]).slice(-1)[0]);
+})();
+
 
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);

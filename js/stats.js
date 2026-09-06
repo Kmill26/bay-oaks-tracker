@@ -143,11 +143,14 @@ function roundStats(r){
   if(r&&r.summary){var s=r.summary;
     // Seeded summaries predate per-hole capture and carry no miss direction.
     var sf=s.fir&&{n:s.fir.n,d:s.fir.d,l:s.fir.l||0,r:s.fir.r||0};
+    // Backfilled summaries predate the SS prompt and carry no per-answer record; their
+    // rate was transcribed from a completed card, so it is fully answered by construction.
+    var sss=s.ss&&{n:s.ss.n,d:s.ss.d,a:s.ss.a==null?s.ss.d:s.ss.a};
     return {score:s.score,par:s.par,played:s.played,fir:sf,gir:s.gir,putts:s.putts,
-      chip6:s.chip6,ss:s.ss,p36:s.p36,pen:s.pen,out:s.out,inn:s.inn,
+      chip6:s.chip6,ss:sss,p36:s.p36,pen:s.pen,out:s.out,inn:s.inn,
       type:s.type||(s.played+' Holes')};}
   var hs=(r&&r.holes)||[], score=0,par=0,played=0,putts=0,pen=0,out=0,inn=0;
-  var fir={n:0,d:0,l:0,r:0},gir={n:0,d:0},chip6={n:0,d:0},ss={n:0,d:0},p36={n:0,d:0};
+  var fir={n:0,d:0,l:0,r:0},gir={n:0,d:0},chip6={n:0,d:0},ss={n:0,d:0,a:0},p36={n:0,d:0};
   hs.forEach(function(h,i){
     var c=COURSE[i]; if(!c||!h)return;
     // Score, par and the nine-splits are scored-holes-only: a hole with no score has no
@@ -170,7 +173,10 @@ function roundStats(r){
     // saves and it is not scrambling; the comment that used to sit here said otherwise and
     // misled three separate readers (see the 2026-08-25 review). The denominator is every
     // missed green. Unknown-answer coverage remains a separate policy decision.
-    if(countsSs(h)){ss.d++; if(h.ss===true)ss.n++;}
+    // v39: d stays every missed green -- an unrecorded answer must not shrink the
+    // denominator and flatter the rate. `a` records how many of them were actually answered,
+    // so a thin sample is visible instead of reading as a run of fat-side misses.
+    if(countsSs(h)){ss.d++; if(h.ss===true)ss.n++; if(h.ss===true||h.ss===false)ss.a++;}
     p36.n+=h.sixMade||0; p36.d+=h.sixAtt||0;
   });
   return {score:score,par:par,played:played,fir:fir,gir:gir,putts:putts,chip6:chip6,
