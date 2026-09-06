@@ -152,7 +152,7 @@ function load(){
   delete state.cur;                              // v28 field; the cursor has its own key now
   saveCursor();
   saveConflict=''; saveFailed=false; saveUnreadable=false; saveReadOnly=false;
-  mergeBlocked=null; stashFailed=false; crossRound=false;
+  mergeBlocked=null; stashFailed=false; crossRound=false; metaClash=null; restoreRefused=false;
   recovered=loadRecovery();
   ensureDate();
   loadTheme();
@@ -165,7 +165,7 @@ function load(){
 // write and says so, instead of winning by being last. And a failed write is no longer
 // swallowed -- a full-storage phone mid-round used to keep accepting taps that went nowhere.
 var TAB_ID=Math.random().toString(36).slice(2,10);
-var RECOVERY='bayoaks-recovery-v1';
+var RECOVERY='bayoaks-recovery-v2', RECOVERY_V1='bayoaks-recovery-v1';
 // '' | 'refused' (nothing was written) | 'overwritten' (our write was replaced)
 var saveConflict='', saveFailed=false, saveUnreadable=false, saveReadOnly=false, recovered=null;
 // v33: a delayed copy resolving in the background set exported=true and called save(). When
@@ -177,7 +177,21 @@ function markExported(){
   if(!save()){ state.exported=was; return false; }
   return true;
 }
-var stashFailed=false, mergeBlocked=null, crossRound=false;
+
+// v34: an export marks EXACTLY the round and revision whose text was copied. Undoing the flag
+// after a refused save was not enough -- a copy that succeeded could still bless a round that
+// had moved on since, or a different round entirely. The token is taken when the text is
+// built and checked when the copy lands.
+function exportToken(){ return {roundId:state.roundId, seq:dataSeq}; }
+function completeExport(token){
+  if(!token||token.roundId!==state.roundId||token.seq!==dataSeq){
+    var m=document.getElementById('copiedMsg');
+    if(m)m.textContent='Copied \u2014 but the round changed since. Copy again to mark it exported.';
+    return false;
+  }
+  return markExported();
+}
+var stashFailed=false, mergeBlocked=null, crossRound=false, metaClash=null, dataSeq=0, restoreRefused=false;
 
 // v33: a round needs an identity that outlives neither more nor less than the round itself.
 // Dates are not it -- a new round can start on the same day, and a tab holding yesterday's
@@ -227,40 +241,71 @@ function releaseWriter(){
 function reelectWriter(){ if(writerRole!=='writer')electWriter(); }
 
 // The losing draft has to outlive a reload, or "reload" is advice to destroy it.
-function stashRecovery(){
+// v34: a single slot could only ever hold one draft. Two tabs each stashing overwrote each
+// other, and restoring one draft left the round it displaced with nowhere to go. Drafts are
+// now a keyed collection -- one slot per round per tab -- so nothing a refusal saved can be
+// destroyed by the next refusal.
+function draftKey(slot){ return (state.roundId||'unknown')+'|'+TAB_ID+(slot?'|'+slot:''); }
+function readDrafts(){
+  var box={};
   try{
-    localStorage.setItem(RECOVERY,JSON.stringify({date:state.date,mode:state.mode,pin:state.pin,
-      tee:state.tee,roundId:state.roundId,holes:state.holes,
-      stashedAt:new Date().toISOString(),tab:TAB_ID}));
-    stashFailed=false;
-  }catch(e){
-    // The copy that makes "reload" survivable could not be written either. Say so; do not
-    // let the advice below imply a safety net that is not there.
-    stashFailed=true;
-  }
+    var raw=localStorage.getItem(RECOVERY);
+    if(raw){ var parsed=JSON.parse(raw); if(parsed&&parsed.drafts)box=parsed.drafts; }
+  }catch(e){}
+  try{                                            // fold a v1 single-slot draft in once
+    var old=localStorage.getItem(RECOVERY_V1);
+    if(old){ var o=JSON.parse(old); if(o&&o.holes)box[(o.roundId||'legacy')+'|'+(o.tab||'v1')]=o; }
+  }catch(e){}
+  return box;
+}
+function writeDrafts(box){
+  try{ localStorage.setItem(RECOVERY,JSON.stringify({drafts:box})); return true; }
+  catch(e){ return false; }
+}
+function stashRecovery(slot){
+  var box=readDrafts();
+  box[draftKey(slot)]={date:state.date,mode:state.mode,pin:state.pin,tee:state.tee,
+    roundId:state.roundId,holes:state.holes,stashedAt:new Date().toISOString(),tab:TAB_ID};
+  // The copy that makes "reload" survivable. If it cannot be written, say so rather than
+  // letting the advice imply a safety net that is not there.
+  stashFailed=!writeDrafts(box);
+  return !stashFailed;
+}
+function clearOwnDraft(){
+  var box=readDrafts(), touched=false;
+  [draftKey(),draftKey('displaced')].forEach(function(k){ if(box[k]){delete box[k]; touched=true;} });
+  if(touched)writeDrafts(box);
 }
 function loadRecovery(){
-  try{
-    var r=JSON.parse(localStorage.getItem(RECOVERY));
-    if(!r||!r.holes)return null;
-    // Only interesting if it holds something the round on screen does not.
-    var same=JSON.stringify(r.holes)===JSON.stringify(state.holes);
-    return same?null:r;
-  }catch(e){return null;}
+  var box=readDrafts(), mine=JSON.stringify(state.holes), out=[];
+  for(var k in box){
+    if(!box[k]||!box[k].holes)continue;
+    if(JSON.stringify(box[k].holes)===mine)continue;   // already what is on screen
+    out.push(Object.assign({key:k},box[k]));
+  }
+  out.sort(function(a,b){return String(b.stashedAt||'').localeCompare(String(a.stashedAt||''));});
+  return out.length?out:null;
 }
-function recoverDraft(){
-  if(!recovered)return;
-  // A swap, not an overwrite. Showing the kept round must not throw away whatever is on
-  // screen -- that would trade one loss for another.
-  if(roundHasData())stashRecovery();
-  else { try{localStorage.removeItem(RECOVERY);}catch(e){} }
-  state.roundId=recovered.roundId||state.roundId;
-  state.holes=recovered.holes; holes=state.holes;
-  state.date=recovered.date||state.date; state.mode=recovered.mode||state.mode;
-  state.pin=recovered.pin||state.pin; state.tee=recovered.tee||state.tee;
-  recovered=null;
+function recoverDraft(key){
+  if(!recovered||!recovered.length)return false;
+  var draft=null;
+  for(var i=0;i<recovered.length;i++){ if(!key||recovered[i].key===key){draft=recovered[i]; break;} }
+  if(!draft)return false;
+  // A swap, not an overwrite -- and if the round on screen cannot be kept, the swap does not
+  // happen at all. v33 stashed, ignored the failure, and overwrote anyway, which destroyed
+  // the current round to display an older one.
+  if(roundHasData()&&!stashRecovery('displaced')){ restoreRefused=true; showSaveState(); return false; }
+  state.roundId=draft.roundId||state.roundId;
+  state.holes=draft.holes; holes=state.holes;
+  state.date=draft.date||state.date; state.mode=draft.mode||state.mode;
+  state.pin=draft.pin||state.pin; state.tee=draft.tee||state.tee;
+  // The restored draft stays in the collection until it is actually saved, so a reload right
+  // now still finds both it and whatever it displaced.
+  recovered=loadRecovery();
+  cur=clampCur(cur);
   render();
   showView('summaryView');
+  return true;
 }
 // v32: a tab that fell behind could never persist what it held -- safe, but it meant the
 // round in your hand was unsaveable. Adopt the newer round, then re-apply only the holes this
@@ -273,6 +318,14 @@ function heldEntryDiff(){
   // Same round, or no merge. Anything else is two different rounds that happen to share a
   // storage key, and pouring one into the other invents scores.
   if(!disk.roundId||!state.roundId||disk.roundId!==state.roundId)return {ok:false,reason:'cross-round'};
+  // Round-level facts are not per-hole and cannot be merged position by position. If the two
+  // copies disagree about the mode or the pin, one of them is describing a different round of
+  // golf; adopting either silently would relabel real holes.
+  var meta=[];
+  if(state.mode&&disk.mode&&state.mode!==disk.mode)meta.push('round mode ('+state.mode+' here, '+disk.mode+' there)');
+  var mp=state.pin&&state.pin!=='?'?state.pin:null, dp=disk.pin&&disk.pin!=='?'?disk.pin:null;
+  if(mp&&dp&&mp!==dp)meta.push('pin ('+mp+' here, '+dp+' there)');
+  if(meta.length)return {ok:false,reason:'meta',meta:meta};
   var mine=state.holes, conflicts=[], applied=[];
   for(var i=0;i<18;i++){
     var m=mine[i], d=disk.holes[i];
@@ -285,6 +338,7 @@ function heldEntryDiff(){
 function mergeHeldEntries(){
   var d=heldEntryDiff();
   if(!d.ok&&d.reason==='cross-round'){ crossRound=true; stashRecovery(); showSaveState(); return false; }
+  if(!d.ok&&d.reason==='meta'){ metaClash=d.meta.slice(); stashRecovery(); showSaveState(); return false; }
   if(!d.ok){ saveUnreadable=true; stashRecovery(); showSaveState(); return false; }
   if(d.conflicts.length){
     mergeBlocked=d.conflicts.slice();
@@ -299,7 +353,7 @@ function mergeHeldEntries(){
   state.rounds=disk.rounds||state.rounds;
   state.holes=disk.holes; holes=state.holes;
   d.applied.forEach(function(n){ holes[n-1]=mine[n-1]; });
-  saveConflict=''; mergeBlocked=null; crossRound=false;
+  saveConflict=''; mergeBlocked=null; crossRound=false; metaClash=null;
   var ok=save();
   cur=clampCur(cur);
   render();
@@ -307,7 +361,7 @@ function mergeHeldEntries(){
 }
 function dismissRecovery(){
   recovered=null;
-  try{localStorage.removeItem(RECOVERY);}catch(e){}
+  try{localStorage.removeItem(RECOVERY); localStorage.removeItem(RECOVERY_V1);}catch(e){}
   showSaveState();
 }
 
@@ -383,8 +437,9 @@ function save(){
   if(after.status==='ok'&&after.value&&after.value.writer&&after.value.writer!==TAB_ID){
     saveConflict='overwritten'; stashRecovery(); showSaveState(); return false;
   }
-  saveFailed=false; saveConflict=''; saveUnreadable=false; saveReadOnly=false; mergeBlocked=null; stashFailed=false; crossRound=false;
-  try{localStorage.removeItem(RECOVERY);}catch(e){}
+  saveFailed=false; saveConflict=''; saveUnreadable=false; saveReadOnly=false; mergeBlocked=null; stashFailed=false; crossRound=false; metaClash=null; restoreRefused=false;
+  clearOwnDraft();
+  recovered=loadRecovery();
   showSaveState(); return true;
 }
 
@@ -428,6 +483,12 @@ function showSaveState(){
     b.innerHTML='<b>\u26a0\ufe0f Not saved \u2014 saved round unreadable</b>'
       +'This browser could not read the stored round, so nothing was written over it. '
       +'Your entries are still on screen \u2014 Copy Log now, then reload.'+noCopyKept;
+  } else if(metaClash){
+    b.style.display='block';
+    b.innerHTML='<b>\u26a0\ufe0f The two copies disagree about the round itself</b>'
+      +'They differ on '+metaClash.join(' and ')+'. That is not something holes can be merged '
+      +'across, so nothing was added and nothing was changed. Copy Log to keep this tab\u2019s '
+      +'version, then reload.'+noCopyKept;
   } else if(crossRound){
     b.style.display='block';
     b.innerHTML='<b>\u26a0\ufe0f That is a different round</b>'
@@ -447,10 +508,16 @@ function showSaveState(){
       +'Nothing here was written and nothing there was overwritten, but what you have entered '
       +'in this tab is not stored. You can add these holes to the newer round, or Copy Log and reload.'
       +noCopyKept+mergeBtn;
-  } else if(recovered){
+  } else if(restoreRefused){
     b.style.display='block';
-    b.innerHTML='<b>\u26a0\ufe0f A round that could not be saved was kept</b>'
-      +'Entries from '+(recovered.date||'an earlier session')+' were never written to storage. '
+    b.innerHTML='<b>\u26a0\ufe0f Nothing was swapped \u2014 the round on screen could not be kept</b>'
+      +'There was not enough room to store a copy of what is on screen, so it was left alone '
+      +'rather than replaced, and the kept round is still waiting. Copy Log now, then try again.';
+  } else if(recovered&&recovered.length){
+    b.style.display='block';
+    b.innerHTML='<b>\u26a0\ufe0f '+(recovered.length===1?'A round that could not be saved was kept'
+        :recovered.length+' rounds that could not be saved were kept')+'</b>'
+      +'Entries from '+(recovered[0].date||'an earlier session')+' were never written to storage. '
       +'They are still here.'+recoverBtn;
   } else if(saveFailed){
     b.style.display='block';
@@ -474,7 +541,7 @@ function pristine(){return !roundHasData();}
 function ensureDate(){if(state.date!==today()&&pristine()){state.date=today(); save();}}
 // v16a: any new data invalidates a prior export -- dirty (unsaved edits) and exported
 // (round data has left the app) are separate facts. Copying no longer means saved.
-function touch(){state.dirty=true; state.exported=false; return save();}
+function touch(){state.dirty=true; state.exported=false; dataSeq++; return save();}
 function newRound(){
   vibe(25);
   // v29: was `holes.some(h => h.score !== null)`. A round carrying notes, putts, penalties
@@ -1018,7 +1085,8 @@ function copyExport(skipGuard){
   if(!skipGuard&&!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
   var msg=document.getElementById('copiedMsg');
-  function ok(){if(msg)msg.textContent='Copied log — ready for Gemini.'; markExported(); setTimeout(function(){if(msg)msg.textContent='';},2500);}
+  var token=exportToken();
+  function ok(){if(completeExport(token)&&msg)msg.textContent='Copied log — ready for Gemini.'; setTimeout(function(){if(msg)msg.textContent='';},4000);}
   function fallback(){
     var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
     ta.select();
@@ -1047,7 +1115,8 @@ function copyGeminiPrompt(){
   var teeLabel=' played from the '+tp.label+' tees ('+tp.yds.toLocaleString()+' yds)';
   var prompt='Analyze my Bay Oaks round'+modeLabel+teeLabel+' from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
   var msg=document.getElementById('copiedMsg');
-  function ok(){if(msg)msg.textContent='Copied prompt — ready for Gemini!'; markExported(); setTimeout(function(){if(msg)msg.textContent='';},2500);}
+  var token=exportToken();
+  function ok(){if(completeExport(token)&&msg)msg.textContent='Copied prompt — ready for Gemini!'; setTimeout(function(){if(msg)msg.textContent='';},4000);}
   function fallback(){
     var ta=document.createElement('textarea'); ta.value=prompt; document.body.appendChild(ta);
     ta.select();
@@ -1080,13 +1149,14 @@ function shareExport(){
     navigator.clipboard.writeText(prompt).catch(function(){});
   }
   var fname='bay-oaks-round-'+state.date+'.txt';
+  var shareToken=exportToken();
   try{
     if(navigator.canShare&&window.File){
       var f=new File([t],fname,{type:'text/plain'});
-      if(navigator.canShare({files:[f]})){navigator.share({files:[f],title:fname}).then(function(){state.exported=true; save();},function(){}); return;}
+      if(navigator.canShare({files:[f]})){navigator.share({files:[f],title:fname}).then(function(){completeExport(shareToken);},function(){}); return;}
     }
   }catch(e){}
-  if(navigator.share){navigator.share({title:fname,text:t}).then(function(){state.exported=true; save();},function(){}); return;}
+  if(navigator.share){navigator.share({title:fname,text:t}).then(function(){completeExport(shareToken);},function(){}); return;}
   copyExport(true);
 }
 

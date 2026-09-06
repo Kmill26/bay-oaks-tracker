@@ -1209,6 +1209,130 @@ global.localStorage = {getItem:()=>null, setItem(){}};
 global.localStorage = {getItem:()=>null, setItem(){}};
 
 
+// Case 24 (v34): what happens when the recovery system itself fails.
+
+// --- 24a: restore must not destroy the current round when it cannot stash it ------------
+(() => {
+  const disk = {}; const box = session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[0].score = 4; save();
+  const ahead = JSON.parse(disk.raw); ahead.rev += 5; ahead.writer='x'; ahead.roundId=globalThis.state.roundId;
+  disk.raw = JSON.stringify(ahead);
+  globalThis.holes[1].score = 7; globalThis.holes[1].notes='draft A'; save();   // refused -> stashed
+  load();
+  check('recovery-fail: a draft is waiting', !!recovered, 'nothing recovered');
+  // now the round on screen has its own data, and storage is full
+  globalThis.holes[5].score = 3; globalThis.holes[5].notes='current round work';
+  const plain = global.localStorage;
+  global.localStorage = {getItem:k=>plain.getItem(k), setItem(){ throw new Error('full'); }, removeItem(){}};
+  const restored = recoverDraft();
+  global.localStorage = plain;
+  check('recovery-fail: restore is refused when the current round cannot be kept', restored===false, 'restore proceeded');
+  check('recovery-fail: the current round is still on screen',
+    globalThis.holes[5].score===3 && globalThis.holes[5].notes==='current round work', 'current round destroyed');
+  check('recovery-fail: the existing recovery copy is untouched',
+    (()=>{try{return JSON.stringify(localStorage.getItem(RECOVERY)).includes('draft A');}catch(e){return false;}})(), 'stash damaged');
+  check('recovery-fail: and it says why', /could not keep|not enough room|could not be kept/i.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,140));
+})();
+
+// --- 24b: a reload straight after restoring must keep BOTH rounds recoverable -----------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[0].score=4; save();
+  const ahead = JSON.parse(disk.raw); ahead.rev+=5; ahead.writer='x'; ahead.roundId=globalThis.state.roundId;
+  disk.raw = JSON.stringify(ahead);
+  globalThis.holes[1].score=7; globalThis.holes[1].notes='draft A'; save();     // refused -> stashed
+  load();
+  globalThis.holes[5].score=3; globalThis.holes[5].notes='draft B';             // second body of work
+  recoverDraft();                                                               // swap to draft A
+  check('recovery-reload: draft A is on screen after restoring', globalThis.holes[1].notes==='draft A', 'restore failed');
+  load();                                                                       // immediate reload
+  const all = JSON.stringify(localStorage.getItem(RECOVERY)||'');
+  check('recovery-reload: draft B survived the swap', all.includes('draft B'), 'draft B lost');
+  check('recovery-reload: draft A is still recoverable too', all.includes('draft A'), 'draft A lost on reload');
+})();
+
+// --- 24c: two tabs stashing different drafts must not overwrite each other --------------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; save();
+  const ahead = JSON.parse(disk.raw); ahead.rev+=5; ahead.writer='x'; ahead.roundId=globalThis.state.roundId;
+  disk.raw = JSON.stringify(ahead);
+  const realTab = TAB_ID;
+  globalThis.holes[2].notes='tab one draft'; save();          // tab one stashes
+  TAB_ID = 'secondtab';
+  globalThis.holes[2].notes='tab two draft'; save();          // tab two stashes
+  const all = JSON.stringify(localStorage.getItem(RECOVERY)||'');
+  check('recovery-tabs: the first tab\'s draft survives the second', all.includes('tab one draft'), 'first draft overwritten');
+  check('recovery-tabs: the second tab\'s draft is there too', all.includes('tab two draft'), 'second draft missing');
+  TAB_ID = realTab;
+})();
+
+// --- 24d: a successful merge keeps per-hole tees and refuses clashing round metadata ----
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'A',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; save();
+  const id = globalThis.state.roundId;
+  const newer = JSON.parse(disk.raw); newer.rev+=3; newer.writer='other'; newer.roundId=id;
+  newer.holes[0]={...newer.holes[0], score:4};
+  disk.raw = JSON.stringify(newer);
+  globalThis.holes[6].score=5; globalThis.holes[6].tee='tips';   // a hole played from a different tee
+  save();
+  check('merge-meta: the merge succeeds when only holes differ', mergeHeldEntries()===true, 'merge refused');
+  check('merge-meta: the held hole keeps its own tee', JSON.parse(disk.raw).holes[6].tee==='tips', 'per-hole tee lost');
+
+  // now a round-level clash: different mode and pin
+  const disk2 = {}; session21(disk2);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'front',tee:'blue',pin:'A',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; save();
+  const id2 = globalThis.state.roundId;
+  const other = JSON.parse(disk2.raw); other.rev+=3; other.writer='other'; other.roundId=id2;
+  other.mode='back'; other.pin='D';
+  disk2.raw = JSON.stringify(other);
+  globalThis.holes[3].score=6; save();
+  check('merge-meta: a clashing mode or pin is refused, not silently adopted', mergeHeldEntries()===false, 'silently adopted the other side');
+  check('merge-meta: and the clash is named', /mode|pin/i.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,150));
+  check('merge-meta: neither side was changed',
+    JSON.parse(disk2.raw).mode==='back' && globalThis.state.mode==='front', 'metadata was overwritten');
+  mergeBlocked=null; metaClash=null;
+})();
+
+// --- 24e: F5 -- export success belongs to the round and revision that was copied ---------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; globalThis.cur=0;
+  globalThis.holes[0].score=4; touch();
+  document.execCommand = () => true;
+  const token = exportToken();                       // what the copied text represents
+  globalThis.holes[0].score=5; touch();              // the round moves on before the copy lands
+  completeExport(token);                             // the delayed callback resolving
+  check('export-identity: a copy of an older revision does not mark the round exported',
+    globalThis.state.exported===false, 'exported='+globalThis.state.exported);
+  const fresh = exportToken();
+  completeExport(fresh);
+  check('export-identity: a copy of the current revision does', globalThis.state.exported===true, 'exported='+globalThis.state.exported);
+  // and a copy taken from a different round never counts
+  const stale = exportToken();
+  const rc=global.confirm; global.confirm=()=>true; newRound(); global.confirm=rc;
+  completeExport(stale);
+  check('export-identity: a copy from a previous round never marks the new one exported',
+    globalThis.state.exported===false, 'exported='+globalThis.state.exported);
+})();
+global.localStorage = {getItem:()=>null, setItem(){}};
+
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
 
