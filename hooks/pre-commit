@@ -1,0 +1,16 @@
+#!/bin/sh
+# Ship gate for hand-typed commits (tracked hook; arm with `node install-hooks.mjs`).
+#
+# This path had NO gate at all until 2026-09-06: core.hooksPath was unset and
+# .git/hooks held only samples, so `.agents/oracle-gate.sh` -- which only intercepts
+# the Antigravity tool loop -- never saw a terminal commit. Every commit Kenny or
+# Claude typed by hand went through unverified.
+#
+# Validates the STAGED tree, not the working tree: see .agents/gate.mjs.
+root=$(git rev-parse --show-toplevel) || exit 1
+if ! node "$root/.agents/gate.mjs" --staged; then
+  echo "" >&2
+  echo "commit BLOCKED. Fix the staged content, or inspect it with:" >&2
+  echo "  node .agents/gate.mjs --staged" >&2
+  exit 1
+fi

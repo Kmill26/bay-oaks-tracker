@@ -26,14 +26,33 @@ run, but the check is machine-local and weekly; your read is immediate.
 
 ## The oracle is the ship gate
 
-`npm test` runs `verify.mjs`. It must print `RESULT: ALL PASS`. Nothing ships red.
+`npm test` runs `verify.mjs` (the oracle) and `.agents/gate.test.mjs` (the gate's
+own acceptance tests). Both must pass. Nothing ships red.
 
-**Two hooks enforce this. They are not advisory:**
+**The gate has one implementation and every path runs it.** `.agents/gate.mjs`
+exports the **staged** tree to a temp directory and runs the oracle there, plus the
+`sw.js` cache-bump rule computed from the same tree — so what the gate certifies is
+what the commit will contain, not what happens to be on disk.
 
-- `.agents/oracle-gate.sh` (PreToolUse) blocks any `git commit` or `git push`
-  when the oracle is red, or when app code changed without a `sw.js` cache bump.
+- `hooks/pre-commit` — a hand-typed `git commit`. **Arm it once per clone with
+  `node install-hooks.mjs`** (it sets `core.hooksPath`); a tracked hook does nothing
+  until you do. Until 2026-09-06 this path had no gate at all.
+- `hooks/pre-push` — validates the committed tip against `origin/main`, catching a
+  `--no-verify` commit and a missing cache bump in an earlier commit of a
+  multi-commit push, which CI's `HEAD~1..HEAD` window misses.
+- `.agents/oracle-gate.sh` (PreToolUse) — the Antigravity path. It resolves the repo
+  from its own location, fails closed, and delegates to `gate.mjs --staged`.
 - `.agents/oracle-echo.sh` (PostToolUse) re-runs the oracle after every file
   write and records the verdict in `.agents/oracle-status.txt`.
+
+Run it yourself any time: `node .agents/gate.mjs --staged`.
+
+**A partial stage is the case this exists for.** Fix something in the editor, stage
+only half of it, and the old gate went green while the commit went red. The gate's
+acceptance tests prove the four properties that matter: a staged defect fails even
+when the working tree is repaired, an unstaged defect does not invalidate clean
+staged content, temp snapshots are removed on both paths, and the hook actually
+blocks a real `git commit` rather than only reporting.
 
 **After any edit, read `.agents/oracle-status.txt` before continuing.** If it
 says RED, stop and fix. Do not stack another change on a red oracle.
@@ -49,8 +68,10 @@ If a check seems wrong, say so and stop. Do not edit it.
 
 If `index.html`, `js/*`, or `styles.css` change, the `bayoaks-vN` string in
 `sw.js` **must** be bumped in the same commit. Otherwise phones serve stale code
-from cache and the fix never lands. CI enforces it; the pre-commit hook enforces
-it earlier. Bump it as part of the change, not as a follow-up.
+from cache and the fix never lands. The gate enforces it from the staged tree —
+**a bump you edited but did not stage does not count**, because it is not in the
+commit — and CI enforces it again after the push. Bump it as part of the change,
+not as a follow-up.
 
 ## Architecture — do not drift from this
 

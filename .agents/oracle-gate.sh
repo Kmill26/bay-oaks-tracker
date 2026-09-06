@@ -33,24 +33,14 @@ if [ -z "$REPO" ] || [ ! -f "$REPO/verify.mjs" ]; then
 fi
 cd "$REPO" || deny "Ship gate could not enter $REPO. Commit blocked."
 
-# Gate 1: the oracle itself.
-ORACLE_OUT="$(node verify.mjs 2>&1)"
-if [ $? -ne 0 ] || ! printf '%s' "$ORACLE_OUT" | grep -q 'RESULT: ALL PASS'; then
-  FAILED="$(printf '%s' "$ORACLE_OUT" | grep '^FAIL ' | head -5 | tr '\n' ';')"
-  deny "Oracle is red -- commit blocked. Failing checks: ${FAILED:-see 'node verify.mjs'}. Fix the code, do not weaken the check."
-fi
-
-# Gate 2: service-worker cache bump. If app code is staged but sw.js is not,
-# phones would serve stale code. CI catches this after the push; catching it
-# here means the agent never ships the bug in the first place.
-STAGED="$(git diff --cached --name-only 2>/dev/null)"
-UNSTAGED="$(git diff --name-only 2>/dev/null)"
-CHANGED="$(printf '%s\n%s\n' "$STAGED" "$UNSTAGED" | sort -u | grep -v '^$')"
-
-if printf '%s' "$CHANGED" | grep -qE '^(index\.html|js/|styles\.css)'; then
-  if ! printf '%s' "$CHANGED" | grep -q '^sw\.js$'; then
-    deny "App code changed (index.html/js/styles.css) but sw.js cache version was not bumped. Phones would serve stale code. Bump the bayoaks-vN string in sw.js, then retry."
-  fi
+# One implementation for every path: .agents/gate.mjs exports the STAGED tree and
+# runs the oracle plus the sw.js cache-bump rule against that export. This hook used
+# to run `node verify.mjs` in the working tree and compute the cache bump from staged
+# UNION unstaged changes -- it certified the files on disk, not the files going into
+# the commit, so a partial stage passed here and committed red.
+GATE_OUT="$(node "$REPO/.agents/gate.mjs" --staged 2>&1)"
+if [ $? -ne 0 ]; then
+  deny "Ship gate: $(printf '%s' "$GATE_OUT" | tr '\n' ' ')"
 fi
 
 allow

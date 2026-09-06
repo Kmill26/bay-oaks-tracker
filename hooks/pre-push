@@ -1,0 +1,15 @@
+#!/bin/sh
+# Ship gate for the push path (tracked hook; arm with `node install-hooks.mjs`).
+#
+# The pre-commit hook cannot cover a commit made before it was armed, one made with
+# --no-verify, or one pulled in from elsewhere. This validates the tip that is about
+# to reach the remote, and its cache-bump check compares against origin/main rather
+# than HEAD~1 -- CI's HEAD~1..HEAD window misses a missing bump in an earlier commit
+# of a multi-commit push.
+root=$(git rev-parse --show-toplevel) || exit 1
+if ! node "$root/.agents/gate.mjs" --head; then
+  echo "" >&2
+  echo "push BLOCKED. The committed tip does not pass the gate:" >&2
+  echo "  node .agents/gate.mjs --head" >&2
+  exit 1
+fi

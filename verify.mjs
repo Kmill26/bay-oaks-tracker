@@ -673,7 +673,28 @@ check('bag: back pin on a deep green shifts the recommendation', (function(){
   check('gate: an unresolvable repo is denied explicitly',
     /! -f "\$REPO\/verify\.mjs"/.test(gate) && /deny "Ship gate could not locate/.test(gate),
     'no explicit deny on an unresolvable repo');
-  check('gate: the sw cache guard still covers js and styles', /js\/|styles\.css/.test(gate), 'cache-bump guard narrowed');
+  // v43: the gate logic moved into .agents/gate.mjs so every path -- Antigravity,
+  // a hand-typed commit, a push -- runs one implementation against the STAGED tree.
+  // These assertions follow it there rather than being deleted with the old block.
+  const gateMjs = readFileSync('.agents/gate.mjs','utf8');
+  check('gate: the shell hook delegates to gate.mjs rather than re-implementing',
+    /gate\.mjs["'\s]+--staged|gate\.mjs" --staged/.test(gate), 'oracle-gate.sh no longer calls gate.mjs --staged');
+  check('gate: the sw cache guard still covers js and styles',
+    /index\\.html\|styles\\.css\|js\\\//.test(gateMjs) || /index\.html\|styles\.css\|js\//.test(gateMjs),
+    'cache-bump guard narrowed');
+  check('gate: validation runs against an export of the index, not the working tree',
+    /checkout-index/.test(gateMjs) && /--cached/.test(gateMjs), 'gate.mjs no longer exports the staged tree');
+  check('gate: the snapshot is cleaned up on every path',
+    /finally\s*\{[\s\S]{0,120}cleanup\(\)/.test(gateMjs), 'gate.mjs can leak a temp snapshot');
+  check('gate: a hand-typed commit is gated too (tracked pre-commit hook)',
+    existsSync('hooks/pre-commit') && /gate\.mjs" --staged/.test(readFileSync('hooks/pre-commit','utf8')),
+    'hooks/pre-commit missing or not wired to gate.mjs');
+  check('gate: the push path is gated (tracked pre-push hook)',
+    existsSync('hooks/pre-push') && /gate\.mjs" --head/.test(readFileSync('hooks/pre-push','utf8')),
+    'hooks/pre-push missing or not wired to gate.mjs');
+  check('gate: the tracked hooks are armable',
+    existsSync('install-hooks.mjs') && /core\.hooksPath/.test(readFileSync('install-hooks.mjs','utf8')),
+    'install-hooks.mjs missing or does not set core.hooksPath');
   const ci = readFileSync('.github/workflows/verify.yml','utf8');
   check('gate: CI watches the same files the hook does',
     /index\.html styles\.css js\//.test(ci), 'CI cache guard is narrower than the hook');

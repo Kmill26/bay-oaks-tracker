@@ -5,8 +5,9 @@
   "description": "Personal round tracker and caddy for Bay Oaks CC. Vanilla single-file PWA, oracle-gated.",
   "type": "module",
   "scripts": {
-    "test": "node verify.mjs",
-    "verify": "node verify.mjs"
+    "test": "node verify.mjs && node --test .agents/gate.test.mjs",
+    "verify": "node verify.mjs",
+    "test:gate": "node --test .agents/gate.test.mjs"
   },
   "engines": {
     "node": ">=20"
