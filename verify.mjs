@@ -1082,6 +1082,133 @@ check('suspend: returning is wired to re-acquiring it',
 global.localStorage = {getItem:()=>null, setItem(){}};
 
 
+// Case 23 (v33): round identity, and what a refused write leaves behind in memory.
+// "Matching dates isn't sufficient."
+
+// --- 23a: a merge must never pour one round's scores into a different round -------------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:'2026-09-04',holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'C',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[0].score = 6; globalThis.holes[1].score = 7;   // yesterday's round, held here
+  save();
+  const yesterdayId = globalThis.state.roundId;
+
+  // the other tab finished that round and started a new one: archived, blank holes, new id
+  const fresh = JSON.parse(disk.raw);
+  fresh.rev += 4; fresh.writer = 'othertab';
+  fresh.rounds = [{id:'log-2026-09-04', date:'2026-09-04', mode:'full', tee:'blue',
+    source:'logged', suspect:false, pin:'C', holes:JSON.parse(JSON.stringify(fresh.holes)), summary:null}];
+  fresh.holes = blank21();
+  fresh.date = '2026-09-05';
+  fresh.roundId = 'r-2026-09-05-newround';
+  disk.raw = JSON.stringify(fresh);
+
+  check('identity: a stale tab holding an older round cannot blind-save over the new one', save()===false, 'stale write allowed');
+  const merged = mergeHeldEntries();
+  const after = JSON.parse(disk.raw);
+  check('identity: merging across two different rounds is refused', merged===false, 'merged across rounds');
+  check('identity: yesterday\'s scores are NOT poured into the new round\'s empty holes',
+    after.holes[0].score===null && after.holes[1].score===null,
+    'new round contaminated: H1='+after.holes[0].score+' H2='+after.holes[1].score);
+  check('identity: the refusal says it is a different round',
+    /different round/i.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,140));
+  check('identity: and never offers a merge button that could not work',
+    !/Add my holes to the newer round/.test(els['saveAlert'].innerHTML), els['saveAlert'].innerHTML.slice(0,160));
+  check('identity: the archived copy is untouched', after.rounds.length===1, 'rounds='+after.rounds.length);
+  check('identity: the held round is still recoverable',
+    (()=>{try{return !!JSON.parse(localStorage.getItem(RECOVERY));}catch(e){return false;}})(), 'no stash');
+  check('identity: a round carries an id that survives the round, not just its date',
+    typeof yesterdayId==='string' && yesterdayId!==fresh.roundId, 'roundId='+yesterdayId);
+  mergeBlocked=null; crossRound=false;
+})();
+
+// --- 23b: same calendar day, different round -- dates alone must not authorise a merge ---
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[3].score = 9; save();
+  const fresh = JSON.parse(disk.raw);
+  fresh.rev += 4; fresh.writer='othertab'; fresh.holes = blank21();
+  fresh.roundId = 'r-'+today()+'-second';                    // same DATE, different round
+  disk.raw = JSON.stringify(fresh);
+  save();
+  check('identity: same-day second round is still a different round', mergeHeldEntries()===false, 'merged on a date match');
+  check('identity: the second round stays empty', JSON.parse(disk.raw).holes[3].score===null, 'contaminated');
+  mergeBlocked=null; crossRound=false;
+})();
+
+// --- 23c: a blocked merge leaves both copies and keeps recovery available ----------------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes; save();
+  const id = globalThis.state.roundId;
+  const newer = JSON.parse(disk.raw);
+  newer.rev += 3; newer.writer='otherwriter'; newer.roundId=id;   // SAME round
+  newer.holes[4] = {...newer.holes[4], score:5};
+  disk.raw = JSON.stringify(newer);
+  globalThis.holes[4].score = 8;                                   // contested
+  save();
+  check('identity: a contested hole blocks the merge', mergeHeldEntries()===false, 'merged over a conflict');
+  check('identity: the disk copy is intact after a blocked merge', JSON.parse(disk.raw).holes[4].score===5, 'disk changed');
+  check('identity: this tab\'s copy is intact after a blocked merge', globalThis.holes[4].score===8, 'memory changed');
+  check('identity: recovery is still on offer after a blocked merge',
+    (()=>{try{return !!JSON.parse(localStorage.getItem(RECOVERY));}catch(e){return false;}})(), 'stash gone');
+  mergeBlocked=null;
+})();
+
+// --- 23d: the stash restores the whole round, not just the numbers ----------------------
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'back',tee:'tips',pin:'D',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[10].score = 5; globalThis.holes[10].notes='stashed note';
+  save();
+  const ahead = JSON.parse(disk.raw); ahead.rev += 5; ahead.writer='othertab';
+  ahead.mode='full'; ahead.tee='blue'; ahead.pin='A'; ahead.holes=blank21();
+  ahead.roundId='r-other';
+  disk.raw = JSON.stringify(ahead);
+  globalThis.holes[11].score = 4;
+  save();                                                    // refused -> stashed
+  load();                                                    // the reload
+  check('stash: it comes back', !!recovered, 'nothing recovered');
+  recoverDraft();
+  check('stash: the mode comes back with it', globalThis.state.mode==='back', 'mode='+globalThis.state.mode);
+  check('stash: the tee comes back with it', globalThis.state.tee==='tips', 'tee='+globalThis.state.tee);
+  check('stash: the pin comes back with it', globalThis.state.pin==='D', 'pin='+globalThis.state.pin);
+  check('stash: and the scores and notes', globalThis.holes[10].score===5 && globalThis.holes[10].notes==='stashed note', 'holes lost');
+})();
+
+// --- 23e: a refused save must undo the in-memory mutation it was saving ------------------
+// A delayed copy resolving in the background marks the round exported and calls save(). If
+// that save is refused, `exported` stayed true in memory -- disarming the unexported-round
+// warning in newRound() for a round that never reached storage.
+(() => {
+  const disk = {}; session21(disk);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  globalThis.holes[0].score=4; save();
+  const ahead = JSON.parse(disk.raw); ahead.rev += 5; ahead.writer='othertab';
+  disk.raw = JSON.stringify(ahead);
+  globalThis.state.exported = false;
+  document.execCommand = () => true;
+  copyExport(true);                                          // the delayed copy completing
+  check('export: a refused save does not leave the round marked exported',
+    globalThis.state.exported===false, 'exported='+globalThis.state.exported);
+  check('export: and the round is still guarded when starting a new one',
+    (()=>{ let asked=0; const rc=global.confirm; global.confirm=m=>{asked++; return false;};
+           newRound(); global.confirm=rc; return asked===1; })(), 'no warning on an unexported round');
+})();
+global.localStorage = {getItem:()=>null, setItem(){}};
+
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
 

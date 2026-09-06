@@ -147,11 +147,12 @@ function load(){
   });
   holes=state.holes;
   if(typeof state.rev!=='number')state.rev=0;   // pre-v29 rounds join the scheme at 0
+  ensureRoundId();
   cur=clampCur(loadCursor());                    // reads the cursor key, then v28's state.cur
   delete state.cur;                              // v28 field; the cursor has its own key now
   saveCursor();
   saveConflict=''; saveFailed=false; saveUnreadable=false; saveReadOnly=false;
-  mergeBlocked=null; stashFailed=false;
+  mergeBlocked=null; stashFailed=false; crossRound=false;
   recovered=loadRecovery();
   ensureDate();
   loadTheme();
@@ -167,13 +168,32 @@ var TAB_ID=Math.random().toString(36).slice(2,10);
 var RECOVERY='bayoaks-recovery-v1';
 // '' | 'refused' (nothing was written) | 'overwritten' (our write was replaced)
 var saveConflict='', saveFailed=false, saveUnreadable=false, saveReadOnly=false, recovered=null;
-var stashFailed=false, mergeBlocked=null;
+// v33: a delayed copy resolving in the background set exported=true and called save(). When
+// that save was refused the flag stayed set in memory, disarming newRound()'s warning for a
+// round that never reached storage. Refusing a write has to undo what the write was for.
+function markExported(){
+  var was=state.exported;
+  state.exported=true;
+  if(!save()){ state.exported=was; return false; }
+  return true;
+}
+var stashFailed=false, mergeBlocked=null, crossRound=false;
+
+// v33: a round needs an identity that outlives neither more nor less than the round itself.
+// Dates are not it -- a new round can start on the same day, and a tab holding yesterday's
+// round shares a date with nothing useful. Without this, "add my holes to the newer round"
+// happily poured yesterday's scores into today's empty holes: scores never shot, on a round
+// whose real copy was already archived, so they would have been counted twice.
+function mintRoundId(date){ return 'r-'+date+'-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+// Legacy rounds carry no id. Derive one deterministically from the date so two tabs holding
+// the same pre-v33 round agree, rather than each minting a different id and refusing forever.
+function ensureRoundId(){ if(!state.roundId)state.roundId='r-'+state.date+'-legacy'; return state.roundId; }
 
 // v31: real exclusion where the browser offers it. One tab holds the writer lock for its
 // lifetime; the others are read-only and say so, which is a truthful description of what
 // was already happening silently. Chrome on Android has Web Locks; where it is missing this
 // is inert and the synchronous guards below carry the weight.
-var writerRole='writer', lockRelease=null;
+var writerRole='writer', lockRelease=null, lockGen=0;
 // Asked at call time, not once at parse: the answer is a property of the environment when
 // we need it, and freezing it at load made the oracle's own environment untestable.
 function lockSupported(){
@@ -187,8 +207,12 @@ function lockSupported(){
 function electWriter(){
   if(!lockSupported()){ writerRole='writer'; return; }
   if(lockRelease)return;                       // already holding
+  var gen=++lockGen;
   try{
     navigator.locks.request('bayoaks-round-writer',{mode:'exclusive',ifAvailable:true},function(lock){
+      // A request answered after this tab hid again must not install itself as writer.
+      // Returning undefined hands the lock straight back for whoever is actually in front.
+      if(gen!==lockGen)return undefined;
       if(!lock){ writerRole='reader'; showSaveState(); return undefined; }
       writerRole='writer'; saveReadOnly=false; showSaveState();
       return new Promise(function(resolve){ lockRelease=function(){ lockRelease=null; resolve(); }; });
@@ -196,8 +220,8 @@ function electWriter(){
   }catch(e){ writerRole='writer'; }
 }
 function releaseWriter(){
-  if(!lockRelease)return;
-  lockRelease();
+  lockGen++;                                   // invalidate any request still in flight
+  if(lockRelease)lockRelease();
   writerRole='reader';
 }
 function reelectWriter(){ if(writerRole!=='writer')electWriter(); }
@@ -206,7 +230,8 @@ function reelectWriter(){ if(writerRole!=='writer')electWriter(); }
 function stashRecovery(){
   try{
     localStorage.setItem(RECOVERY,JSON.stringify({date:state.date,mode:state.mode,pin:state.pin,
-      tee:state.tee,holes:state.holes,stashedAt:new Date().toISOString(),tab:TAB_ID}));
+      tee:state.tee,roundId:state.roundId,holes:state.holes,
+      stashedAt:new Date().toISOString(),tab:TAB_ID}));
     stashFailed=false;
   }catch(e){
     // The copy that makes "reload" survivable could not be written either. Say so; do not
@@ -225,6 +250,11 @@ function loadRecovery(){
 }
 function recoverDraft(){
   if(!recovered)return;
+  // A swap, not an overwrite. Showing the kept round must not throw away whatever is on
+  // screen -- that would trade one loss for another.
+  if(roundHasData())stashRecovery();
+  else { try{localStorage.removeItem(RECOVERY);}catch(e){} }
+  state.roundId=recovered.roundId||state.roundId;
   state.holes=recovered.holes; holes=state.holes;
   state.date=recovered.date||state.date; state.mode=recovered.mode||state.mode;
   state.pin=recovered.pin||state.pin; state.tee=recovered.tee||state.tee;
@@ -239,7 +269,11 @@ function recoverDraft(){
 function heldEntryDiff(){
   var read=readStored();
   if(read.status!=='ok'||!read.value||!read.value.holes)return {ok:false,reason:'unreadable'};
-  var disk=read.value, mine=state.holes, conflicts=[], applied=[];
+  var disk=read.value;
+  // Same round, or no merge. Anything else is two different rounds that happen to share a
+  // storage key, and pouring one into the other invents scores.
+  if(!disk.roundId||!state.roundId||disk.roundId!==state.roundId)return {ok:false,reason:'cross-round'};
+  var mine=state.holes, conflicts=[], applied=[];
   for(var i=0;i<18;i++){
     var m=mine[i], d=disk.holes[i];
     if(!holeHasData(m))continue;
@@ -250,9 +284,11 @@ function heldEntryDiff(){
 }
 function mergeHeldEntries(){
   var d=heldEntryDiff();
-  if(!d.ok){ saveUnreadable=true; showSaveState(); return false; }
+  if(!d.ok&&d.reason==='cross-round'){ crossRound=true; stashRecovery(); showSaveState(); return false; }
+  if(!d.ok){ saveUnreadable=true; stashRecovery(); showSaveState(); return false; }
   if(d.conflicts.length){
     mergeBlocked=d.conflicts.slice();
+    stashRecovery();               // a blocked merge must still leave a way back
     showSaveState();
     return false;
   }
@@ -263,7 +299,7 @@ function mergeHeldEntries(){
   state.rounds=disk.rounds||state.rounds;
   state.holes=disk.holes; holes=state.holes;
   d.applied.forEach(function(n){ holes[n-1]=mine[n-1]; });
-  saveConflict=''; mergeBlocked=null;
+  saveConflict=''; mergeBlocked=null; crossRound=false;
   var ok=save();
   cur=clampCur(cur);
   render();
@@ -307,8 +343,17 @@ function save(){
   if(writerRole==='reader'){ saveReadOnly=true; stashRecovery(); showSaveState(); return false; }
   var read=readStored();
   if(read.status==='unreadable'){ saveUnreadable=true; stashRecovery(); showSaveState(); return false; }
-  if(isForeign(read.value)){ saveConflict='refused'; stashRecovery(); showSaveState(); return false; }
+  if(isForeign(read.value)){
+    saveConflict='refused';
+    // Work out up front whether a merge is even possible, so the banner never offers a
+    // button that cannot do anything.
+    crossRound=!!(read.value&&state.roundId&&read.value.roundId&&read.value.roundId!==state.roundId);
+    stashRecovery(); showSaveState(); return false;
+  }
   if(typeof state.rev!=='number')state.rev=0;
+  // Any round that reaches storage carries an identity. Minting only at load() left rounds
+  // created by other paths anonymous, and two anonymous rounds look identical to a merge.
+  ensureRoundId();
   var prevRev=state.rev, prevWriter=state.writer;
   state.rev++; state.writer=TAB_ID;
   var payload=JSON.stringify(state);
@@ -338,7 +383,7 @@ function save(){
   if(after.status==='ok'&&after.value&&after.value.writer&&after.value.writer!==TAB_ID){
     saveConflict='overwritten'; stashRecovery(); showSaveState(); return false;
   }
-  saveFailed=false; saveConflict=''; saveUnreadable=false; saveReadOnly=false; mergeBlocked=null; stashFailed=false;
+  saveFailed=false; saveConflict=''; saveUnreadable=false; saveReadOnly=false; mergeBlocked=null; stashFailed=false; crossRound=false;
   try{localStorage.removeItem(RECOVERY);}catch(e){}
   showSaveState(); return true;
 }
@@ -383,6 +428,12 @@ function showSaveState(){
     b.innerHTML='<b>\u26a0\ufe0f Not saved \u2014 saved round unreadable</b>'
       +'This browser could not read the stored round, so nothing was written over it. '
       +'Your entries are still on screen \u2014 Copy Log now, then reload.'+noCopyKept;
+  } else if(crossRound){
+    b.style.display='block';
+    b.innerHTML='<b>\u26a0\ufe0f That is a different round</b>'
+      +'This tab is holding a round that has since been finished and replaced \u2014 its holes '
+      +'are not part of the round now in storage, so nothing was added and nothing was changed. '
+      +'Copy Log to keep this one, then reload.'+noCopyKept;
   } else if(mergeBlocked){
     b.style.display='block';
     b.innerHTML='<b>\u26a0\ufe0f Hole '+mergeBlocked.join(', ')+' recorded differently in both</b>'
@@ -450,7 +501,7 @@ function newRound(){
   var prevMode=state.mode||'full';
   var prevTee=state.tee||'blue';
   var keep={date:state.date, holes:state.holes, rounds:state.rounds, pin:state.pin,
-            dirty:state.dirty, exported:state.exported, cur:cur};
+            dirty:state.dirty, exported:state.exported, roundId:state.roundId, cur:cur};
   if(hasData){
     state.rounds=state.rounds.concat([{id:'log-'+state.date+'-'+Date.now().toString(36), date:state.date,
       mode:prevMode, tee:prevTee, source:'logged', suspect:false,
@@ -459,10 +510,11 @@ function newRound(){
   }
   state.date=today(); state.holes=mk(); state.dirty=false; state.exported=false;
   state.pin='?'; state.mode=prevMode; state.tee=prevTee;
+  state.roundId=mintRoundId(state.date);   // a new round is a new identity, same day or not
   if(!save()){
     // Put the player back exactly where they were, with everything still exportable.
     state.date=keep.date; state.holes=keep.holes; state.rounds=keep.rounds; state.pin=keep.pin;
-    state.dirty=keep.dirty; state.exported=keep.exported;
+    state.dirty=keep.dirty; state.exported=keep.exported; state.roundId=keep.roundId;
     holes=state.holes; cur=keep.cur;
     render(); showView('holeView');
     return false;
@@ -966,7 +1018,7 @@ function copyExport(skipGuard){
   if(!skipGuard&&!guardPartial())return;
   var t=document.getElementById('exportText').textContent;
   var msg=document.getElementById('copiedMsg');
-  function ok(){if(msg)msg.textContent='Copied log — ready for Gemini.'; state.exported=true; save(); setTimeout(function(){if(msg)msg.textContent='';},2500);}
+  function ok(){if(msg)msg.textContent='Copied log — ready for Gemini.'; markExported(); setTimeout(function(){if(msg)msg.textContent='';},2500);}
   function fallback(){
     var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
     ta.select();
@@ -995,7 +1047,7 @@ function copyGeminiPrompt(){
   var teeLabel=' played from the '+tp.label+' tees ('+tp.yds.toLocaleString()+' yds)';
   var prompt='Analyze my Bay Oaks round'+modeLabel+teeLabel+' from '+state.date+':\n\n'+t+'\n\nPerform short-game leak accounting (CHIP6 proximity, wedge choices, 3-putts), evaluate course strategy vs the plan, and provide 1-2 focused prescriptions for my next session.';
   var msg=document.getElementById('copiedMsg');
-  function ok(){if(msg)msg.textContent='Copied prompt — ready for Gemini!'; state.exported=true; save(); setTimeout(function(){if(msg)msg.textContent='';},2500);}
+  function ok(){if(msg)msg.textContent='Copied prompt — ready for Gemini!'; markExported(); setTimeout(function(){if(msg)msg.textContent='';},2500);}
   function fallback(){
     var ta=document.createElement('textarea'); ta.value=prompt; document.body.appendChild(ta);
     ta.select();
