@@ -1,291 +1,317 @@
-/* v40: sunlit scorecard. Opaque surfaces, dark ink, system fonts, no network assets.
-   Keep legacy token names because generated summary/trend markup uses them. */
+/* Parchment and tobacco. Colors live only in :root and body.dusk.
+   Component rules use tokens. Legacy names stay: summary and trend markup
+   still reads --oxblood, --panel, --ink. */
 :root{
   color-scheme:light;
   --ground:#EDE1C9; --panel:#FFF8E9; --panel2:#E8D7B9;
   --ink:#2C211A; --oxblood:#63351F; --muted:#604B38;
   --line:#C5AC85; --line-strong:#887052; --line-soft:#DBC9A9;
   --on-oxblood:#FFF8E9; --green:#17613D; --red:#A12520; --warn:#8A3518;
+  --brass:#D5B477; --hero:#432B20; --hero-ink:#FFF3DB;
+  /* Score-button face is brass in both themes. Its label and hairline
+     stay bone ink and bone oxblood; they do not flip with dusk. */
+  --on-brass:#2C211A; --brass-edge:#63351F;
+  --sheen:rgba(255,248,233,.28);
   --numerals:ui-monospace,"SF Mono","Roboto Mono","DejaVu Sans Mono",monospace;
 }
 body.dusk{
   color-scheme:dark;
-  --ground:#101E19; --panel:#192D24; --panel2:#233D30;
-  --ink:#F5F6EC; --oxblood:#BDE58C; --muted:#B7C9BB;
-  --line:#516858; --line-strong:#809783; --line-soft:#3C5445;
-  --on-oxblood:#14281C; --green:#A9E4B5; --red:#FFB2A5; --warn:#FFD09A;
+  --ground:#201A15; --panel:#30261F; --panel2:#443426;
+  --ink:#FFF3DB; --oxblood:#E5BD82; --muted:#D7C2A3;
+  --line:#756044; --line-strong:#A58B69; --line-soft:#574735;
+  --on-oxblood:#2C211A; --green:#A9E4B5; --red:#FFB2A5; --warn:#FFD09A;
+  --brass:#CDA66D; --hero:#35251D; --hero-ink:#FFF3DB;
 }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  body{margin:0; background:var(--ground); color:var(--ink);
-    font-family:Roboto,"Google Sans",system-ui,-apple-system,sans-serif;
-    padding:10px 12px calc(92px + env(safe-area-inset-bottom)); max-width:480px; margin-inline:auto;
-    font-size:16px; touch-action:manipulation; overflow-x:hidden; transition:background-color .2s, color .2s;}
-  /* This is a scorecard app; the figures should be set like a scorecard. Columns
-     align and 1 reads apart from 7 at a glance on a moving cart. */
-  .stepper .val, .scoreNow, .metricBox .mVal, .holeLbl .num,
-  .stat b, pre, #exportText{
-    font-family:var(--numerals);
-    font-variant-numeric:tabular-nums;
-    font-feature-settings:"tnum" 1;}
-  /* Figures embedded in prose (+1.67, n=3, GIR 5/9) align down the column while
-     the surrounding text stays proportional. */
-  .trendCard, .holeLbl .meta{font-variant-numeric:tabular-nums;}
-  /* Annotation labels. One rule, so oxblood never has to mean "heading". */
-  .lbl, .metricBox .mLbl, .tip b, .trendCard .lbl{
-    font-size:11px;
-    letter-spacing:.14em;
-    text-transform:uppercase;
-    font-weight:700;
-    color:var(--muted);}
-  .headerWrap{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
-  h1{font-size:15px; letter-spacing:.12em; text-transform:uppercase;
-    color:var(--oxblood); text-align:left; margin:0; font-weight:700;}
-  .themeToggle{background:var(--panel2); border:1px solid var(--line-strong); color:var(--oxblood);
-    font-size:12px; font-weight:700; padding:6px 10px; border-radius:8px; cursor:pointer;}
-  .modeWrap{display:flex; gap:6px; margin-bottom:8px;}
-  .modeBtn{flex:1; padding:7px 0; font-size:12px; font-weight:700; border-radius:8px;
-    border:1px solid var(--line-strong); background:var(--panel2); color:var(--ink); cursor:pointer; text-align:center;}
-  .modeBtn.on{background:var(--oxblood); border-color:var(--oxblood); color:var(--on-oxblood);}
-  .fatigueBanner{display:none; background:var(--panel); border:1px solid var(--warn);
-    border-radius:10px; padding:8px 10px; margin-bottom:10px; font-size:12.5px; line-height:1.4; color:var(--ink);}
-  .saveBanner{border-color:var(--oxblood);}
-  .saveBanner b{color:var(--oxblood);}
-  .fatigueBanner b{color:var(--warn); text-transform:uppercase; font-size:11px; display:block; margin-bottom:2px;}
-  .nav{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
-  .nav button{background:var(--panel2); border:1px solid var(--line-strong); color:var(--oxblood);
-    font-size:22px; width:56px; height:48px; border-radius:10px;}
-  .holeLbl{text-align:center;}
-  .holeLbl .num{font-size:28px; font-weight:700; color:var(--ink);}
-  .holeLbl .meta{font-size:12px; color:var(--muted); margin-top:2px;}
-  .holeLbl .done{font-size:11px; color:var(--muted);}
-  .tip{background:var(--panel); border:1px solid var(--line-strong);
-    border-radius:12px; padding:10px 12px; margin-bottom:10px; font-size:13.5px;
-    line-height:1.45; color:var(--ink);}
-  .tip b{display:block; margin-bottom:3px;}
-  #tipText{white-space:pre-line;}
-  .row{background:var(--panel); border:1px solid var(--line); border-radius:10px;
-    padding:10px 12px; margin-bottom:10px;}
-  .row.disabled{opacity:.35; pointer-events:none;}
-  .lbl{margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;}
-  .btns{display:flex; gap:8px;}
-  .btns button{flex:1; padding:12px 0; font-size:16px; border-radius:8px;
-    border:1px solid var(--line-strong); background:var(--panel2); color:var(--ink); cursor:pointer;}
-  .btns button.on{background:var(--oxblood); border-color:var(--oxblood); color:var(--on-oxblood); font-weight:700;}
-  .stepper{display:flex; align-items:center; gap:14px; justify-content:center;}
-  .stepper button{width:60px; height:48px; font-size:24px; border-radius:8px;
-    border:1px solid var(--line-strong); background:var(--panel2); color:var(--ink); cursor:pointer;}
-  .stepper .val{font-size:28px; font-weight:700; min-width:44px; text-align:center;}
-  .inlineWrap{display:flex; gap:10px; margin-bottom:10px;}
-  .inlineWrap .row{flex:1; margin-bottom:0; min-width:0; padding:10px 8px;}
-  .inlineWrap .stepper{gap:6px;}
-  .inlineWrap .stepper button{width:44px; height:44px; font-size:20px;}
-  .inlineWrap .stepper .val{font-size:22px; min-width:26px;}
-  .inlineWrap .lbl{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .caddyBox{background:var(--panel2); border:1px solid var(--line-strong); border-radius:8px; padding:8px 10px; margin-top:6px;}
-  .caddyClubs{display:flex; gap:5px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch;}
-  .clubChip{flex:0 0 auto; display:inline-flex; align-items:center; min-height:44px;
-    padding:9px 12px; font-size:12px; border-radius:8px; background:var(--panel2);
-    border:1px solid var(--line-strong); color:var(--ink); cursor:pointer;}
-  .clubChip.active{background:var(--oxblood); color:var(--on-oxblood); font-weight:700; border-color:var(--oxblood);}
-  .caddyRec{font-size:12.5px; color:var(--oxblood); margin-top:5px; line-height:1.35;}
-  .micBtn{background:var(--panel2); border:1px solid var(--line-strong); color:var(--oxblood);
-    font-size:11.5px; font-weight:700; padding:3px 8px; border-radius:6px; cursor:pointer;}
-  .micBtn.listening{background:var(--red); border-color:var(--red); color:var(--on-oxblood); animation:pulse 1.2s infinite;}
-  @keyframes pulse{0%{opacity:1;} 50%{opacity:.55;} 100%{opacity:1;}}
-  .footer{position:fixed; bottom:0; left:0; right:0; background:var(--panel);
-    border-top:1px solid var(--line); padding:10px 14px calc(10px + env(safe-area-inset-bottom)); display:flex; gap:10px;
-    max-width:480px; margin-inline:auto; z-index:90;}
-  .footer button{flex:1; padding:13px 0; font-size:15px; border-radius:10px;
-    border:1px solid var(--line-strong); background:var(--panel2); color:var(--oxblood); font-weight:600; cursor:pointer;}
-  .footer button.activeTab{background:var(--oxblood); color:var(--on-oxblood); font-weight:700;}
-  #summaryView, #trendsView{display:none;}
-  pre{background:var(--panel); border:1px solid var(--line); border-radius:10px;
-    padding:12px; font-size:11.5px; line-height:1.5; white-space:pre-wrap;
-    word-break:break-all; color:var(--ink);}
-  .stat{display:flex; justify-content:space-between; padding:10px 2px;
-    border-bottom:1px solid var(--line-soft); font-size:14px;}
-  .stat:last-child{border-bottom:0;}
-  .stat b{color:var(--oxblood);}
-  .copied{color:var(--green); text-align:center; font-size:13px; height:18px; margin-top:6px;}
-  .newRoundBtn{width:100%; margin-top:8px; padding:13px 0; font-size:15px; border-radius:10px;
-    border:1px solid var(--line-strong); background:var(--panel2); color:var(--oxblood); font-weight:600; cursor:pointer;}
-  .scoreWrap{display:flex; gap:6px;}
-  .scoreWrap .btns{flex:1;}
-  .mini{width:48px; height:48px; font-size:20px; border-radius:8px;
-    border:1px solid var(--line-strong); background:var(--panel2); color:var(--ink); cursor:pointer;}
-  .scoreNow{color:var(--oxblood); font-weight:700; text-transform:none; font-size:14px; letter-spacing:normal;}
-  .noteBox{width:100%; background:var(--panel2); border:1px solid var(--line-strong); border-radius:8px;
-    color:var(--ink); font-family:inherit; font-size:16px; line-height:1.4; padding:10px;
-    resize:vertical; min-height:52px;}
-  .noteBox::placeholder{color:var(--muted); opacity:.8;}
-  .warn{color:var(--warn); font-weight:700;}
-  .trendCard{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px;}
-  .trendGrid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:8px;}
-  .metricBox{background:var(--panel2); border:1px solid var(--line-strong); border-radius:8px; padding:8px 10px; text-align:center;}
-  .metricBox .mVal{font-size:20px; font-weight:700; color:var(--oxblood); margin-top:2px;}
-  .leakRank{font-size:13px; line-height:1.5; color:var(--ink);}
-  .leakRank li{margin-bottom:4px;}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+body{
+  margin:0; margin-inline:auto; max-width:520px;
+  padding:18px 14px calc(102px + env(safe-area-inset-bottom));
+  background-color:var(--ground);
+  background-image:radial-gradient(ellipse at top left,var(--sheen),transparent 65%);
+  color:var(--ink);
+  font-family:Roboto,"Google Sans",system-ui,-apple-system,sans-serif;
+  font-size:16px; touch-action:manipulation; overflow-x:hidden;
+  transition:background-color .2s, color .2s;
+}
+.stepper .val, .scoreNow, .metricBox .mVal, .holeLbl .num,
+.stat b, pre, #exportText{
+  font-family:var(--numerals);
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1;
+}
+.trendCard, .holeLbl .meta{font-variant-numeric:tabular-nums;}
 
-/* Course edition: typography and structure do the work, not faint shadows. */
-body{padding:18px 14px calc(102px + env(safe-area-inset-bottom));max-width:520px;}
-.headerWrap{gap:12px;margin-bottom:18px;align-items:center;}
-.brand{border-left:5px solid var(--oxblood);padding-left:12px;}
-.brand .eyebrow{display:block;font-size:10px;letter-spacing:.22em;font-weight:800;color:var(--muted);margin-bottom:2px;}
-h1{font-family:Georgia,"Times New Roman",serif;font-size:32px;line-height:1.1;letter-spacing:-.04em;text-transform:none;color:var(--ink);}
-.themeToggle{min-height:44px;padding:10px 12px;border-radius:24px;font-size:13px;white-space:nowrap;}
-.modeWrap{background:var(--panel2);padding:5px;border:1px solid var(--line-strong);border-radius:14px;gap:4px;margin-bottom:14px;}
-.modeBtn{min-height:44px;padding:8px 2px;background:transparent;border-color:transparent;border-radius:9px;font-size:12px;}
-.modeBtn.on{box-shadow:inset 0 0 0 1px var(--on-oxblood);}
-.nav{position:relative;gap:8px;padding:20px 12px;background:var(--oxblood);border-radius:18px 18px 0 0;margin-bottom:0;color:var(--on-oxblood);}
-.nav button{flex:0 0 44px;width:44px;height:48px;background:transparent;border:1px solid currentColor;color:var(--on-oxblood);border-radius:50%;}
-.holeLbl{min-width:0;}
-.holeLbl .num{font-size:17px;letter-spacing:.02em;color:var(--on-oxblood);display:flex;justify-content:center;align-items:baseline;gap:8px;}
-#holeNum{font-size:52px;line-height:1.05;letter-spacing:-.06em;}
-.holeLbl .meta{font-size:12px;line-height:1.6;color:var(--on-oxblood);}
-.holeLbl .done{font-size:12px;line-height:1.5;color:var(--on-oxblood);margin-top:5px;}
-.tip{border:1px solid var(--oxblood);border-top:0;border-radius:0 0 18px 18px;padding:16px;margin-bottom:16px;font-size:15px;line-height:1.55;}
-.tip b{color:var(--oxblood);font-size:11px;letter-spacing:.17em;margin-bottom:6px;}
-.row,.trendCard{padding:15px;border-radius:14px;border-color:var(--line-strong);margin-bottom:12px;}
-.lbl,.metricBox .mLbl,.trendCard .lbl{font-size:12px;letter-spacing:.07em;line-height:1.45;}
-.btns{gap:6px;}
-.btns button{min-height:48px;font-weight:650;border-radius:9px;}
-.btns button.on,.clubChip.active{box-shadow:inset 0 0 0 2px var(--on-oxblood);outline:2px solid var(--oxblood);outline-offset:-1px;}
-.scoreNow{font-size:23px;}
-.scoreWrap{flex-wrap:wrap;gap:6px;}
-.scoreWrap .btns{min-width:180px;}
-.caddyBox{padding:0;background:transparent;border:0;}
-.caddyClubs{gap:8px;padding:3px 2px 9px;}
-.clubChip{font-size:14px;font-weight:700;min-height:48px;border-radius:24px;}
-.caddyRec{font-size:14px;line-height:1.5;border-top:1px solid var(--line);padding-top:10px;}
-.micBtn{min-height:44px;font-size:13px;padding:8px 12px;}
-.noteBox{min-height:90px;background:var(--panel);line-height:1.6;}
-.noteBox::placeholder{opacity:1;}
-.inlineWrap .lbl{white-space:normal;overflow:visible;text-overflow:clip;min-height:36px;}
-.inlineWrap .stepper{gap:4px;}
-.inlineWrap .stepper button{flex:0 0 44px;}
-.footer{max-width:520px;border-top:2px solid var(--oxblood);padding:10px 12px calc(10px + env(safe-area-inset-bottom));gap:7px;}
-.footer button{font-size:14px;min-height:48px;border-radius:10px;}
-.footer button:last-child{background:var(--oxblood);color:var(--on-oxblood);}
-.stat{gap:16px;font-size:15px;padding:13px 0;line-height:1.45;}
-.stat b{text-align:right;}
-.metricBox{padding:14px 8px;}
-.metricBox .mVal{font-size:26px;}
-.fatigueBanner{font-size:14px;padding:14px;border-width:2px;}
-.fatigueBanner button{min-height:44px;margin:6px 4px 0 0;padding:8px 12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line-strong);border-radius:8px;font:inherit;font-weight:700;}
-.copied{height:auto;min-height:20px;line-height:1.5;}
-button{font-family:inherit;cursor:pointer;}
-button:focus-visible,textarea:focus-visible{outline:3px solid var(--ink);outline-offset:3px;}
-button:active{transform:translateY(1px);}
-@media(max-width:360px){body{padding-inline:10px;}.row{padding:12px 10px;}.nav{padding-inline:8px;}.holeLbl .meta{font-size:11px;}.btns{gap:4px;}h1{font-size:29px;}.inlineWrap{gap:6px;}}
-@media(max-width:360px){#pinBtns,#puttBtns{gap:2px;}}
-@media(prefers-reduced-motion:reduce){body{transition:none;}.micBtn.listening{animation:none;}}
+.headerWrap{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  margin-bottom:12px; padding-bottom:14px;
+  border-bottom:1px solid var(--line-strong);
+}
+.brand .eyebrow{
+  display:block; margin-bottom:2px;
+  font-size:9px; font-weight:750; letter-spacing:.2em; color:var(--muted);
+}
+h1{
+  margin:3px 0 0; text-align:left;
+  font-family:Georgia,"Times New Roman",serif; font-weight:700; font-size:39px;
+  line-height:1; letter-spacing:-.05em; color:var(--ink);
+}
+.themeToggle{
+  min-height:44px; padding:10px 12px; border-radius:20px; white-space:nowrap;
+  border:1px solid var(--line-strong); background:var(--panel); color:var(--ink);
+  font-size:12px; font-weight:650; cursor:pointer;
+}
 
-/* Parchment and tobacco. Brass is trim; all text uses high-contrast ink. */
-:root{--brass:#D5B477;--hero:#432B20;--hero-ink:#FFF3DB;}
-body.dusk{--brass:#CDA66D;--hero:#35251D;--hero-ink:#FFF3DB;--ground:#201A15;--panel:#30261F;--panel2:#443426;--ink:#FFF3DB;--oxblood:#E5BD82;--muted:#D7C2A3;--line-strong:#A58B69;--line:#756044;--line-soft:#574735;--on-oxblood:#2C211A;}
-body{padding-top:20px;}
-.brand{border:0;padding:0;}
-.brand .eyebrow{font-size:10px;letter-spacing:.2em;color:var(--muted);}
-h1{font-family:Georgia,"Times New Roman",serif;font-weight:700;font-style:normal;font-size:36px;letter-spacing:-.045em;text-transform:none;line-height:1;}
-.headerWrap{padding-bottom:16px;border-bottom:3px solid var(--ink);margin-bottom:14px;}
-.themeToggle{border-radius:6px;border:2px solid var(--ink);color:var(--ink);background:var(--panel);}
-.modeWrap{padding:0;border:2px solid var(--ink);gap:0;border-radius:6px;overflow:hidden;background:var(--panel);}
-.modeBtn{border-radius:0;font-weight:800;border-right:1px solid var(--ink);}
+.modeWrap{
+  display:flex; gap:5px; margin-bottom:14px; padding:0 0 10px; overflow:hidden;
+  background:transparent; border:0; border-bottom:1px solid var(--line-strong);
+}
+.modeBtn{
+  flex:1; min-height:44px; padding:8px 2px; text-align:center;
+  border:1px solid var(--line-strong); border-radius:4px; background:transparent;
+  color:var(--ink); font-size:12px; font-weight:700; cursor:pointer;
+}
+/* Open right edge on the last mode button is the live scorecard, kept as-is. */
 .modeBtn:last-child{border-right:0;}
-.modeBtn.on{background:var(--brass);color:#2C211A;border-color:#2C211A;box-shadow:none;}
-.nav{background:var(--hero);color:var(--hero-ink);border-radius:10px 10px 0 0;padding:14px 12px;border-bottom:3px solid var(--brass);}
-.nav button{color:var(--hero-ink);border-radius:6px;border-width:2px;position:relative;}
-.holeLbl{position:relative;}
-.holeLbl .num{color:var(--hero-ink);text-transform:uppercase;font-size:13px;font-weight:800;letter-spacing:.1em;}
-#holeNum{font-size:58px;font-weight:800;letter-spacing:-.06em;line-height:1;font-family:var(--numerals);}
-.holeLbl .meta,.holeLbl .done{color:var(--hero-ink);}
-.holeLbl .done{font-weight:700;}
-.tip{border:2px solid var(--ink);border-top:0;border-radius:0 0 10px 10px;padding:15px;}
-.tip b{display:block;background:transparent;color:var(--oxblood);padding:0;margin-bottom:6px;}
-#tipText{display:block;}
-.row,.trendCard{border-radius:8px;border-width:2px;border-color:var(--line-strong);}
-.lbl{font-weight:850;letter-spacing:.06em;color:var(--ink);}
-.btns button,.mini,.stepper button{border-radius:5px;border-width:2px;font-weight:800;}
-.btns button.on,.clubChip.active{background:var(--oxblood);color:var(--on-oxblood);box-shadow:inset 0 -4px 0 var(--brass);outline:none;}
-.clubChip{border-radius:6px;border-width:2px;}
-.scoreNow{font-size:28px;}
-.footer{border-top:3px solid var(--ink);background:var(--panel);}
-.footer button{border-radius:6px;border-width:2px;font-weight:800;}
-.footer button:last-child{background:var(--brass);color:#2C211A;border-color:#2C211A;}
-.metricBox{border-radius:6px;}
-.metricBox .mVal{font-size:30px;}
-@media(max-width:360px){h1{font-size:29px;}.brand .eyebrow{font-size:9px;letter-spacing:.1em;}#holeNum{font-size:52px;}#pinBtns,#puttBtns{gap:0;} .btns button{padding-inline:0;}}
+.modeBtn.on{
+  background:var(--oxblood); border:1px solid var(--oxblood); color:var(--on-oxblood);
+}
 
-/* Compact course layout: scoring, not decoration, gets the space. */
-.headerWrap{padding-bottom:12px;margin-bottom:12px;}
-.tip{font-size:14px;line-height:1.45;padding:12px;}
-.row{padding:12px;border-width:1px;}
+.nav{
+  position:relative; display:flex; align-items:center; justify-content:space-between; gap:8px;
+  margin-bottom:0; padding:8px 12px;
+  background:var(--panel); color:var(--ink);
+  border:1px solid var(--line-strong); border-top:4px solid var(--oxblood); border-bottom:0;
+  border-radius:3px 3px 0 0;
+}
+.nav button{
+  flex:0 0 44px; width:44px; height:48px; position:relative;
+  border:0; border-radius:50%; background:var(--oxblood); color:var(--on-oxblood);
+  font-size:22px;
+}
+.holeLbl{min-width:0; position:relative; text-align:center;}
+.holeLbl .num{
+  display:flex; justify-content:center; align-items:baseline; gap:10px;
+  font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--muted);
+}
+#holeNum{
+  font-family:Georgia,"Times New Roman",serif; font-weight:400; font-size:66px;
+  line-height:1; letter-spacing:-.06em; color:var(--ink);
+}
+.holeLbl .meta{margin-top:2px; font-size:12px; font-weight:600; line-height:1.6; color:var(--ink);}
+.holeLbl .done{margin-top:4px; font-size:11px; font-weight:500; line-height:1.5; color:var(--muted);}
+.tip{
+  position:relative; margin-bottom:8px; padding:10px 14px 14px;
+  background:var(--panel); color:var(--ink); font-size:14px; line-height:1.45;
+  border:1px solid var(--line-strong); border-top:0; border-radius:0 0 3px 3px;
+}
+.tip:before{content:""; display:block; margin-bottom:10px; border-top:1px solid var(--line);}
+.tip b{
+  display:block; margin-bottom:6px;
+  font-size:10px; font-weight:700; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--oxblood);
+}
+#tipText{display:block; white-space:pre-line;}
 
-/* A little character at the edges; clean paper beneath every score and label. */
-body{background-image:radial-gradient(ellipse at top left,rgba(255,248,233,.28),transparent 65%);}
-.headerWrap{border-bottom:3px double var(--line-strong);padding-bottom:14px;}
-.brand .eyebrow{letter-spacing:.17em;font-weight:750;}
-h1{margin-top:3px;}
-.themeToggle{border-width:1px;border-color:var(--line-strong);border-radius:5px;font-weight:650;}
-.modeWrap{border:1px solid var(--line-strong);padding:3px;gap:3px;background:var(--panel);}
-.modeBtn{border:0;border-radius:3px;font-weight:700;}
-.modeBtn.on{background:var(--oxblood);color:var(--on-oxblood);border:0;}
-.nav{border-radius:8px 8px 0 0;border:1px solid var(--hero);border-bottom:3px solid var(--brass);box-shadow:inset 0 0 0 5px var(--hero),inset 0 0 0 6px var(--brass);padding:12px 12px;}
-.nav button{border-color:var(--brass);border-width:1px;}
-#holeNum{font-family:Georgia,"Times New Roman",serif;font-weight:400;}
-.holeLbl .num{letter-spacing:.12em;}
-.holeLbl .done{font-weight:500;}
-.tip{border:1px solid var(--line-strong);border-top:0;}
-.row,.trendCard{border-color:var(--line-strong);border-radius:6px;}
-.lbl{font-weight:750;}
-.btns button,.mini,.stepper button{border-width:1px;font-weight:750;}
-.btns button.on{box-shadow:inset 0 0 0 2px var(--oxblood),inset 0 0 0 3px var(--brass);font-weight:800;}
-.footer{border-top:3px double var(--line-strong);}
-.footer button{border-width:1px;}
-.footer button:last-child{background:var(--oxblood);color:var(--on-oxblood);border-color:var(--oxblood);}
-@media(max-width:360px){h1{font-size:32px;}}
+.row{
+  margin-bottom:12px; padding:12px;
+  background:var(--panel); border:1px solid var(--line-strong); border-radius:6px;
+}
+#holeView>.row:not(.scoreCard){
+  margin-bottom:0; padding:9px 0 11px;
+  background:transparent; border:0; border-bottom:1px solid var(--line-strong); border-radius:0;
+}
+.row.disabled{opacity:.35; pointer-events:none;}
+.lbl{
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:10px;
+  font-size:13px; font-weight:700; line-height:1.4; letter-spacing:0; text-transform:none;
+  color:var(--ink);
+}
+.inlineWrap .lbl{min-height:36px;}
 
-/* v42: one paper scorecard, not a stack of unrelated form cards. */
-body{padding-top:18px;}
-.headerWrap{border-bottom:1px solid var(--line-strong);padding-bottom:14px;}
-h1{font-size:39px;letter-spacing:-.05em;}
-.brand .eyebrow{font-size:9px;letter-spacing:.2em;}
-.themeToggle{border-radius:20px;font-size:12px;}
-.modeWrap{background:transparent;border:0;border-bottom:1px solid var(--line-strong);border-radius:0;padding:0 0 10px;gap:5px;margin-bottom:14px;}
-.modeBtn{font-size:12px;border:1px solid var(--line-strong);border-radius:4px;}
-.modeBtn.on{border:1px solid var(--oxblood);}
-.nav{background:var(--panel);color:var(--ink);border:1px solid var(--line-strong);border-top:4px solid var(--oxblood);border-bottom:0;box-shadow:none;border-radius:3px 3px 0 0;padding:12px;}
-.nav button{background:var(--oxblood);color:var(--on-oxblood);border:0;border-radius:50%;}
-.holeLbl .num{color:var(--muted);font-size:11px;gap:10px;}
-#holeNum{font-size:66px;color:var(--ink);line-height:1;}
-.holeLbl .meta{color:var(--ink);font-size:12px;font-weight:600;}
-.holeLbl .done{color:var(--muted);font-size:11px;margin-top:4px;}
-.tip{border-radius:0 0 3px 3px;padding:10px 14px 14px;position:relative;}
-.tip:before{content:"";display:block;border-top:1px solid var(--line);margin-bottom:10px;}
-.tip b{font-size:10px;letter-spacing:.16em;}
-#holeView>.row{background:transparent;border:0;border-bottom:1px solid var(--line-strong);border-radius:0;padding:12px 0 15px;margin-bottom:0;}
-.lbl{font-size:13px;text-transform:none;letter-spacing:0;font-weight:700;line-height:1.4;margin-bottom:10px;}
-.btns button,.stepper button,.mini{background:var(--panel);border-radius:4px;}
-.btns button.on{background:var(--oxblood);box-shadow:inset 0 0 0 2px var(--oxblood),inset 0 0 0 3px var(--brass);}
-#holeView>.scoreCard{margin:16px 0 4px;padding:14px;background:var(--hero);border:1px solid var(--hero);border-radius:5px;}
-.scoreCard .lbl{color:var(--hero-ink);font-size:11px;text-transform:uppercase;letter-spacing:.14em;}
-.scoreCard .scoreNow{color:var(--hero-ink);font-size:28px;}
-.scoreCard .btns button,.scoreCard .mini{background:var(--panel);color:var(--ink);border-color:var(--brass);}
-.scoreCard .btns button.on{background:var(--brass);color:#2C211A;box-shadow:inset 0 0 0 2px var(--brass),inset 0 0 0 3px #63351F;}
-.inlineWrap{margin-top:14px;}
-.inlineWrap .row{background:transparent;border:0;padding:4px;}
-.inlineWrap .row+ .row{border-left:1px solid var(--line-strong);border-radius:0;}
-.noteBox{background:var(--panel);border-radius:3px;}
-.footer{border-top:1px solid var(--line-strong);box-shadow:0 -3px 0 var(--ground);}
-.footer button{font-size:14px;border-radius:4px;}
-.stat{padding:14px 0;}
-.metricBox{background:transparent;border:0;border-bottom:2px solid var(--line-strong);border-radius:0;}
-.metricBox .mLbl{font-size:11px;letter-spacing:.07em;}
-.metricBox .mVal{font-family:Georgia,"Times New Roman",serif;font-size:34px;}
-@media(max-width:360px){h1{font-size:34px;}.brand .eyebrow{font-size:8px;letter-spacing:.13em;}#holeNum{font-size:56px;}#holeView>.scoreCard{padding:10px;}.scoreWrap .btns{min-width:194px;}}
+.btns{display:flex; gap:6px;}
+.btns button, .stepper button, .mini{
+  border:1px solid var(--line-strong); border-radius:4px;
+  background:var(--panel); color:var(--ink); font-weight:750; cursor:pointer;
+}
+.btns button{flex:1; min-height:48px; padding:12px 0; font-size:16px;}
+.btns button.on{
+  background:var(--oxblood); border-color:var(--oxblood); color:var(--on-oxblood); font-weight:800;
+  box-shadow:inset 0 0 0 2px var(--oxblood), inset 0 0 0 3px var(--brass);
+  outline:none; outline-offset:-1px;
+}
+.stepper{display:flex; align-items:center; justify-content:center; gap:14px;}
+.stepper button{width:60px; height:48px; font-size:24px;}
+.stepper .val{font-size:28px; font-weight:700; min-width:44px; text-align:center;}
+.inlineWrap{display:flex; gap:10px; margin:14px 0 10px;}
+.inlineWrap .row{
+  flex:1; min-width:0; margin-bottom:0; padding:4px;
+  background:transparent; border:0;
+}
+.inlineWrap .row+.row{border-left:1px solid var(--line-strong); border-radius:0;}
+.inlineWrap .stepper{gap:4px;}
+.inlineWrap .stepper button{flex:0 0 44px; width:44px; height:44px; font-size:20px;}
+.inlineWrap .stepper .val{font-size:22px; min-width:26px;}
 
-/* Keep score entry above the bottom toolbar on a typical phone. */
-.nav{padding-block:8px;}
-.tip{margin-bottom:8px;}
-#holeView>.row:not(.scoreCard){padding-block:9px 11px;}
-.scoreWrap .btns{min-width:194px;}
+.scoreWrap{display:flex; flex-wrap:wrap; gap:6px;}
+.scoreWrap .btns{flex:1; min-width:194px;}
+.mini{width:48px; height:48px; font-size:20px;}
+.scoreNow{
+  font-size:28px; font-weight:700; letter-spacing:normal; text-transform:none;
+  color:var(--oxblood);
+}
+#holeView>.scoreCard{
+  margin:16px 0 4px; padding:14px;
+  background:var(--hero); border:1px solid var(--hero); border-radius:5px;
+}
+.scoreCard .lbl{
+  font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--hero-ink);
+}
+.scoreCard .scoreNow{color:var(--hero-ink); font-size:28px;}
+.scoreCard .btns button, .scoreCard .mini{
+  background:var(--panel); color:var(--ink); border-color:var(--brass);
+}
+.scoreCard .btns button.on{
+  background:var(--brass); color:var(--on-brass);
+  box-shadow:inset 0 0 0 2px var(--brass), inset 0 0 0 3px var(--brass-edge);
+}
+.noteBox{
+  width:100%; min-height:90px; padding:10px; resize:vertical;
+  background:var(--panel); color:var(--ink); border:1px solid var(--line-strong); border-radius:3px;
+  font-family:inherit; font-size:16px; line-height:1.6;
+}
+.noteBox::placeholder{color:var(--muted); opacity:1;}
+
+.caddyBox{margin-top:6px; padding:0; background:transparent; border:0; border-radius:8px;}
+.caddyClubs{
+  display:flex; gap:8px; overflow-x:auto; padding:3px 2px 9px;
+  -webkit-overflow-scrolling:touch;
+}
+.clubChip{
+  flex:0 0 auto; display:inline-flex; align-items:center; min-height:48px;
+  padding:9px 12px; border:2px solid var(--line-strong); border-radius:6px;
+  background:var(--panel2); color:var(--ink); font-size:14px; font-weight:700; cursor:pointer;
+}
+.clubChip.active{
+  background:var(--oxblood); border-color:var(--oxblood); color:var(--on-oxblood);
+  box-shadow:inset 0 -4px 0 var(--brass);
+  outline:none; outline-offset:-1px;
+}
+.caddyRec{
+  margin-top:5px; padding-top:10px;
+  border-top:1px solid var(--line); color:var(--oxblood); font-size:14px; line-height:1.5;
+}
+.micBtn{
+  min-height:44px; padding:8px 12px; border-radius:6px;
+  border:1px solid var(--line-strong); background:var(--panel2); color:var(--oxblood);
+  font-size:13px; font-weight:700; cursor:pointer;
+}
+.micBtn.listening{
+  background:var(--red); border-color:var(--red); color:var(--on-oxblood);
+  animation:pulse 1.2s infinite;
+}
+@keyframes pulse{0%{opacity:1;} 50%{opacity:.55;} 100%{opacity:1;}}
+
+.footer{
+  position:fixed; z-index:90; bottom:0; left:0; right:0;
+  display:flex; gap:7px; max-width:520px; margin-inline:auto;
+  padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+  background:var(--panel); border-top:1px solid var(--line-strong);
+  box-shadow:0 -3px 0 var(--ground);
+}
+.footer button{
+  flex:1; min-height:48px; padding:13px 0; border-radius:4px;
+  border:1px solid var(--line-strong); background:var(--panel2); color:var(--oxblood);
+  font-size:14px; font-weight:800; cursor:pointer;
+}
+.footer button:last-child{
+  background:var(--oxblood); border-color:var(--oxblood); color:var(--on-oxblood);
+}
+.footer button.activeTab{
+  background:var(--oxblood); color:var(--on-oxblood); font-weight:700;
+}
+
+#summaryView, #trendsView{display:none;}
+pre{
+  padding:12px; border:1px solid var(--line); border-radius:10px;
+  background:var(--panel); color:var(--ink);
+  font-size:11.5px; line-height:1.5; white-space:pre-wrap; word-break:break-all;
+}
+.stat{
+  display:flex; justify-content:space-between; gap:16px;
+  padding:14px 0; border-bottom:1px solid var(--line-soft);
+  font-size:15px; line-height:1.45;
+}
+.stat:last-child{border-bottom:0;}
+.stat b{color:var(--oxblood); text-align:right;}
+.copied{
+  margin-top:6px; min-height:20px; height:auto;
+  color:var(--green); text-align:center; font-size:13px; line-height:1.5;
+}
+.newRoundBtn{
+  width:100%; margin-top:8px; padding:13px 0; border-radius:10px;
+  border:1px solid var(--line-strong); background:var(--panel2); color:var(--oxblood);
+  font-size:15px; font-weight:600; cursor:pointer;
+}
+.warn{color:var(--warn); font-weight:700;}
+.trendCard{
+  margin-bottom:12px; padding:15px;
+  background:var(--panel); border:2px solid var(--line-strong); border-radius:6px;
+}
+.trendCard .lbl{
+  margin-bottom:10px;
+  font-size:12px; font-weight:700; line-height:1.45; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--muted);
+}
+.trendGrid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:8px;}
+.metricBox{
+  padding:14px 8px; text-align:center;
+  background:transparent; border:0; border-bottom:2px solid var(--line-strong); border-radius:0;
+}
+.metricBox .mLbl{
+  font-size:11px; font-weight:700; line-height:1.45; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--muted);
+}
+.metricBox .mVal{
+  margin-top:2px; font-family:Georgia,"Times New Roman",serif;
+  font-size:34px; font-weight:700; color:var(--oxblood);
+}
+.leakRank{font-size:13px; line-height:1.5; color:var(--ink);}
+.leakRank li{margin-bottom:4px;}
+
+.fatigueBanner{
+  display:none; margin-bottom:10px; padding:14px;
+  background:var(--panel); color:var(--ink);
+  border:2px solid var(--warn); border-radius:10px;
+  font-size:14px; line-height:1.4;
+}
+.saveBanner{border-color:var(--oxblood);}
+.fatigueBanner b{
+  display:block; margin-bottom:2px;
+  font-size:11px; font-weight:700; text-transform:uppercase; color:var(--warn);
+}
+.fatigueBanner button{
+  min-height:44px; margin:6px 4px 0 0; padding:8px 12px; border-radius:8px;
+  border:1px solid var(--line-strong); background:var(--panel2); color:var(--ink);
+  font:inherit; font-weight:700;
+}
+
+button{font-family:inherit; cursor:pointer;}
+button:focus-visible, textarea:focus-visible{outline:3px solid var(--ink); outline-offset:3px;}
+button:active{transform:translateY(1px);}
+
+@media(max-width:360px){
+  body{padding-inline:10px;}
+  .btns{gap:4px;}
+  #pinBtns, #puttBtns{gap:0;}
+  .inlineWrap{gap:6px;}
+  h1{font-size:34px;}
+  .brand .eyebrow{font-size:8px; letter-spacing:.13em;}
+  #holeNum{font-size:56px;}
+  #holeView>.scoreCard{padding:10px;}
+}
+@media(prefers-reduced-motion:reduce){
+  body{transition:none;}
+  .micBtn.listening{animation:none;}
+}
