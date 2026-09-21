@@ -94,6 +94,39 @@ function segmentStats(rounds){
   });
 }
 
+// Late-round left-miss drift, computed from segmentStats. Trends prints `cue`
+// on the segment card. Bay Course can call lateLeftDrift(rounds) mid-round
+// for on-tee placement after the turn; this file does not render that prompt.
+//
+// Returns null when H1-6 or H13-18 has fewer than 8 fairway observations.
+// That is the bar the in-round fatigue alert already requires before it will
+// call a rate a shift, and it is the segment form of the n<2 rule: one pass
+// through these six holes is about five tee shots, so eight is the first
+// sample that is more than one round. A thinner rate is not a reason to
+// change aim.
+//
+// Otherwise {
+//   earlyLabel, lateLabel,                 // 'H1-6', 'H13-18'
+//   earlyLeft, earlyRight, earlyN, earlyRate,
+//   lateLeft, lateRight, lateN, lateRate,  // rates are left/firD, not percents
+//   worse,   // rounded late left % beats early by more than 10, and late left outnumbers late right
+//   cue      // 'After H12, aim right of your usual miss.' when worse, otherwise null
+// }
+function lateLeftDrift(rounds){
+  var segs=segmentStats(rounds||[]);
+  var early=segs[0], late=segs[2];
+  if(!early||!late||early.firD<8||late.firD<8||early.leftRate==null||late.leftRate==null) return null;
+  var earlyP=Math.round(early.leftRate*100), lateP=Math.round(late.leftRate*100);
+  var worse=lateP>earlyP+10 && late.l>late.r;
+  return {
+    earlyLabel:early.label, lateLabel:late.label,
+    earlyLeft:early.l, earlyRight:early.r, earlyN:early.firD, earlyRate:early.leftRate,
+    lateLeft:late.l, lateRight:late.r, lateN:late.firD, lateRate:late.leftRate,
+    worse:worse,
+    cue:worse?'After H12, aim right of your usual miss.':null
+  };
+}
+
 function nineSplit(rounds){
   var out={front:{n:0,over:0},back:{n:0,over:0}};
   (rounds||[]).forEach(function(r){

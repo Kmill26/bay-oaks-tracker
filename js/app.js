@@ -1255,7 +1255,17 @@ function buildHotspots(rounds){
 function buildSegments(rounds){
   var el=document.getElementById('segmentList'); if(!el)return;
   var segs=segmentStats(rounds).filter(function(s){return s.n>0;});
-  if(!segs.length){el.innerHTML='<i>No hole-level data yet.</i>'; return;}
+  // The aim line is lateLeftDrift's cue. Bay Course owns the on-tee prompt;
+  // this card only repeats that cue when the helper says the drift is real.
+  var drift=lateLeftDrift(rounds);
+  var alert='';
+  if(drift&&drift.worse&&drift.cue){
+    var lateP=Math.round(drift.lateRate*100), earlyP=Math.round(drift.earlyRate*100);
+    alert='<div style="margin-bottom:8px;"><b style="color:var(--oxblood)">'+drift.cue+'</b> '
+      +'Left '+lateP+'% on '+drift.lateLabel+' ('+drift.lateLeft+'/'+drift.lateN+') vs '
+      +earlyP+'% on '+drift.earlyLabel+' ('+drift.earlyLeft+'/'+drift.earlyN+').</div>';
+  }
+  if(!segs.length){el.innerHTML=alert||'<i>No hole-level data yet.</i>'; return;}
   var rows=segs.map(function(s){
     var miss=s.firD?('L '+s.l+' / R '+s.r+' / hit '+s.y):'\u2014';
     return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid var(--line-soft);">'
@@ -1271,7 +1281,7 @@ function buildSegments(rounds){
       +'/hole \u2014 <b>'+(Math.abs(d)<0.1?'no meaningful split':(d>0?'back nine costs +'+d.toFixed(2)+'/hole':'front nine costs +'+(-d).toFixed(2)+'/hole'))+'</b>'
       +' <span style="color:var(--muted)">(n='+(nine.front.n+nine.back.n)+' holes)</span></div>';
   }
-  el.innerHTML=rows;
+  el.innerHTML=alert+rows;
 }
 
 // v19: this card is deliberately blunt about coverage. The five backfilled rounds have no

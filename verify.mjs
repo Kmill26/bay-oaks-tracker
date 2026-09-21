@@ -420,6 +420,59 @@ check('segmentStats: three segments', segs.length===3 && segs[0].label==='H1-6',
 check('segmentStats: hole counts sum to total played', segs.reduce((a,s)=>a+s.n,0)===allRounds.reduce((a,r)=>a+roundStats(r).played,0), segs.map(s=>s.n).join('+'));
 check('segmentStats: FIR denominator excludes par 3s', segs.every(s=>s.l+s.r+s.y===s.firD), segs.map(s=>s.l+'+'+s.r+'+'+s.y+' vs '+s.firD).join(' | '));
 
+// v51: late left drift. Rates come from segmentStats. A cue exists only when
+// the closing six miss left more than the opening six by more than 10 points
+// and the late miss is actually left. Under 8 fairways on either side: null.
+function driftRounds(n, pick){
+  const rounds=[];
+  const seen={e:0,l:0};
+  for(let k=0;k<n;k++){
+    const holes=[];
+    for(let i=0;i<18;i++){
+      let fir=null;
+      if(COURSE[i].par>3){
+        if(i<6) fir=pick('e', seen.e++);
+        else if(i>=12) fir=pick('l', seen.l++);
+        else fir='y';
+      }
+      holes.push({score:COURSE[i].par, fir, gir:null, ss:null, chip:null, putts:2, sixAtt:0, sixMade:0, pen:0, notes:''});
+    }
+    rounds.push({id:'drift-'+k, date:'2026-04-'+String(k+1).padStart(2,'0'), holes});
+  }
+  return rounds;
+}
+check('lateLeftDrift: null when there is no history', lateLeftDrift(null)===null && lateLeftDrift([])===null && lateLeftDrift(undefined)===null, 'returned a drift');
+check('lateLeftDrift: seed opening vs closing, and the cue is the aim change', (function(){
+  const d=lateLeftDrift(allRounds);
+  return d && d.earlyLabel==='H1-6' && d.lateLabel==='H13-18'
+    && d.earlyLeft===5 && d.earlyRight===6 && d.earlyN===25 && d.earlyRate===segs[0].leftRate
+    && d.lateLeft===6 && d.lateRight===2 && d.lateN===15 && d.lateRate===segs[2].leftRate
+    && Math.round(d.earlyRate*100)===20 && Math.round(d.lateRate*100)===40
+    && d.worse===true && d.cue==='After H12, aim right of your usual miss.';
+})(), JSON.stringify(lateLeftDrift(allRounds)));
+check('lateLeftDrift: one round is too thin to change aim', lateLeftDrift(driftRounds(1, side=>side==='l'?'l':'y'))===null, JSON.stringify(lateLeftDrift(driftRounds(1,()=>'l'))));
+check('lateLeftDrift: a flat rate returns the counts and no cue', (function(){
+  const rounds=driftRounds(2, ()=>'y');
+  const d=lateLeftDrift(rounds);
+  return d && d.earlyN===10 && d.lateN===10 && d.earlyRate===0 && d.lateRate===0 && d.worse===false && d.cue===null;
+})(), JSON.stringify(lateLeftDrift(driftRounds(2, ()=>'y'))));
+check('lateLeftDrift: ten points exactly is not a meaningful drift', (function(){
+  const rounds=driftRounds(2, (side,i)=>side==='e'?(i<2?'l':'y'):(i<3?'l':'y'));
+  const d=lateLeftDrift(rounds);
+  return d && Math.round(d.earlyRate*100)===20 && Math.round(d.lateRate*100)===30 && d.lateLeft>d.lateRight && d.worse===false && d.cue===null;
+})(), JSON.stringify(lateLeftDrift(driftRounds(2, (side,i)=>side==='e'?(i<2?'l':'y'):(i<3?'l':'y')))));
+check('lateLeftDrift: a higher left rate that is still a right miss names no aim', (function(){
+  const rounds=driftRounds(2, (side,i)=>side==='e'?'y':(i<3?'l':'r'));
+  const d=lateLeftDrift(rounds);
+  return d && Math.round(d.lateRate*100)===30 && d.lateLeft===3 && d.lateRight===7 && d.worse===false && d.cue===null;
+})(), JSON.stringify(lateLeftDrift(driftRounds(2, (side,i)=>side==='e'?'y':(i<3?'l':'r')))));
+check('lateLeftDrift: seven fairways on the opening six stays silent', (function(){
+  const rounds=driftRounds(2, (side)=>side==='l'?'l':'y');
+  let cleared=0;
+  rounds[1].holes.forEach((h,i)=>{ if(i<6 && COURSE[i].par>3 && cleared<3){ h.fir=null; cleared++; } });
+  return lateLeftDrift(rounds)===null && cleared===3;
+})(), 'did not stay null');
+
 const ns = nineSplit(allRounds);
 check('nineSplit: front and back both populated', ns.front.n>0 && ns.back.n>0, JSON.stringify(ns));
 check('nineSplit: front holes = 5 rounds x 9 (all rounds reached the turn)', ns.front.n===45, ns.front.n);
@@ -440,12 +493,35 @@ check('hotspots: a par 3 row does not grow a tee miss', (function(){
 })(), els['hotspotList'].innerHTML);
 check('segments: rendered with per-hole over-par and n', els['segmentList'].innerHTML.indexOf('H1-6')>-1 && els['segmentList'].innerHTML.indexOf('n=')>-1, els['segmentList'].innerHTML.slice(0,120));
 check('segments: front/back comparison rendered', els['segmentList'].innerHTML.indexOf('/hole')>-1, 'missing split line');
+check('late left alert: seed card prints the helper cue and the computed rates', (function(){
+  const d=lateLeftDrift(allRounds), html=els['segmentList'].innerHTML;
+  const lateP=Math.round(d.lateRate*100), earlyP=Math.round(d.earlyRate*100);
+  return d.cue && html.indexOf(d.cue)>-1
+    && html.indexOf('Left '+lateP+'% on '+d.lateLabel+' ('+d.lateLeft+'/'+d.lateN+')')>-1
+    && html.indexOf(earlyP+'% on '+d.earlyLabel+' ('+d.earlyLeft+'/'+d.earlyN+')')>-1;
+})(), els['segmentList'].innerHTML);
+// A second history, with different rates, must print those rates. A frozen 40/20 would fail here.
+const moved=driftRounds(2, (side,i)=>side==='e'?(i<1?'l':'y'):(i<3?'l':'y'));
+buildSegments(moved);
+check('late left alert: another history prints its own rates, not the seed pair', (function(){
+  const d=lateLeftDrift(moved), html=els['segmentList'].innerHTML;
+  return d.worse && Math.round(d.earlyRate*100)===10 && Math.round(d.lateRate*100)===30
+    && html.indexOf(d.cue)>-1 && html.indexOf('Left 30% on H13-18 (3/10)')>-1 && html.indexOf('10% on H1-6 (1/10)')>-1
+    && html.indexOf('Left 40%')===-1;
+})(), els['segmentList'].innerHTML);
+buildSegments(driftRounds(2, ()=>'y'));
+check('late left alert: stays quiet when late is not worse', els['segmentList'].innerHTML.indexOf('aim right')===-1, els['segmentList'].innerHTML);
+buildSegments(driftRounds(2, (side,i)=>side==='e'?'y':(i<3?'l':'r')));
+check('late left alert: stays quiet when the late miss is still right', els['segmentList'].innerHTML.indexOf('aim right')===-1, els['segmentList'].innerHTML);
+buildSegments(driftRounds(1, side=>side==='l'?'l':'y'));
+check('late left alert: stays quiet when the sample is thin', lateLeftDrift(driftRounds(1, side=>side==='l'?'l':'y'))===null && els['segmentList'].innerHTML.indexOf('aim right')===-1 && els['segmentList'].innerHTML.indexOf('H1-6')>-1, els['segmentList'].innerHTML);
 
 // empty store must not fabricate analytics
 globalThis.state.rounds = [];
 buildTrends();
 check('hotspots: empty store says so rather than showing zeros', els['hotspotList'].innerHTML.indexOf('No hole-level data')>-1, els['hotspotList'].innerHTML);
 check('segments: empty store says so rather than showing zeros', els['segmentList'].innerHTML.indexOf('No hole-level data')>-1, els['segmentList'].innerHTML);
+check('late left alert: empty store does not invent an aim line', els['segmentList'].innerHTML.indexOf('aim right')===-1, els['segmentList'].innerHTML);
 
 // A ranked par 4/5 with a repeated miss names the side. The par 3 next to it does not
 // borrow a fairway. Built from holes, not from a typed stat.
