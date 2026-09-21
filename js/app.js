@@ -969,7 +969,14 @@ function bump(field,d){
   vibe(15);
   ensureDate();
   var h=holes[cur];
-  if(field==='score'){h.score=(h.score===null)?COURSE[cur].par:Math.max(1,h.score+d);}
+  if(field==='score'){
+    // A mis-tap has to be clearable mid-round. Minus from 1 blanks the hole
+    // (null, the same as never entered — not 0, which would still be a stroke).
+    // Minus on a blank hole stays blank. Plus on a blank hole still seeds par.
+    var next=h.score===null?(d>0?COURSE[cur].par:null):(h.score+d<1?null:h.score+d);
+    if(next===h.score)return;
+    h.score=next;
+  }
   else if(field==='sixAtt'){h.sixAtt=Math.max(0,h.sixAtt+d); if(h.sixMade>h.sixAtt)h.sixMade=h.sixAtt;}
   else if(field==='sixMade'){h.sixMade=Math.min(h.sixAtt,Math.max(0,h.sixMade+d));}
   touch(); render();
