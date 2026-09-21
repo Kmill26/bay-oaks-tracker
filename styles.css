@@ -1,4 +1,4 @@
-/* Parchment and tobacco. Colors live only in :root and body.dusk.
+/* Parchment in the sun, lodge at dusk. Colors live only in :root and body.dusk.
    Component rules use tokens. Legacy names stay: summary and trend markup
    still reads --oxblood, --panel, --ink. */
 :root{
@@ -16,11 +16,14 @@
 }
 body.dusk{
   color-scheme:dark;
-  --ground:#201A15; --panel:#30261F; --panel2:#443426;
-  --ink:#FFF3DB; --oxblood:#E5BD82; --muted:#D7C2A3;
-  --line:#756044; --line-strong:#A58B69; --line-soft:#574735;
-  --on-oxblood:#2C211A; --green:#A9E4B5; --red:#FFB2A5; --warn:#FFD09A;
-  --brass:#CDA66D; --hero:#35251D; --hero-ink:#FFF3DB;
+  /* Lodge: mahogany floor, chocolate leather, amber lamp, slate stone.
+     --green stays a fairway cue, not a coat of paint. */
+  --ground:#2C1812; --panel:#43291E; --panel2:#533326;
+  --ink:#F6EBDC; --oxblood:#F0B14E; --muted:#DCC4A8;
+  --line:#8E98A0; --line-strong:#A7B0B6; --line-soft:#808890;
+  --on-oxblood:#2C1812; --green:#74C47E; --red:#FFB3A4; --warn:#E89878;
+  --brass:#E2B15E; --hero:#5A3222; --hero-ink:#F6EBDC;
+  --sheen:rgba(240,177,78,.08);
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
 body{
