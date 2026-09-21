@@ -2240,6 +2240,217 @@ global.localStorage = {getItem:()=>null, setItem(){}};
 })();
 
 
+// Case 27 (v53): stroke leaks are ranked from rounds[]. The old #1/#2/#3 card
+// was a written prescription — chip copy, a frozen deep-green list, a fatigue
+// slogan — and it could not reorder when the rounds said something else.
+const frozenLeak = /Greens on 4, 10, 12|Back-9 Fatigue|High spin on new wedges|calibrate lag distance|Maintain smooth hip turn|#1 Chipping Proximity/;
+check('leaks: the frozen card is gone from the page and the scripts',
+  !frozenLeak.test(html)
+  && !frozenLeak.test(readFileSync('js/app.js','utf8'))
+  && !frozenLeak.test(readFileSync('js/stats.js','utf8'))
+  && html.indexOf('id="leakList"')>-1
+  && html.indexOf('id="tLeakChip"')===-1, 'frozen copy still shipped');
+
+const seedRank = rankLeaks(allRounds);
+function recountChip(rounds){
+  let n=0, d=0; const inn=[], out=[];
+  rounds.forEach(r=>(r.holes||[]).forEach(h=>{
+    if(!countsChip6(h)) return;
+    d++; if(h.chip==='in') n++;
+    if(h.putts==null) return;
+    (h.chip==='in'?inn:out).push(h.putts);
+  }));
+  const avg=inn.reduce((a,b)=>a+b,0)/inn.length;
+  const cost=out.reduce((s,p)=>s+Math.max(0,p-avg),0);
+  return {n,d,cost};
+}
+function recountPutts(rounds){
+  let extra=0, gir3=0, three=0, deep3=0, deepN=0, sh3=0, shN=0;
+  rounds.forEach(r=>(r.holes||[]).forEach((h,i)=>{
+    if(h.putts==null) return;
+    const is3=h.putts>=3;
+    if(is3){ three++; if(h.gir===true) gir3++; if(h.chip!=='out') extra+=h.putts-2; }
+    if(PV[i] && typeof PV[i].gd==='number'){
+      if(PV[i].gd>=36){ deepN++; if(is3) deep3++; }
+      else { shN++; if(is3) sh3++; }
+    }
+  }));
+  return {extra, gir3, three, deep3, deepN, sh3, shN};
+}
+const seedChip = recountChip(allRounds);
+const seedPutts = recountPutts(allRounds);
+const seedLate = seedRank.ranked.find(L=>L.id==='lateLeft');
+check('leaks: null and empty rounds rank nothing',
+  rankLeaks(null).ranked.length===0 && rankLeaks([]).ranked.length===0 && rankLeaks(undefined).quiet.length===0, JSON.stringify(rankLeaks(null)));
+check('leaks: seed order is chip, then 3-putts, then the late-left cue',
+  seedRank.ranked.map(L=>L.id).join(',')==='chip6,threePutt,lateLeft', seedRank.ranked.map(L=>L.id).join(','));
+check('leaks: seed costs fall in that order, so the rank is the strokes',
+  seedRank.ranked[0].cost>seedRank.ranked[1].cost && seedRank.ranked[1].cost>seedRank.ranked[2].cost, seedRank.ranked.map(L=>L.id+':'+L.cost).join(' '));
+check('leaks: chip cost is the putt gap versus chips that finished inside',
+  seedRank.ranked[0].id==='chip6' && seedRank.ranked[0].n===seedChip.n && seedRank.ranked[0].d===seedChip.d
+  && Math.abs(seedRank.ranked[0].cost-seedChip.cost)<1e-9
+  && seedRank.ranked[0].cue==='Next session: land the first chip inside 6 ft.',
+  JSON.stringify(seedRank.ranked[0]));
+check('leaks: seed 3-putt cue quotes the GIR and deep-green counts, and does not name a hole list',
+  (function(){
+    const L=seedRank.ranked.find(x=>x.id==='threePutt');
+    return L && L.cost===seedPutts.extra && L.holes.length===0
+      && L.cue.indexOf(seedPutts.gir3+' of '+seedPutts.three)>-1
+      && L.cue.indexOf(seedPutts.deep3+'/'+seedPutts.deepN)>-1
+      && L.cue.indexOf('not where they cluster')>-1
+      && L.detail.indexOf(seedPutts.sh3+'/'+seedPutts.shN)>-1;
+  })(), JSON.stringify(seedRank.ranked.find(x=>x.id==='threePutt')));
+check('leaks: seed late-left cue is lateLeftDrift, not a second copy of the rule',
+  seedLate && seedLate.cue===lateLeftDrift(allRounds).cue && seedLate.detail.indexOf('40%')>-1 && seedLate.detail.indexOf('20%')>-1,
+  JSON.stringify(seedLate));
+check('leaks: seed does not rank lag or short-siding (no lag tags, short side is not the cost)',
+  !seedRank.ranked.some(L=>L.id==='lag'||L.id==='ss'||L.id==='fir') && seedRank.quiet.length===0,
+  JSON.stringify(seedRank.quiet));
+
+globalThis.state.rounds = allRounds;
+buildTrends();
+check('leaks: the card renders that order and the live CHIP6 percent', (function(){
+  const card=els['leakList'].innerHTML;
+  return card.indexOf('#1 Chipping proximity (CHIP6)')>-1
+    && card.indexOf('#1')<card.indexOf('#2 3-putts')
+    && card.indexOf('#2')<card.indexOf('#3 Late left miss')
+    && card.indexOf('After H12, aim right of your usual miss.')>-1
+    && card.indexOf('id="tLeakChip"')>-1
+    && els['tLeakChip'].textContent===els['tChipPct'].textContent
+    && els['tChipPct'].textContent==='18%'
+    && !frozenLeak.test(card);
+})(), els['leakList'].innerHTML.slice(0,400));
+
+// Same helper, different rounds: putting outranks a small chip gap, and the
+// deep greens that actually 3-putt are named from PV — including H11, which
+// the old frozen list skipped.
+function leakHole(){return {score:null,fir:null,gir:null,ss:null,chip:null,putts:2,lag:null,sixAtt:0,sixMade:0,pen:0,notes:''};}
+const reorderRounds=[0,1].map(k=>({date:'2026-10-0'+(k+1), summary:null, holes:COURSE.map((c,i)=>{
+  const h=leakHole(); h.score=c.par; h.fir=c.par>3?'y':null; h.gir=true;
+  if(i<2){ h.gir=false; h.ss=false; h.chip='in'; h.putts=1; }
+  else if(i<5){ h.gir=false; h.ss=false; h.chip='out'; h.putts=2; }
+  if(i>=9){ h.gir=true; h.ss=null; h.chip=null; h.putts=3; }
+  return h;
+})}));
+const reorder=rankLeaks(reorderRounds);
+check('leaks: order follows the rounds — 3-putts outrank a smaller chip gap',
+  reorder.ranked[0].id==='threePutt' && reorder.ranked.some(L=>L.id==='chip6')
+  && reorder.ranked[0].cost>reorder.ranked.find(L=>L.id==='chip6').cost
+  && reorder.ranked.find(L=>L.id==='chip6').cue==='Next session: land the first chip inside 6 ft.',
+  reorder.ranked.map(L=>L.id+':'+L.cost).join(' '));
+const deepRounds=[0,1].map(k=>({date:'2026-09-0'+(k+1), summary:null, holes:COURSE.map((c,i)=>{
+  const h=leakHole(); h.score=c.par; h.fir=c.par>3?'y':null; h.gir=true; h.putts=PV[i].gd>=36?3:2;
+  return h;
+})}));
+const deepRank=rankLeaks(deepRounds);
+const deepExpected=PV.map((p,i)=>p.gd>=36?i+1:0).filter(Boolean);
+check('leaks: deep-green cue names only the book depths that 3-putted, including H11',
+  deepRank.ranked.length===1 && deepRank.ranked[0].id==='threePutt'
+  && deepRank.ranked[0].holes.join(',')===deepExpected.join(',')
+  && deepRank.ranked[0].holes.indexOf(11)>-1
+  && deepRank.ranked[0].cue.indexOf('H11')>-1
+  && deepRank.ranked[0].cue.indexOf('9 of 17')===-1
+  && deepRank.ranked[0].cue.indexOf('3/24')===-1,
+  JSON.stringify(deepRank.ranked[0]&&{holes:deepRank.ranked[0].holes,cue:deepRank.ranked[0].cue}));
+
+// Lag coverage decides the putting prescription, and a thin tag does not.
+const lagRounds=[0,1].map(k=>({date:'2026-12-0'+(k+1), summary:null, holes:COURSE.map((c,i)=>{
+  const h=leakHole(); h.score=c.par; h.fir=c.par>3?'y':null; h.gir=true;
+  if(i<6){ h.putts=3; h.lag='d'; } else { h.putts=2; h.lag='a'; }
+  return h;
+})}));
+const lagRank=rankLeaks(lagRounds);
+check('leaks: long first putts take the rank and the cue when that is where the 3-putts are',
+  lagRank.ranked.length===1 && lagRank.ranked[0].id==='lag' && lagRank.ranked[0].n===12 && lagRank.ranked[0].d===12
+  && lagRank.ranked[0].cue==='Leave the first putt inside 15 ft. The 3-putts are the 30+ ft ones.',
+  JSON.stringify(lagRank.ranked));
+const shortLag=[0,1].map(()=>({date:'2026-12-20', summary:null, holes:COURSE.map((c,i)=>{
+  const h=leakHole(); h.score=c.par; h.fir=c.par>3?'y':null; h.gir=true;
+  if(i<8){ h.putts=3; h.lag='a'; } else { h.putts=2; h.lag='d'; }
+  return h;
+})}));
+check('leaks: short first putts prescribe the stroke, not lag distance',
+  rankLeaks(shortLag).ranked[0].id==='lag'
+  && rankLeaks(shortLag).ranked[0].cue==='Practice the short putt. The 3-putts start inside 15 ft, not from lag distance.',
+  JSON.stringify(rankLeaks(shortLag).ranked[0]));
+const lagThin=[{date:'2026-12-15', summary:null, holes:COURSE.map((c,i)=>{
+  const h=leakHole(); h.score=c.par; h.fir=c.par>3?'y':null; h.gir=true; h.putts=i<6?3:2;
+  if(i<2) h.lag='d';
+  return h;
+})}];
+const lagThinRank=rankLeaks(lagThin);
+check('leaks: a couple of lag tags stay quiet and do not invent a distance cue',
+  !lagThinRank.ranked.some(L=>L.id==='lag')
+  && lagThinRank.quiet.some(q=>q.id==='lag' && q.n===2 && q.d===18 && !q.cue)
+  && lagThinRank.ranked.some(L=>L.id==='threePutt' && L.cue===null)
+  && lagThinRank.ranked.every(L=>!/30\+ ft|inside 15 ft|Greens on 4/.test((L.cue||'')+' '+(L.detail||''))),
+  JSON.stringify(lagThinRank));
+
+// Short-siding only when it costs more. A left miss that scores better is not an aim change.
+const ssRounds=[0,1].map(()=>({date:'2026-08-21', summary:null, holes:COURSE.map((c,i)=>{
+  const h=leakHole(); h.score=c.par; h.fir=c.par>3?'y':null; h.gir=true; h.putts=2;
+  if(i<4){ h.gir=false; h.ss=true; h.score=c.par+3; }
+  else if(i<8){ h.gir=false; h.ss=false; h.score=c.par; }
+  return h;
+})}));
+check('leaks: short-siding ranks only with the fat-side cue when it is the expensive miss',
+  rankLeaks(ssRounds).ranked.length===1 && rankLeaks(ssRounds).ranked[0].id==='ss'
+  && rankLeaks(ssRounds).ranked[0].cue==='Miss to the fat side.'
+  && rankLeaks(ssRounds).ranked[0].n===8,
+  JSON.stringify(rankLeaks(ssRounds).ranked));
+const cheapLeft=[0,1].map(()=>({date:'2026-08-23', summary:null, holes:COURSE.map((c,i)=>{
+  const h=leakHole(); h.score=c.par; h.gir=true; h.putts=2; h.fir=c.par>3?'y':null;
+  if(c.par>3){
+    if(i>=6 && i<12){ h.fir='y'; h.score=c.par+2; }
+    else { h.fir='l'; h.score=c.par; }
+  }
+  return h;
+})}));
+check('leaks: a common left miss that scores better does not get an aim cue',
+  !rankLeaks(cheapLeft).ranked.some(L=>L.id==='fir'||L.id==='lateLeft'),
+  rankLeaks(cheapLeft).ranked.map(L=>L.id).join(','));
+const leftMiss=[0,1].map(()=>({date:'2026-08-22', summary:null, holes:COURSE.map((c,i)=>{
+  const h=leakHole(); h.score=c.par+(c.par>3?2:0); h.gir=true; h.putts=2;
+  h.fir=c.par>3?'l':null;
+  return h;
+})}));
+check('leaks: a repeated left miss ranks the tee ball, from the counts',
+  rankLeaks(leftMiss).ranked.some(L=>L.id==='fir' && L.cue==='Start the tee ball right of the usual line.' && L.n===28 && L.d===28),
+  JSON.stringify(rankLeaks(leftMiss).ranked));
+
+// Three chips is not a session plan.
+const thinChip=[{date:'2026-11-01', summary:null, holes:COURSE.map((c,i)=>{
+  const h=leakHole(); h.score=c.par; h.fir=c.par>3?'y':null; h.gir=i<3?false:true; h.putts=2;
+  if(i<3){ h.ss=false; h.chip='out'; }
+  return h;
+})}];
+const thinRank=rankLeaks(thinChip);
+check('leaks: three chips is quiet — no rank, no cue',
+  !thinRank.ranked.some(L=>L.id==='chip6') && thinRank.quiet.some(q=>q.id==='chip6' && q.d===3 && q.n===0 && !q.cue),
+  JSON.stringify(thinRank));
+globalThis.state.rounds=thinChip;
+buildTrends();
+check('leaks: the card says the sample is thin and does not prescribe the chip',
+  els['leakList'].innerHTML.indexOf('Too thin to rank')>-1
+  && els['leakList'].innerHTML.indexOf('Chipping proximity (CHIP6) (0/3)')>-1
+  && els['leakList'].innerHTML.indexOf('land the first chip')===-1
+  && els['leakList'].innerHTML.indexOf('Miss to the fat side')===-1,
+  els['leakList'].innerHTML);
+globalThis.state.rounds=[];
+buildTrends();
+check('leaks: an empty store says so, and the CHIP6 span goes back to an em-dash',
+  els['leakList'].innerHTML.indexOf('Not enough hole data to rank a leak')>-1
+  && els['tLeakChip'].textContent==='\u2014',
+  els['leakList'].innerHTML+' / '+els['tLeakChip'].textContent);
+
+// The hotspot and segment surfaces stay on their own helpers.
+globalThis.state.rounds=allRounds;
+buildTrends();
+check('leaks: tee-miss hotspots and the late-left segment cue still render',
+  els['hotspotList'].innerHTML.indexOf('miss L 2/R 0/hit 1')>-1
+  && els['segmentList'].innerHTML.indexOf(lateLeftDrift(allRounds).cue)>-1,
+  'surfaces dropped');
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
 

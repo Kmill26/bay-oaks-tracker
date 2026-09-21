@@ -127,6 +127,207 @@ function lateLeftDrift(rounds){
   };
 }
 
+// v53: which leak to attack next session. Ordered by estimated extra strokes
+// computed from rounds[], never a frozen #1/#2/#3. A row with too small an n
+// is quiet: counts only, no rank, no cue. A cue is attached only when the
+// counts support a practice or aim decision.
+//
+// Returns { ranked: Leak[], quiet: Quiet[] }.
+// Leak: { id, label, cost, n, d, rate, count, detail, cue }
+//   cost   estimated extra strokes, the sort key (higher attacks first)
+//   n, d   the sample the rate is built on (meaning depends on id)
+//   rate   0-1, or null
+//   count  leak events (misses, three-putts, extra late misses)
+//   detail computed counts, plain text
+//   cue    one line, or null when the cost is real but a prescription would overclaim
+// Quiet: { id, label, n, d }  — d is null when the sample is not a fraction.
+//        No cue field. Thin is not a prescription.
+//
+// Candidates, and the decision each one can change:
+//   chip6     land the first chip inside 6 ft (putt gap vs chips that finished inside)
+//   threePutt practice the putt, or lag specific deep greens — only the split the
+//             green depths and the 3-putts actually show. The old "greens on
+//             4, 10, 12…" line is not a candidate.
+//   lag       when first-putt distance was recorded: leave it inside 15 ft, or
+//             practice the short stroke. Whichever bucket owns the 3-putts.
+//   lateLeft  lateLeftDrift's aim line, priced from the late-vs-early miss gap
+//   ss        miss fat, only when short-siding costs more than a fat miss
+//   fir       a global tee-miss side, same rule as teeMissBias, only at n>=8
+//             and only when that side scores worse than the fairway
+function rankLeaks(rounds){
+  var CHIP_MIN=8, PUTT_MIN=12, COHORT_MIN=4, RATE_GAP=0.10, FIR_MIN=8, LAG_MIN=8, DEEP_YD=36, SS_GAP=0.25;
+  var ranked=[], quiet=[];
+  var avg=function(a){return a.length?a.reduce(function(s,x){return s+x;},0)/a.length:null;};
+  function fmtCost(x){
+    var r=Math.round(x*10)/10;
+    if(Math.abs(r-Math.round(r))<1e-9) return String(Math.round(r));
+    return r.toFixed(1);
+  }
+  var chipInP=[], chipOutP=[], chipN=0, chipD=0;
+  var puttHoles=0, threeN=0, extraIsolated=0, girThree=0;
+  var deep={n:0,three:0}, shallow={n:0,three:0};
+  var threeByHole=COURSE.map(function(){return 0;});
+  var ssT=[], ssF=[];
+  var firL=0, firR=0, firY=0, overL=[], overR=[], overY=[];
+  var lagB={};
+  LAGORDER.forEach(function(k){lagB[k]={n:0,three:0,extra:0};});
+  var lagWith=0, lagMissing=0;
+
+  (rounds||[]).forEach(function(r){
+    var hs=r.holes; if(!hs)return;
+    hs.forEach(function(h,i){
+      var c=COURSE[i]; if(!h||!c)return;
+      if(countsChip6(h)){
+        chipD++; if(h.chip==='in')chipN++;
+        if(countsPutts(h)) (h.chip==='in'?chipInP:chipOutP).push(h.putts);
+      }
+      if(countsPutts(h)){
+        puttHoles++;
+        var is3=h.putts>=3;
+        if(is3){threeN++; threeByHole[i]++;}
+        if(is3 && h.chip!=='out') extraIsolated+=(h.putts-2);
+        if(is3 && h.gir===true) girThree++;
+        if(PV[i] && typeof PV[i].gd==='number'){
+          var bucket=PV[i].gd>=DEEP_YD?deep:shallow;
+          bucket.n++; if(is3)bucket.three++;
+        }
+      }
+      if(hasFirstPutt(h)){
+        lagWith++;
+        if(!h.lag||!lagB[h.lag]) lagMissing++;
+        else {
+          var lb=lagB[h.lag];
+          lb.n++;
+          if(h.putts>=3){
+            lb.three++;
+            if(h.chip!=='out') lb.extra+=(h.putts-2);
+          }
+        }
+      }
+      if(countsSs(h) && countsScore(h) && (h.ss===true||h.ss===false)){
+        (h.ss?ssT:ssF).push(h.score-c.par);
+      }
+      if(countsFir(h,c)){
+        if(h.fir==='l')firL++; else if(h.fir==='r')firR++; else if(h.fir==='y')firY++;
+        if(countsScore(h)){
+          var over=h.score-c.par;
+          if(h.fir==='l')overL.push(over); else if(h.fir==='r')overR.push(over); else if(h.fir==='y')overY.push(over);
+        }
+      }
+    });
+  });
+
+  if(chipD>0 && chipD<CHIP_MIN) quiet.push({id:'chip6', label:'Chipping proximity (CHIP6)', n:chipN, d:chipD});
+  else if(chipD>=CHIP_MIN){
+    var misses=chipD-chipN, rate=chipN/chipD, cost=misses, priced=false;
+    if(chipInP.length>=COHORT_MIN && chipOutP.length>=COHORT_MIN){
+      var avgIn=avg(chipInP);
+      cost=0; chipOutP.forEach(function(p){cost+=Math.max(0,p-avgIn);});
+      priced=true;
+    }
+    var chipCue=rate<0.5?'Next session: land the first chip inside 6 ft.':null;
+    if(cost>=1 || chipCue){
+      ranked.push({id:'chip6', label:'Chipping proximity (CHIP6)', cost:cost, n:chipN, d:chipD, rate:rate, count:misses,
+        detail:chipN+'/'+chipD+' inside ('+Math.round(rate*100)+'%)'+(priced?', about '+fmtCost(cost)+' extra putts versus chips that finished inside':''),
+        cue:chipCue});
+    }
+  }
+
+  var recorded=lagWith-lagMissing, coverage=lagWith?recorded/lagWith:0;
+  var shortN=lagB.a.n+lagB.b.n, short3=lagB.a.three+lagB.b.three, shortExtra=lagB.a.extra+lagB.b.extra;
+  var longN=lagB.d.n, long3=lagB.d.three, longExtra=lagB.d.extra;
+  var lagLeak=null;
+  if(recorded>0 && (coverage<0.5 || recorded<LAG_MIN || shortN<COHORT_MIN || longN<COHORT_MIN)){
+    quiet.push({id:'lag', label:'Lag putting', n:recorded, d:lagWith});
+  } else if(recorded>=LAG_MIN && coverage>=0.5 && shortN>=COHORT_MIN && longN>=COHORT_MIN){
+    var shortRate=short3/shortN, longRate=long3/longN;
+    if(longRate>shortRate+RATE_GAP && long3>=3 && longExtra>=1){
+      lagLeak={side:'long', extra:longExtra, rate:longRate, n:long3, d:longN, otherRate:shortRate, otherN:short3, otherD:shortN};
+    } else if(shortRate>longRate+RATE_GAP && short3>=3 && shortExtra>=1){
+      lagLeak={side:'short', extra:shortExtra, rate:shortRate, n:short3, d:shortN, otherRate:longRate, otherN:long3, otherD:longN};
+    }
+  }
+  if(lagLeak){
+    ranked.push({id:'lag', label:'Lag putting', cost:lagLeak.extra, n:lagLeak.n, d:lagLeak.d, rate:lagLeak.rate, count:lagLeak.n,
+      detail:(lagLeak.side==='long'?'30+ ft ':'Inside 15 ft ')+lagLeak.n+'/'+lagLeak.d+' three-putt ('+Math.round(lagLeak.rate*100)+'%) vs '
+        +Math.round(lagLeak.otherRate*100)+'% on the other ('+lagLeak.otherN+'/'+lagLeak.otherD+')',
+      cue:lagLeak.side==='long'
+        ?'Leave the first putt inside 15 ft. The 3-putts are the 30+ ft ones.'
+        :'Practice the short putt. The 3-putts start inside 15 ft, not from lag distance.'});
+  }
+
+  var puttCost=extraIsolated-(lagLeak?lagLeak.extra:0);
+  if(puttCost<0) puttCost=0;
+  if(puttHoles>0 && puttHoles<PUTT_MIN) quiet.push({id:'threePutt', label:'3-putts', n:threeN, d:puttHoles});
+  else if(puttHoles>=PUTT_MIN && puttCost>=1){
+    var puttCue=null, named=[];
+    var canDepth=deep.n>=8 && shallow.n>=8;
+    if(!lagLeak && canDepth){
+      var deepRate=deep.three/deep.n, shRate=shallow.three/shallow.n;
+      if(deepRate>shRate+RATE_GAP && deep.three>=3){
+        threeByHole.forEach(function(t,i){ if(t>0 && PV[i] && PV[i].gd>=DEEP_YD) named.push(i+1); });
+        if(named.length) puttCue='Lag the deep greens that are actually 3-putting: H'+named.join(', H')+'.';
+      } else if(girThree>=3){
+        puttCue='Practice the putt. '+girThree+' of '+threeN+' three-putts followed a GIR, and the deep greens are '+deep.three+'/'+deep.n+', not where they cluster.';
+      }
+    }
+    ranked.push({id:'threePutt', label:'3-putts', cost:puttCost, n:threeN, d:puttHoles,
+      rate:puttHoles?threeN/puttHoles:null, count:threeN, holes:named,
+      detail:fmtCost(puttCost)+' extra putts on three-putts that were not a chip left outside 6'
+        +(canDepth?' (deep greens '+deep.three+'/'+deep.n+', other greens '+shallow.three+'/'+shallow.n+')':''),
+      cue:puttCue});
+  }
+
+  var drift=lateLeftDrift(rounds);
+  if(drift && drift.worse && drift.cue){
+    var per=(overL.length>=COHORT_MIN && overY.length>=COHORT_MIN)?(avg(overL)-avg(overY)):0;
+    var extraMiss=(drift.lateRate-drift.earlyRate)*drift.lateN;
+    var driftCost=extraMiss*(per>0?per:1);
+    var lateP=Math.round(drift.lateRate*100), earlyP=Math.round(drift.earlyRate*100);
+    ranked.push({id:'lateLeft', label:'Late left miss', cost:driftCost, n:drift.lateLeft, d:drift.lateN, rate:drift.lateRate,
+      count:extraMiss,
+      detail:'Left '+lateP+'% on '+drift.lateLabel+' ('+drift.lateLeft+'/'+drift.lateN+') vs '+earlyP+'% on '+drift.earlyLabel+' ('+drift.earlyLeft+'/'+drift.earlyN+')',
+      cue:drift.cue});
+  }
+
+  if(ssT.length>=COHORT_MIN && ssF.length>=COHORT_MIN){
+    var ssDiff=avg(ssT)-avg(ssF);
+    if(ssDiff>=SS_GAP){
+      var ssCost=ssDiff*ssT.length;
+      if(ssCost>=1){
+        ranked.push({id:'ss', label:'Short-siding', cost:ssCost, n:ssT.length, d:ssT.length+ssF.length,
+          rate:ssT.length/(ssT.length+ssF.length), count:ssT.length,
+          detail:'Short-sided '+ssT.length+' at +'+avg(ssT).toFixed(2)+'/hole vs fat-side '+ssF.length+' at +'+avg(ssF).toFixed(2)+'/hole',
+          cue:'Miss to the fat side.'});
+      }
+    }
+  } else if(ssT.length+ssF.length>0){
+    quiet.push({id:'ss', label:'Short-siding', n:ssT.length, d:ssT.length+ssF.length});
+  }
+
+  var firN=firL+firR+firY;
+  var bias=teeMissBias({par:4, firL:firL, firR:firR, firY:firY});
+  if(firN>=2 && firN<FIR_MIN) quiet.push({id:'fir', label:'Tee-shot miss', n:firN, d:firN});
+  else if(bias && bias.side && bias.n>=FIR_MIN){
+    var sideOver=bias.side==='L'?overL:overR;
+    var sideN=bias.side==='L'?bias.left:bias.right;
+    var pricedFir=sideOver.length>=COHORT_MIN && overY.length>=COHORT_MIN;
+    var firDiff=pricedFir?avg(sideOver)-avg(overY):null;
+    if(!(pricedFir && firDiff<=0)){
+      var firCost=pricedFir?sideN*firDiff:sideN;
+      if(firCost>=1){
+        ranked.push({id:'fir', label:'Tee-shot miss', cost:firCost, n:sideN, d:bias.n,
+          rate:sideN/bias.n, count:sideN,
+          detail:(bias.side==='L'?'Left ':'Right ')+sideN+' / other miss '+(bias.side==='L'?bias.right:bias.left)+' / fairway '+bias.hit+' (n='+bias.n+')',
+          cue:bias.side==='L'?'Start the tee ball right of the usual line.':'Start the tee ball left of the usual line.'});
+      }
+    }
+  }
+
+  ranked.sort(function(a,b){return b.cost-a.cost || (a.id<b.id?-1:a.id>b.id?1:0);});
+  return {ranked:ranked, quiet:quiet};
+}
+
 function nineSplit(rounds){
   var out={front:{n:0,over:0},back:{n:0,over:0}};
   (rounds||[]).forEach(function(r){
