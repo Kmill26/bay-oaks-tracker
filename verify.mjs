@@ -2059,6 +2059,110 @@ global.localStorage = {getItem:()=>null, setItem(){}};
     (els['exportText'].textContent.match(/SS:\S+/g)||[]).slice(-1)[0]);
 })();
 
+// Case 30 (v50): the club number on the tee is the selected tee's number.
+// Tips already had an authored line and Blue's .tip was written for the
+// championship yardage. Two paths still lied. H14's book note appended
+// "stock PW" under the Tips 7-iron (167y vs Blue's 135y PW). And a Tips hole
+// with no tipsTip fell through to the Blue line with no label. White stays a
+// gap callout — this case does not author a whiteTip.
+(() => {
+  const hasYd = (text, n) => new RegExp('(?:^|\\D)'+n+'(?!\\d)').test(text);
+  globalThis.state = {date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes = globalThis.state.holes;
+  // Approach numbers the two lines name, where they are different clubs.
+  // H11's ~75 is the wedge on both tees (8-iron vs 7-iron into it) and is
+  // not in this list. null means that tee's line names a club, not a leave.
+  const leaves = [
+    {h:0, blue:117, tips:132},
+    {h:1, blue:117, tips:159},
+    {h:3, blue:162, tips:189},
+    {h:4, blue:75, tips:91},
+    {h:5, blue:null, tips:163},
+    {h:6, blue:225, tips:240},
+    {h:8, blue:125, tips:159},
+    {h:9, blue:100, tips:120},
+    {h:12, blue:108, tips:127},
+    {h:14, blue:128, tips:146},
+    {h:15, blue:78, tips:89},
+    {h:16, blue:null, tips:165},
+    {h:17, blue:null, tips:180}
+  ];
+  leaves.forEach(row => {
+    globalThis.holes[row.h].tee = 'tips';
+    const tips = pvTip(row.h);
+    globalThis.holes[row.h].tee = 'blue';
+    const blue = pvTip(row.h);
+    globalThis.holes[row.h].tee = null;
+    const n = row.h+1;
+    check('H'+n+' tips: approach is the tips leave, under the tips yardage',
+      tips.indexOf('TIPS: '+PV[row.h].by+'y')===0 && hasYd(tips, row.tips), tips.slice(0,100));
+    check('H'+n+' tips: does not quote the Blue approach',
+      row.blue==null || !hasYd(tips, row.blue), tips.slice(0,120));
+    check('H'+n+' blue: does not quote the Tips approach',
+      !hasYd(blue, row.tips) && blue.indexOf('TIPS:')!==0, blue.slice(0,120));
+    if(row.blue!=null){
+      check('H'+n+' blue: approach is the Blue leave',
+        hasYd(blue, row.blue), blue.slice(0,100));
+    }
+  });
+  for(let i=0;i<18;i++){
+    globalThis.holes[i].tee = 'tips';
+    const tips = pvTip(i);
+    globalThis.holes[i].tee = 'blue';
+    const blue = pvTip(i);
+    globalThis.holes[i].tee = null;
+    check('H'+(i+1)+' tips: leads with that hole\'s tips yardage',
+      tips.indexOf('TIPS: '+PV[i].by+'y')===0, tips.slice(0,48));
+    check('H'+(i+1)+' blue: is the championship line, not the tips line',
+      blue.indexOf('TIPS:')!==0 && blue.indexOf('TIPS: '+PV[i].by+'y')===-1, blue.slice(0,48));
+  }
+  globalThis.holes[2].tee = 'tips';
+  check('H3 tips: 5-iron for 191y', /5-iron/.test(pvTip(2)) && pvTip(2).indexOf('TIPS: 191y')===0 && !/6-iron/.test(pvTip(2)), pvTip(2).slice(0,80));
+  globalThis.holes[2].tee = 'blue';
+  check('H3 blue: 6-iron, not the tips 5-iron', /6-iron/.test(pvTip(2)) && !/5-iron/.test(pvTip(2)), pvTip(2).slice(0,80));
+  globalThis.holes[2].tee = null;
+  globalThis.holes[11].tee = 'tips';
+  check('H12 tips: 6-iron for 184y', /6-iron/.test(pvTip(11)) && pvTip(11).indexOf('TIPS: 184y')===0 && !/7-iron/.test(pvTip(11)), pvTip(11).slice(0,90));
+  globalThis.holes[11].tee = 'blue';
+  check('H12 blue: 7-iron, not the tips 6-iron', /7-iron/.test(pvTip(11)) && !/6-iron/.test(pvTip(11)), pvTip(11).slice(0,90));
+  globalThis.holes[11].tee = null;
+  globalThis.holes[13].tee = 'tips';
+  const h14t = pvTip(13);
+  globalThis.holes[13].tee = 'blue';
+  const h14b = pvTip(13);
+  globalThis.holes[13].tee = null;
+  check('H14 tips: 7-iron for 167y, not Blue\'s pitching wedge',
+    h14t.indexOf('TIPS: 167y')===0 && /7-iron/.test(h14t) && !/stock PW/i.test(h14t), h14t.slice(0,200));
+  check('H14 blue: stock PW stays the championship club',
+    /Stock PW/.test(h14b) && h14b.indexOf('TIPS:')!==0, h14b.slice(0,80));
+  check('H14: both tees still say to check a 3-club green',
+    /front vs back/.test(h14t) && /front vs back/.test(h14b), 'pin check dropped');
+  const savedTip = COURSE[0].tipsTip;
+  delete COURSE[0].tipsTip;
+  globalThis.holes[0].tee = 'tips';
+  const bare = pvTip(0);
+  COURSE[0].tipsTip = savedTip;
+  globalThis.holes[0].tee = null;
+  check('tips fallback: names 402y and says the clubs are Blue numbers',
+    bare.indexOf('TIPS: 402y')===0 && /BLUE numbers/.test(bare) && /(?:^|\D)117(?!\d)/.test(bare) && /club up/.test(bare),
+    bare.slice(0,180));
+  globalThis.state.tee = 'blue';
+  globalThis.holes[0].tee = 'tips';
+  check('per-hole: Tips on this hole wins over a Blue round',
+    pvTip(0).indexOf('TIPS: 402y')===0 && /(?:^|\D)132(?!\d)/.test(pvTip(0)) && !/(?:^|\D)117(?!\d)/.test(pvTip(0)),
+    pvTip(0).slice(0,80));
+  globalThis.state.tee = 'tips';
+  globalThis.holes[0].tee = 'blue';
+  check('per-hole: Blue on this hole wins over a Tips round',
+    /(?:^|\D)117(?!\d)/.test(pvTip(0)) && pvTip(0).indexOf('TIPS:')!==0 && !/(?:^|\D)132(?!\d)/.test(pvTip(0)),
+    pvTip(0).slice(0,80));
+  globalThis.holes[0].tee = null;
+  globalThis.state.tee = 'blue';
+  check('no authored whiteTip on the card',
+    COURSE.every(c => c.whiteTip==null), 'a whiteTip was written onto COURSE');
+})();
+
 
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);

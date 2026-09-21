@@ -52,7 +52,7 @@ var PV=[
  {by:515,gd:37.3,rem:[219,193],bk:[44,78,97],te:0,note:""},
  {by:184,gd:37.2,rem:[],bk:[],te:-1,note:"37.2 deep + steep mid-band over water -- take the front tier, never chase a back pin."},
  {by:397,gd:33.2,rem:[158,126,94],bk:[71,77,79],te:-1,note:""},
- {by:167,gd:38.7,rem:[],bk:[],te:0,note:"38.7 deep on a short hole -- front vs back pin is ~3 clubs. Check the pin before stock PW."},
+ {by:167,gd:38.7,rem:[],bk:[],te:0,note:"38.7 deep -- front vs back pin is ~3 clubs. Check the pin before you commit to the club."},
  {by:356,gd:29.1,rem:[80,46],bk:[53,80],te:-1,note:"Extreme slope upper-left -- never long-left. Center-right is the only flat miss."},
  {by:569,gd:30.7,rem:[281,280,247,246],bk:[63,143,184],te:-1,note:""},
  {by:435,gd:36.7,rem:[184,147],bk:[65,77,84],te:0,note:"Whole green slopes hard; one calm pocket right-mid. Aim there regardless of pin."},

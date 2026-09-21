@@ -25,8 +25,18 @@ function pvMeta(i){
 function pvTip(i){
   var p=PV[i], t=COURSE[i].tip;
   var tee=holeTee(i);
-  if(tee==='tips'&&COURSE[i].tipsTip){
-    t=COURSE[i].tipsTip;
+  if(tee==='tips'){
+    // .tip is the Blue line. A Tips hole that falls through to it shows a Blue
+    // approach with no label — the wrong club. Use the authored tips line. If one
+    // is ever missing, name the tips yardage and say the clubs are Blue, the same
+    // honesty White already gets. Do not invent a tips number.
+    if(COURSE[i].tipsTip){
+      t=COURSE[i].tipsTip;
+    } else {
+      var ty=+holeYardage(i,'tips'), byY=+holeYardage(i,'blue'), up=ty-byY;
+      t='TIPS: '+ty+'y'+(up>0?' ('+up+'y longer than Blue)':'')+'. '+t
+        +(up>0?'\nThe clubs above are BLUE numbers -- from the tips you are '+up+'y longer, so club up.':'');
+    }
   } else if(tee==='white'){
     // v39: every tip except the Tips variant was written for Blue, and pvTip only ever
     // branched on 'tips'. White is 6,092 yds against Blue's 6,594 -- nine holes are 25-52
