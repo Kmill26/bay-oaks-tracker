@@ -132,6 +132,63 @@ globalThis.cur=0; freshH1(); bump('score',1);
 check('export state: editing a hole clears exported', globalThis.state.exported===false && globalThis.state.dirty===true, 'exported='+globalThis.state.exported+' dirty='+globalThis.state.dirty);
 check('manual entry: stepper seeds an unscored hole at par', globalThis.holes[0].score===4, 'score='+globalThis.holes[0].score);
 
+// A mis-tap used to stick: Math.max(1, …) floored the stepper at 1, so the hole
+// stayed scored. Minus from 1 blanks it; minus again does not invent a score.
+(() => {
+  const savedHole = Object.assign({}, globalThis.holes[0]);
+  const savedCur = globalThis.cur;
+  freshH1();
+  globalThis.cur = 0;
+  globalThis.holes[0].score = 1;
+  bump('score', -1);
+  check('mis-tap: minus from 1 blanks the hole', globalThis.holes[0].score===null, 'score='+globalThis.holes[0].score);
+  check('mis-tap: a blanked hole displays as unscored', els['scoreVal'].textContent==='\u2013', JSON.stringify(els['scoreVal'].textContent));
+  bump('score', -1);
+  check('mis-tap: minus on a blank hole stays blank', globalThis.holes[0].score===null, 'score='+globalThis.holes[0].score);
+  const asOne = Object.assign({}, globalThis.holes[0], {score:1});
+  const asZero = Object.assign({}, globalThis.holes[0], {score:0});
+  const stBlank = roundStats({holes:[globalThis.holes[0]], summary:null});
+  const stOne = roundStats({holes:[asOne], summary:null});
+  const stZero = roundStats({holes:[asZero], summary:null});
+  check('mis-tap: a blanked hole is not a stroke and not a hole played',
+    stBlank.played===0 && stBlank.score===0 && stOne.played===1 && stOne.score===1,
+    'blank '+stBlank.played+'/'+stBlank.score+' one '+stOne.played+'/'+stOne.score);
+  check('mis-tap: the hole is null, not a stored zero',
+    globalThis.holes[0].score===null && stZero.played===1,
+    'score='+globalThis.holes[0].score+' zero-played='+stZero.played);
+  const scoredAsOne = unscoredHoles().slice();
+  globalThis.holes[0].score = 1;
+  const whileOne = unscoredHoles();
+  globalThis.holes[0].score = null;
+  check('mis-tap: 1 is a scored hole and blank puts it back on the unscored list',
+    whileOne.indexOf(1)===-1 && unscoredHoles().indexOf(1)!==-1 && scoredAsOne.indexOf(1)!==-1,
+    'blank='+unscoredHoles().join(',')+' one='+whileOne.join(','));
+  buildSummary();
+  check('mis-tap: the export marks the blanked hole unknown',
+    els['exportText'].textContent.includes('H01 P4 S?'),
+    (els['exportText'].textContent.match(/H01[^\n]*/)||[''])[0]);
+  bump('score', 1);
+  check('mis-tap: plus on a blank hole still seeds par', globalThis.holes[0].score===4, 'score='+globalThis.holes[0].score);
+  globalThis.holes[0].score = 2;
+  bump('score', -1);
+  check('mis-tap: minus from 2 lands on 1, which is still a real score', globalThis.holes[0].score===1, 'score='+globalThis.holes[0].score);
+  bump('score', 1);
+  check('mis-tap: plus from 1 steps up', globalThis.holes[0].score===2, 'score='+globalThis.holes[0].score);
+  // The score segments already toggle null. That path stays the way to clear a
+  // score that is sitting on one of those buttons.
+  globalThis.holes[0].score = COURSE[0].par;
+  const made = [];
+  const realCreate = global.document.createElement.bind(global.document);
+  global.document.createElement = () => { const b = realCreate(); made.push(b); return b; };
+  seg('scoreBtns', [{label:'-1',val:COURSE[0].par-1},{label:'E',val:COURSE[0].par},{label:'+1',val:COURSE[0].par+1},{label:'+2',val:COURSE[0].par+2}], 'score');
+  global.document.createElement = realCreate;
+  const even = made.find(b => b.textContent==='E');
+  even.onclick();
+  check('mis-tap: tapping the active score segment still clears it', globalThis.holes[0].score===null, 'score='+globalThis.holes[0].score);
+  globalThis.holes[0] = savedHole;
+  globalThis.cur = savedCur;
+})();
+
 // Case 7: Club Recommender (v13)
 globalThis.state.pin = 'B';
 let c105 = recommendClub(105, 0);
