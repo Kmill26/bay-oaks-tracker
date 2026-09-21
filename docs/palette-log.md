@@ -117,3 +117,62 @@ warn/ground 6.23:1. Dusk: ink/ground 15.65:1, ink/panel 13.42:1,
 muted/ground 9.95:1, muted/panel 8.53:1, accent/ground 9.78:1,
 on-accent/accent 8.91:1, hero-ink/hero 13.32:1, on-brass/brass 6.92:1,
 green/ground 11.85:1, red/ground 9.97:1, warn/ground 12.08:1.
+
+---
+
+## Lodge dusk — v49 onward (logged 2026-09-21)
+
+Dusk only. Light stays the Parchment & Tobacco sun-cream above, so a phone in
+glare still has a cream ground. This entry does not retint `:root`.
+
+The clubhouse option stops being tobacco-brown and becomes the lodge: a
+mahogany floor, chocolate leather panels, a lit timber score beam, an amber
+lamp for the accent and the selected controls, and cool slate for the lines.
+Forest green stays on `--green` (a fairway that still reads as text). It does
+not paint the surfaces.
+
+`--oxblood` is still the name the summary and trend markup uses. On dusk that
+accent is amber, not oxblood. `--on-brass` (`#2C211A`) and `--brass-edge`
+(`#63351F`) stay the shared bone values; the dusk brass face was chosen so
+bone ink on it still clears 5:1 and the bone oxblood hairline still clears 3:1.
+`--sheen` flips on dusk only — an amber lamp in the top corner, held at 8% so
+the floor stays mahogany. At 20% the corner climbed to caramel and the leather
+sat darker than the floor. Light keeps the cream wash. Muted on the 8% corner
+blend (`#3C2417`) is 8.58:1.
+
+Muted is the token that failed last time (clay `#A08878` at 2.76:1). Lodge
+muted is a warm cream, checked on the lightest leather it sits on, not only
+on the floor.
+
+| Token | Parchment (unchanged) | Lodge dusk |
+|---|---|---|
+| ground | `#EDE1C9` | `#2C1812` mahogany |
+| panel | `#FFF8E9` | `#43291E` chocolate |
+| panel2 | `#E8D7B9` | `#533326` leather |
+| ink | `#2C211A` | `#F6EBDC` cream |
+| accent (`--oxblood`) | `#63351F` oxblood | `#F0B14E` amber |
+| muted | `#604B38` | `#DCC4A8` |
+| line | `#C5AC85` | `#8E98A0` slate |
+| line-strong | `#887052` | `#A7B0B6` slate |
+| line-soft | `#DBC9A9` | `#808890` slate |
+| on accent (`--on-oxblood`) | `#FFF8E9` | `#2C1812` |
+| brass | `#D5B477` | `#E2B15E` |
+| hero | `#432B20` | `#5A3222` timber |
+| hero-ink | `#FFF3DB` | `#F6EBDC` |
+| on-brass | `#2C211A` | `#2C211A` (not flipped) |
+| brass-edge | `#63351F` | `#63351F` (not flipped) |
+| green | `#17613D` | `#74C47E` fairway |
+| red | `#A12520` | `#FFB3A4` |
+| warn | `#8A3518` | `#E89878` |
+| sheen | `rgba(255,248,233,.28)` | `rgba(240,177,78,.08)` |
+
+Measured contrast, lodge dusk: ink/ground 14.31:1, ink/panel 11.33:1,
+ink/panel2 9.54:1, muted/ground 10.03:1, muted/panel 7.94:1,
+muted/panel2 6.69:1, accent/ground 8.91:1, accent/panel 7.05:1,
+accent/panel2 5.94:1, on-accent/accent 8.91:1, hero-ink/hero 9.32:1,
+on-brass/brass 7.98:1, brass-edge/brass 5.19:1, green/ground 7.97:1,
+green/panel 6.31:1, red/ground 9.82:1, red/panel 7.77:1,
+on-accent/red 9.82:1, warn/ground 7.38:1, warn/panel 5.84:1.
+Slate is non-text: line-strong/panel 6.05:1, line/panel 4.54:1,
+line-soft/panel 3.71:1. Tightest body pair is warn on leather at 5.84:1.
+Parchment ratios are unchanged from the entry above.
