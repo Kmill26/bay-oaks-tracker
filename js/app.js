@@ -1031,9 +1031,9 @@ function render(){
   seg('scoreBtns',[{label:'-1',val:c.par-1},{label:'E',val:c.par},{label:'+1',val:c.par+1},{label:'+2',val:c.par+2}],'score');
   seg('penBtns',[{label:'0',val:0},{label:'1',val:1},{label:'2',val:2},{label:'3',val:3}],'pen');
   seg('puttBtns',[{label:'0',val:0},{label:'1',val:1},{label:'2',val:2},{label:'3',val:3},{label:'4',val:4},{label:'5',val:5}],'putts');
-  // v19: first-putt distance bucket. The single datum that separates "bad approach left a
-  // 50-footer" from "bad lag putting" -- without it a 3-putt is undiagnosable, and lag
-  // putting is standing prescription #2. One tap, only shown when a putt was actually hit.
+  // v19: first-putt distance bucket. The single datum that separates "the approach
+  // left a 50-footer" from "the short putt missed". rankLeaks will not prescribe a
+  // distance until these tags exist. One tap, only shown when a putt was actually hit.
   seg('lagBtns',[{label:'0-6ft',val:'a'},{label:'7-15',val:'b'},{label:'16-30',val:'c'},{label:'30+',val:'d'}],'lag');
   var lr=document.getElementById('lagRow'); if(lr)lr.className='row'+((h.putts===null||h.putts>0)?'':' disabled');
   var lv=document.getElementById('lagVal'); if(lv)lv.textContent=h.lag?LAGLABEL[h.lag]:'\u2013';
@@ -1196,10 +1196,14 @@ function buildTrends(){
   setTxt('tGirPct',    pctOf(agg.gir));
   setTxt('tChipPct',   pctOf(agg.chip6));
   setTxt('tP36Pct',    pctOf(agg.p36));
-  setTxt('tLeakChip',  pctOf(agg.chip6));
   buildHotspots(rs);
   buildSegments(rs);
   buildLag(rs);
+  buildLeaks(rs, pctOf(agg.chip6));
+  // The span lives in the rendered chip row. Setting it after buildLeaks keeps
+  // the leak card on the same aggregate as the CHIP6 metric, including the
+  // empty-store em-dash.
+  setTxt('tLeakChip',  pctOf(agg.chip6));
   var hl=document.getElementById('historyList');
   if(!hl)return;
   if(!rs.length){hl.innerHTML='<i>No rounds logged yet.</i>'; return;}
@@ -1286,8 +1290,8 @@ function buildSegments(rounds){
 
 // v19: this card is deliberately blunt about coverage. The five backfilled rounds have no
 // lag data at all, so it opens by saying so rather than rendering four empty buckets that
-// look like a finding. It becomes useful after a few logged rounds -- and then it either
-// confirms prescription #2 or falsifies it, which is the point.
+// look like a finding. rankLeaks reads the same buckets: a distance prescription waits
+// until the coverage is actually there.
 function buildLag(rounds){
   var el=document.getElementById('lagList'); if(!el)return;
   var L=lagStats(rounds);
@@ -1310,6 +1314,30 @@ function buildLag(rounds){
   if(L.missing)rows+='<div style="color:var(--muted); font-size:11.5px; margin-top:4px;">'
     +L.missing+' of '+L.withPutts+' holes missing a first-putt distance ('+Math.round(L.coverage*100)+'% coverage).</div>';
   el.innerHTML=rows;
+}
+
+// v53: the leak card is rankLeaks(), not a written #1/#2/#3. Order follows cost.
+// A thin sample is named and not prescribed. The CHIP6 percent span stays tied
+// to the aggregate metric via chipPct.
+function buildLeaks(rounds, chipPct){
+  var el=document.getElementById('leakList'); if(!el)return;
+  var R=rankLeaks(rounds||[]);
+  if(!R.ranked.length && !R.quiet.length){
+    el.innerHTML='<i>Not enough hole data to rank a leak.</i>';
+    return;
+  }
+  var html=R.ranked.map(function(L,i){
+    var detail=L.detail;
+    if(L.id==='chip6' && chipPct) detail=detail.replace(/\(\d+%\)/, '(<span id="tLeakChip">'+chipPct+'</span>)');
+    var cue=L.cue?' <b style="color:var(--oxblood)">'+L.cue+'</b>':'';
+    return '<div><b>#'+(i+1)+' '+L.label+':</b> '+detail+cue+'</div>';
+  }).join('');
+  if(R.quiet.length){
+    html+='<div class="leakThin">Too thin to rank: '+R.quiet.map(function(q){
+      return q.label+' ('+(q.d?q.n+'/'+q.d:'n='+q.n)+')';
+    }).join(', ')+'</div>';
+  }
+  el.innerHTML=html;
 }
 
 function showView(viewId){
