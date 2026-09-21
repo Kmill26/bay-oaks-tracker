@@ -886,13 +886,12 @@ var recognizer=null, isRecording=false, speechSeq=0;
 // must not throw away a perfectly good note.
 function beginDictation(){ return {seq:++speechSeq, roundId:state.roundId, hole:cur}; }
 function applyDictation(session, transcript){
-  var msg=document.getElementById('copiedMsg');
   var text=String(transcript||'').trim();
   if(!session||!text)return false;
   if(session.seq!==speechSeq)return false;                       // a later recording superseded this one
   if(session.roundId!==state.roundId){
-    // Nowhere sensible to put it; show it rather than dropping it silently.
-    if(msg)msg.textContent='Not added — that dictation belongs to the previous round: "'+text+'"';
+    // Nowhere sensible to put it; show it on the hole, not only the hidden summary line.
+    reportDictation('Not added — that dictation belongs to the previous round: "'+text+'"');
     return false;
   }
   var h=holes[session.hole];
@@ -904,22 +903,114 @@ function applyDictation(session, transcript){
   if(session.hole===cur){ var nb=document.getElementById('noteBox'); if(nb)nb.value=merged; }
   ensureDate();
   var ok=touch();
-  if(!ok&&msg)msg.textContent='Note kept on hole '+(session.hole+1)+' but not saved — Copy Log before reloading.';
+  if(!ok) reportDictation('Note kept on hole '+(session.hole+1)+' but not saved — Copy Log before reloading.');
+  else setNoteStatus('');
   buildSummary();
   return ok;
+}
+// v54: the summary line is display:none during the hole, so a mic failure
+// written only there is invisible standing on the tee.
+function setNoteStatus(text){
+  var el=document.getElementById('noteStatus');
+  if(el) el.textContent=text||'';
+}
+function reportDictation(text){
+  var msg=document.getElementById('copiedMsg');
+  if(msg) msg.textContent=text||'';
+  setNoteStatus(text);
+}
+function speechCtor(){
+  try{
+    if(typeof window!=='undefined' && window) return window.SpeechRecognition||window.webkitSpeechRecognition||null;
+  }catch(e){}
+  return null;
+}
+// Chrome sends the utterance to a server. Airplane mode cannot dictate, and a
+// button that still says Listening is how a hole gets lost.
+function voiceBlock(){
+  if(!speechCtor()) return 'unsupported';
+  if(typeof navigator!=='undefined' && navigator.onLine===false) return 'offline';
+  return '';
+}
+function voiceFailureText(code){
+  if(code==='not-allowed') return 'Mic is blocked. Allow the microphone for this site, or type the note.';
+  if(code==='service-not-allowed') return 'Dictation isn\u2019t available here. Type the note.';
+  if(code==='network'||code==='offline') return 'Dictation needs a connection. Type the note.';
+  if(code==='no-speech') return 'Didn\u2019t catch that. Tap Dictate again, or type the note.';
+  if(code==='audio-capture') return 'No microphone found. Type the note.';
+  if(code==='aborted') return '';
+  return 'Dictation failed. Type the note.';
+}
+var micPerm='', voiceServiceBlocked=false;
+function readMicPermission(){
+  try{
+    if(!navigator.permissions||!navigator.permissions.query) return;
+    navigator.permissions.query({name:'microphone'}).then(function(st){
+      micPerm=st.state||'';
+      try{
+        st.onchange=function(){
+          micPerm=st.state||'';
+          if(micPerm==='granted') setNoteStatus('');
+          syncVoiceAvailability();
+        };
+      }catch(e){}
+      syncVoiceAvailability();
+    },function(){micPerm='';});
+  }catch(e){micPerm='';}
+}
+function syncVoiceAvailability(){
+  var btn=document.getElementById('micBtn');
+  if(!btn) return;
+  var block=voiceBlock();
+  if(block==='unsupported'||voiceServiceBlocked){
+    if(isRecording&&recognizer){try{recognizer.stop();}catch(e){}}
+    isRecording=false;
+    btn.disabled=true;
+    btn.className='micBtn';
+    btn.textContent='Type note';
+    setNoteStatus(voiceServiceBlocked?voiceFailureText('service-not-allowed'):'Voice isn\u2019t available in this browser. Type the note.');
+    return;
+  }
+  if(block==='offline'){
+    if(isRecording&&recognizer){try{recognizer.stop();}catch(e){}}
+    isRecording=false;
+    btn.disabled=true;
+    btn.className='micBtn';
+    btn.textContent='Needs signal';
+    setNoteStatus(voiceFailureText('offline'));
+    return;
+  }
+  btn.disabled=false;
+  // Only the offline label is cleared on the way back. A network failure while
+  // the radio still says online uses the same sentence and must stay visible.
+  if(btn.textContent==='Needs signal'){
+    var st=document.getElementById('noteStatus');
+    if(st&&st.textContent===voiceFailureText('offline')) setNoteStatus('');
+  }
+  if(micPerm==='denied'){
+    btn.className='micBtn';
+    if(!isRecording) btn.textContent='Mic blocked';
+    setNoteStatus(voiceFailureText('not-allowed'));
+    return;
+  }
+  if(!isRecording){
+    btn.className='micBtn';
+    btn.textContent='\uD83C\uDF99\uFE0F Dictate';
+  }
 }
 function toggleVoice(){
   vibe(25);
   var btn=document.getElementById('micBtn');
-  var Speech=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!Speech){
-    alert('Voice dictation not supported in this browser.');
+  var block=voiceBlock();
+  if(block||voiceServiceBlocked){
+    syncVoiceAvailability();
     return;
   }
   if(isRecording&&recognizer){
-    recognizer.stop();
+    try{recognizer.stop();}catch(e){}
     return;
   }
+  var Speech=speechCtor();
   try{
     recognizer=new Speech();
     recognizer.continuous=false;
@@ -927,25 +1018,70 @@ function toggleVoice(){
     recognizer.lang='en-US';
     recognizer.onstart=function(){
       isRecording=true;
-      if(btn){btn.className='micBtn listening'; btn.textContent='🔴 Listening...';}
+      micPerm='granted';
+      setNoteStatus('');
+      if(btn){btn.disabled=false; btn.className='micBtn listening'; btn.textContent='\uD83D\uDD34 Listening...';}
     };
     var session=beginDictation();
     recognizer.onresult=function(e){
-      applyDictation(session, e.results[0][0].transcript);
+      var said=e&&e.results&&e.results[0]&&e.results[0][0]&&e.results[0][0].transcript;
+      applyDictation(session, said);
     };
-    recognizer.onerror=function(){
+    recognizer.onerror=function(ev){
       isRecording=false;
-      if(btn){btn.className='micBtn'; btn.textContent='🎙️ Dictate';}
+      var code=ev&&ev.error;
+      if(code==='not-allowed') micPerm='denied';
+      if(code==='service-not-allowed') voiceServiceBlocked=true;
+      var text=voiceFailureText(code);
+      if(text) setNoteStatus(text);
+      syncVoiceAvailability();
     };
     recognizer.onend=function(){
       isRecording=false;
-      if(btn){btn.className='micBtn'; btn.textContent='🎙️ Dictate';}
+      syncVoiceAvailability();
     };
     recognizer.start();
   }catch(e){
     isRecording=false;
-    if(btn){btn.className='micBtn'; btn.textContent='🎙️ Dictate';}
+    setNoteStatus(voiceFailureText('audio-capture'));
+    syncVoiceAvailability();
   }
+}
+var deferredInstall=null;
+function runningStandalone(){
+  try{
+    if(typeof navigator!=='undefined'&&navigator.standalone) return true;
+    if(typeof window==='undefined'||!window.matchMedia) return false;
+    return !!window.matchMedia('(display-mode: standalone)').matches;
+  }catch(e){return false;}
+}
+// The button exists only while Chrome is offering the native prompt. After the
+// prompt is used it hides, so a second tap is not a dead control.
+function onInstallPrompt(e){
+  if(runningStandalone()) return;
+  if(!e||typeof e.prompt!=='function') return;
+  if(typeof e.preventDefault==='function') e.preventDefault();
+  deferredInstall=e;
+  var btn=document.getElementById('installBtn');
+  if(btn) btn.hidden=false;
+}
+function onAppInstalled(){
+  deferredInstall=null;
+  var btn=document.getElementById('installBtn');
+  if(btn) btn.hidden=true;
+}
+function installApp(){
+  vibe(15);
+  var ev=deferredInstall;
+  var btn=document.getElementById('installBtn');
+  deferredInstall=null;
+  if(btn) btn.hidden=true;
+  if(!ev||typeof ev.prompt!=='function') return;
+  try{
+    var ret=ev.prompt();
+    var choice=ev.userChoice||ret;
+    if(choice&&typeof choice.then==='function') choice.then(function(){},function(){});
+  }catch(err){}
 }
 
 function seg(id,opts,field){
@@ -1460,6 +1596,10 @@ if(typeof window!=='undefined'&&window.addEventListener){
   window.addEventListener('focus',reelectWriter);
   window.addEventListener('pageshow',reelectWriter);
   window.addEventListener('pagehide',releaseWriter);
+  window.addEventListener('offline',syncVoiceAvailability);
+  window.addEventListener('online',syncVoiceAvailability);
+  window.addEventListener('beforeinstallprompt',onInstallPrompt);
+  window.addEventListener('appinstalled',onAppInstalled);
   if(typeof document!=='undefined'&&document.addEventListener){
     // Hidden hands the lock over, so the tab in front is always the one that can save.
     document.addEventListener('visibilitychange',function(){
@@ -1467,11 +1607,12 @@ if(typeof window!=='undefined'&&window.addEventListener){
     });
   }
 }
+syncVoiceAvailability();
+readMicPermission();
+// v54: updateViaCache none so GitHub Pages' HTTP cache cannot pin an old shell.
+// No reload when a worker takes control — that reload landed mid-round on a signal blip.
 if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
-  navigator.serviceWorker.register('sw.js').then(function(reg){
-    reg.update();
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(reg){
+    if(reg&&reg.update) reg.update();
   }).catch(function(){});
-  navigator.serviceWorker.addEventListener('controllerchange', function(){
-    window.location.reload();
-  });
 }

@@ -14,7 +14,10 @@
 
 <div class="headerWrap">
   <div class="brand"><span class="eyebrow">BAY OAKS COUNTRY CLUB</span><h1>Bay Oaks</h1></div>
-  <button id="themeToggle" class="themeToggle" onclick="toggleTheme()">🌙 Dusk</button>
+  <div class="headerActions">
+    <button id="installBtn" class="installBtn" hidden onclick="installApp()">Install</button>
+    <button id="themeToggle" class="themeToggle" onclick="toggleTheme()">🌙 Dusk</button>
+  </div>
 </div>
 
 <div class="modeWrap">
@@ -122,6 +125,7 @@
     </div>
     <textarea class="noteBox" id="noteBox" rows="2" placeholder="e.g. Driver left side of fairway, 158 to center"
       oninput="setNote(this.value)"></textarea>
+    <div id="noteStatus" class="noteStatus" aria-live="polite"></div>
   </div>
 </div>
 
