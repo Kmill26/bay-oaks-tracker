@@ -2239,6 +2239,146 @@ global.localStorage = {getItem:()=>null, setItem(){}};
     COURSE.every(c => c.whiteTip==null), 'a whiteTip was written onto COURSE');
 })();
 
+// Case 31 (v54): phone acceptance. Install is the native prompt or it is absent.
+// Offline does not swap the shell under an open round. The mic tells the truth
+// when the signal or the permission is gone, on the hole that is on screen.
+(() => {
+  const man = JSON.parse(readFileSync('manifest.json','utf8'));
+  check('install: launches standalone from this scope',
+    man.display==='standalone' && man.start_url==='./' && man.scope==='./', JSON.stringify({display:man.display,start_url:man.start_url,scope:man.scope}));
+  check('install: a full-bleed icon is not marked maskable',
+    (man.icons||[]).length>=2 && (man.icons||[]).every(i=>!/\bmaskable\b/.test(i.purpose||'')), JSON.stringify(man.icons));
+  check('install: the button stays hidden until the browser offers a prompt',
+    /id="installBtn"[^>]*\bhidden\b/.test(html), 'install button visible by default');
+  check('install: standalone top inset is padded', /safe-area-inset-top/.test(css), 'top inset missing');
+
+  const sw = readFileSync('sw.js','utf8');
+  const gen = Number((sw.match(/bayoaks-v(\d+)/)||[])[1]);
+  check('offline: cache moved past v51', gen>51, 'bayoaks-v'+gen);
+  check('offline: an open round is not force-updated', sw.indexOf('skipWaiting')===-1, 'skipWaiting present');
+  check('offline: a failed response is not stored', /if\(n&&n\.ok\)/.test(sw), 'ok guard missing');
+  check('offline: a query-string launch still hits the shell', /ignoreSearch:\s*true/.test(sw), 'ignoreSearch missing');
+  const app = readFileSync('js/app.js','utf8');
+  check('offline: registration ignores the HTTP cache', /updateViaCache:\s*'none'/.test(app), 'updateViaCache missing');
+  check('offline: a new worker does not reload the open round', app.indexOf('controllerchange')===-1, 'reload still wired');
+
+  const holeAt = html.indexOf('id="holeView"');
+  const noteAt = html.indexOf('id="noteStatus"');
+  const sumAt = html.indexOf('id="summaryView"');
+  check('voice: a failure is visible on the hole, not only the summary',
+    holeAt>-1 && noteAt>holeAt && sumAt>noteAt, 'noteStatus placement');
+
+  global.window = globalThis;
+  const prevOnLine = navigator.onLine;
+  let started = 0;
+  function Fake(){}
+  Fake.prototype.start = function(){ started++; if(this.onstart) this.onstart(); };
+  Fake.prototype.stop = function(){ if(this.onend) this.onend(); };
+  window.SpeechRecognition = Fake;
+  window.webkitSpeechRecognition = undefined;
+  voiceServiceBlocked = false;
+  micPerm = '';
+  navigator.onLine = false;
+  document.getElementById('noteStatus').textContent = '';
+  document.getElementById('micBtn').disabled = false;
+  document.getElementById('micBtn').textContent = 'Dictate';
+  toggleVoice();
+  check('voice: offline does not open the mic', started===0, 'started='+started);
+  check('voice: offline tells him to type',
+    document.getElementById('noteStatus').textContent===voiceFailureText('offline')
+    && document.getElementById('micBtn').disabled===true
+    && document.getElementById('micBtn').textContent==='Needs signal',
+    document.getElementById('noteStatus').textContent+' / '+document.getElementById('micBtn').textContent);
+
+  navigator.onLine = true;
+  syncVoiceAvailability();
+  check('voice: signal back restores Dictate',
+    document.getElementById('micBtn').disabled===false
+    && document.getElementById('micBtn').textContent.indexOf('Dictate')>-1
+    && document.getElementById('noteStatus').textContent==='',
+    document.getElementById('micBtn').textContent+' / '+JSON.stringify(document.getElementById('noteStatus').textContent));
+
+  toggleVoice();
+  check('voice: online tap starts recognition', started===1, 'started='+started);
+  recognizer.onerror({error:'network'});
+  check('voice: a network error stays on the hole',
+    document.getElementById('noteStatus').textContent===voiceFailureText('network')
+    && document.getElementById('micBtn').textContent.indexOf('Dictate')>-1,
+    document.getElementById('noteStatus').textContent+' / '+document.getElementById('micBtn').textContent);
+  recognizer.onerror({error:'no-speech'});
+  check('voice: silence is reported, not swallowed',
+    document.getElementById('noteStatus').textContent===voiceFailureText('no-speech'),
+    document.getElementById('noteStatus').textContent);
+  recognizer.onend();
+  check('voice: the end of a recording does not erase that report',
+    document.getElementById('noteStatus').textContent===voiceFailureText('no-speech'),
+    document.getElementById('noteStatus').textContent);
+  recognizer.onerror({error:'not-allowed'});
+  check('voice: a denied mic says to allow it',
+    document.getElementById('noteStatus').textContent===voiceFailureText('not-allowed')
+    && document.getElementById('micBtn').textContent==='Mic blocked'
+    && document.getElementById('micBtn').disabled!==true,
+    document.getElementById('micBtn').textContent+' / '+document.getElementById('noteStatus').textContent);
+
+  recognizer.onerror({error:'service-not-allowed'});
+  check('voice: a refused recognizer disables the control',
+    document.getElementById('micBtn').disabled===true
+    && document.getElementById('micBtn').textContent==='Type note'
+    && document.getElementById('noteStatus').textContent===voiceFailureText('service-not-allowed'),
+    document.getElementById('micBtn').textContent+' / '+document.getElementById('noteStatus').textContent);
+  const startedAtRefusal = started;
+  toggleVoice();
+  check('voice: the disabled recognizer does not listen again', started===startedAtRefusal, 'started='+started);
+
+  voiceServiceBlocked = false;
+  micPerm = '';
+  delete window.SpeechRecognition;
+  window.webkitSpeechRecognition = undefined;
+  let alerted = 0;
+  global.alert = () => { alerted++; };
+  toggleVoice();
+  check('voice: a missing speech API does not throw a dialog over the card',
+    alerted===0 && document.getElementById('micBtn').disabled===true
+    && /Type the note/.test(document.getElementById('noteStatus').textContent),
+    document.getElementById('noteStatus').textContent+' alerts='+alerted);
+
+  globalThis.state.roundId = 'round-a';
+  globalThis.cur = 0;
+  const sess = beginDictation();
+  globalThis.state.roundId = 'round-b';
+  applyDictation(sess, 'should not land');
+  check('voice: a transcript for another round is shown on the hole',
+    document.getElementById('noteStatus').textContent.indexOf('previous round')>-1
+    && document.getElementById('noteStatus').textContent.indexOf('should not land')>-1
+    && document.getElementById('copiedMsg').textContent.indexOf('should not land')>-1,
+    document.getElementById('noteStatus').textContent);
+
+  const inst = document.getElementById('installBtn');
+  inst.hidden = true;
+  let prompted = 0;
+  let prevented = 0;
+  window.matchMedia = undefined;
+  navigator.standalone = false;
+  onInstallPrompt({preventDefault(){prevented++;}, prompt(){prompted++; return {then(){}};}});
+  check('install: the offer shows the button and keeps the prompt',
+    inst.hidden===false && prevented===1 && deferredInstall!=null, 'hidden='+inst.hidden+' prevented='+prevented);
+  installApp();
+  check('install: the tap calls the browser prompt and then hides',
+    prompted===1 && inst.hidden===true && deferredInstall===null, 'prompted='+prompted+' hidden='+inst.hidden);
+  installApp();
+  check('install: a second tap with no offer does not invent a prompt', prompted===1, 'prompted='+prompted);
+  window.matchMedia = () => ({matches:true});
+  onInstallPrompt({preventDefault(){prevented++;}, prompt(){prompted++;}});
+  check('install: an already-installed app does not grow an Install button',
+    inst.hidden===true && prompted===1 && prevented===1, 'hidden='+inst.hidden+' prompted='+prompted);
+
+  navigator.onLine = prevOnLine;
+  delete window.SpeechRecognition;
+  window.matchMedia = undefined;
+  voiceServiceBlocked = false;
+  micPerm = '';
+})();
+
 
 // Case 27 (v53): stroke leaks are ranked from rounds[]. The old #1/#2/#3 card
 // was a written prescription — chip copy, a frozen deep-green list, a fatigue
