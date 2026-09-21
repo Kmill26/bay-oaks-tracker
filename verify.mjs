@@ -382,6 +382,39 @@ check('holeStats: averages derived, not stored', Math.abs(hStats[0].avg - hStats
 check('holeStats: penalties attributed per hole', hStats[2].pen>=1, 'H3 pen='+hStats[2].pen);
 check('holeStats: three-putts counted from putts>=3', hStats.reduce((a,o)=>a+o.threePutts,0)===17, hStats.reduce((a,o)=>a+o.threePutts,0));
 
+// v43: tee-miss bias. Counts come from the holeStats row; a side is named only when that
+// miss is the common result. A par 3 and a single observation stay silent.
+check('teeMissBias: a par 3 is not a fairway', teeMissBias({par:3,firL:3,firR:0,firY:0})===null, JSON.stringify(teeMissBias({par:3,firL:3,firR:0,firY:0})));
+check('teeMissBias: one miss is not a pattern', teeMissBias({par:4,firL:1,firR:0,firY:0})===null, JSON.stringify(teeMissBias({par:4,firL:1,firR:0,firY:0})));
+check('teeMissBias: null input stays null', teeMissBias(null)===null && teeMissBias(undefined)===null, 'returned a bias');
+check('teeMissBias: left miss that outnumbers the fairway and the other side', (function(){
+  const b=teeMissBias({par:4,firL:2,firR:0,firY:1});
+  return b && b.n===3 && b.left===2 && b.right===0 && b.hit===1 && b.side==='L';
+})(), JSON.stringify(teeMissBias({par:4,firL:2,firR:0,firY:1})));
+check('teeMissBias: right miss mirrors it', (function(){
+  const b=teeMissBias({par:5,firL:0,firR:3,firY:1});
+  return b && b.n===4 && b.left===0 && b.right===3 && b.hit===1 && b.side==='R';
+})(), JSON.stringify(teeMissBias({par:5,firL:0,firR:3,firY:1})));
+check('teeMissBias: a split names no side', (function(){
+  const b=teeMissBias({par:4,firL:2,firR:2,firY:1});
+  return b && b.side===null && b.n===5 && b.left===2 && b.right===2 && b.hit===1;
+})(), JSON.stringify(teeMissBias({par:4,firL:2,firR:2,firY:1})));
+check('teeMissBias: a fairway-heavy hole names no side', (function(){
+  const b=teeMissBias({par:4,firL:2,firR:0,firY:2});
+  return b && b.side===null && b.n===4 && b.left===2 && b.hit===2;
+})(), JSON.stringify(teeMissBias({par:4,firL:2,firR:0,firY:2})));
+check('teeMissBias: seed rows agree with holeStats FIR counts', hStats.every(o=>{
+  const b=teeMissBias(o), n=o.firL+o.firR+o.firY;
+  if(!(o.par>3) || n<2) return b===null;
+  return b.left===o.firL && b.right===o.firR && b.hit===o.firY && b.n===n
+    && b.side===(o.firL>o.firR && o.firL>o.firY ? 'L' : o.firR>o.firL && o.firR>o.firY ? 'R' : null);
+}), 'a seed row disagreed');
+// H17 in the backfill is left, left, hit. That is the aim change, and it is in the ranked six.
+check('teeMissBias: seed H17 is the left miss (2/0/1)', (function(){
+  const b=teeMissBias(hStats[16]);
+  return hStats[16].hole===17 && b && b.side==='L' && b.left===2 && b.right===0 && b.hit===1 && b.n===3;
+})(), JSON.stringify(teeMissBias(hStats[16])));
+
 const segs = segmentStats(allRounds);
 check('segmentStats: three segments', segs.length===3 && segs[0].label==='H1-6', segs.map(s=>s.label).join(','));
 check('segmentStats: hole counts sum to total played', segs.reduce((a,s)=>a+s.n,0)===allRounds.reduce((a,r)=>a+roundStats(r).played,0), segs.map(s=>s.n).join('+'));
@@ -399,6 +432,12 @@ check('hotspots: worst hole listed first', (function(){
   const ranked = hStats.filter(o=>o.n>=2).sort((a,b)=>b.avgOver-a.avgOver);
   return els['hotspotList'].innerHTML.indexOf('H'+ranked[0].hole+'</b>')>-1;
 })(), 'top hole missing');
+check('hotspots: seed H17 names the left tee miss', els['hotspotList'].innerHTML.indexOf('miss L 2/R 0/hit 1')>-1, els['hotspotList'].innerHTML);
+check('hotspots: a split tee is counted and not named as a side', els['hotspotList'].innerHTML.indexOf('L 2/R 2/hit 1')>-1 && els['hotspotList'].innerHTML.indexOf('miss L 2/R 2/hit 1')===-1, els['hotspotList'].innerHTML);
+check('hotspots: a par 3 row does not grow a tee miss', (function(){
+  const row=(els['hotspotList'].innerHTML.split('<div').find(r=>r.indexOf('H12</b>')>-1))||'';
+  return row.indexOf('par 3')>-1 && row.indexOf('miss ')===-1 && row.indexOf('/hit')===-1;
+})(), els['hotspotList'].innerHTML);
 check('segments: rendered with per-hole over-par and n', els['segmentList'].innerHTML.indexOf('H1-6')>-1 && els['segmentList'].innerHTML.indexOf('n=')>-1, els['segmentList'].innerHTML.slice(0,120));
 check('segments: front/back comparison rendered', els['segmentList'].innerHTML.indexOf('/hole')>-1, 'missing split line');
 
@@ -407,6 +446,23 @@ globalThis.state.rounds = [];
 buildTrends();
 check('hotspots: empty store says so rather than showing zeros', els['hotspotList'].innerHTML.indexOf('No hole-level data')>-1, els['hotspotList'].innerHTML);
 check('segments: empty store says so rather than showing zeros', els['segmentList'].innerHTML.indexOf('No hole-level data')>-1, els['segmentList'].innerHTML);
+
+// A ranked par 4/5 with a repeated miss names the side. The par 3 next to it does not
+// borrow a fairway. Built from holes, not from a typed stat.
+(() => {
+  const round = (firAt, overAt) => ({date:'2026-09-21', summary:null, holes:COURSE.map((c,i)=>({
+    score:c.par+(overAt[i]||0), fir:c.par>3?(firAt[i]||'y'):null,
+    gir:true, ss:null, chip:null, putts:2, lag:null, sixAtt:0, sixMade:0, pen:0, notes:''
+  }))});
+  const fir={0:'l', 4:'r'}, over={0:2, 2:4, 4:2};
+  buildHotspots([round(fir, over), round(fir, over)]);
+  const html=els['hotspotList'].innerHTML;
+  check('hotspots: a repeated left miss and a repeated right miss are both named',
+    html.indexOf('miss L 2/R 0/hit 0')>-1 && html.indexOf('miss R 2/L 0/hit 0')>-1, html);
+  const h3=(html.split('<div').find(r=>r.indexOf('H3</b>')>-1))||'';
+  check('hotspots: the par 3 beside them does not invent a fairway',
+    h3.indexOf('par 3')>-1 && h3.indexOf('miss ')===-1 && h3.indexOf('/hit')===-1, h3);
+})();
 
 // Case 15: file split integrity (v17.1)
 // These guard the failure modes behavioural tests can't see: a script that never loads,

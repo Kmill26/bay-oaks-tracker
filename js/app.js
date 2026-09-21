@@ -1219,6 +1219,14 @@ function buildHotspots(rounds){
   var thin=hs.filter(function(o){return o.n<2;});
   var rows=ranked.slice(0,6).map(function(o){
     var bits=[];
+    // v43: the score says the hole is expensive. The tee line says which way to aim
+    // the next time it comes up. Counts always; a side only when teeMissBias names one.
+    var bias=teeMissBias(o);
+    if(bias){
+      if(bias.side==='L') bits.push('miss L '+bias.left+'/R '+bias.right+'/hit '+bias.hit);
+      else if(bias.side==='R') bits.push('miss R '+bias.right+'/L '+bias.left+'/hit '+bias.hit);
+      else bits.push('L '+bias.left+'/R '+bias.right+'/hit '+bias.hit);
+    }
     if(o.threePutts)bits.push(o.threePutts+' three-putt'+(o.threePutts>1?'s':''));
     if(o.pen)bits.push(o.pen+' pen');
     if(o.gir.d)bits.push('GIR '+o.gir.n+'/'+o.gir.d);

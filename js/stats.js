@@ -50,6 +50,28 @@ function holeStats(rounds){
   return out;
 }
 
+// v43: which way the tee shot misses on one holeStats() row. Trends hotspots call this
+// so a ranked hole answers that before the next tee; Bay Course can call the same
+// function later for mid-round on-tee placement. This file does not render that prompt.
+//
+// Returns null on a par 3, or when fewer than 2 fairways are recorded. One miss is not
+// a pattern -- the same n<2 rule as ranking a hole off a single round.
+// Otherwise { n, left, right, hit, side }:
+//   n     left + right + hit (FIR observations already limited to par 4/5 by holeStats)
+//   left  firL, right firR, hit firY
+//   side  'L' or 'R' when that miss is the most common result and beats the other side;
+//         null when the misses split or the fairway is at least as common as the leading
+//         miss. side is an aim nudge. The counts are the evidence.
+function teeMissBias(o){
+  if(!o || !(o.par>3)) return null;
+  var left=o.firL||0, right=o.firR||0, hit=o.firY||0, n=left+right+hit;
+  if(n<2) return null;
+  var side=null;
+  if(left>right && left>hit) side='L';
+  else if(right>left && right>hit) side='R';
+  return {n:n, left:left, right:right, hit:hit, side:side};
+}
+
 // Segment split tests the fatigue hypothesis against real history instead of a fixed
 // threshold: does his tee-miss pattern actually shift late in the round?
 function segmentStats(rounds){
