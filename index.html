@@ -13,10 +13,10 @@
 <body>
 
 <div class="headerWrap">
-  <div class="brand"><span class="eyebrow">BAY OAKS COUNTRY CLUB</span><h1>Bay Oaks</h1></div>
+  <div class="brand"><span class="eyebrow">COUNTRY CLUB</span><h1>Bay Oaks</h1></div>
   <div class="headerActions">
     <button id="installBtn" class="installBtn" hidden onclick="installApp()">Install</button>
-    <button id="themeToggle" class="themeToggle" onclick="toggleTheme()">🌙 Dusk</button>
+    <button id="themeToggle" class="themeToggle" onclick="toggleTheme()">Dusk</button>
   </div>
 </div>
 
@@ -56,7 +56,7 @@
   </div>
 
   <div class="row scoreCard">
-    <div class="lbl">Score &mdash; <span class="scoreNow" id="scoreVal">&ndash;</span></div>
+    <div class="lbl"><span>Score</span><span class="scoreNow" id="scoreVal">&ndash;</span></div>
     <div class="scoreWrap">
       <div class="btns" id="scoreBtns"></div>
       <button class="mini" onclick="bump('score',-1)">&minus;</button>
@@ -90,12 +90,12 @@
   </div>
 
   <div class="row">
-    <div class="lbl">Total putts &mdash; <span class="scoreNow" id="puttsVal">&ndash;</span></div>
+    <div class="lbl"><span>Total putts</span><span class="scoreNow" id="puttsVal">&ndash;</span></div>
     <div class="btns" id="puttBtns"></div>
   </div>
 
   <div class="row" id="lagRow">
-    <div class="lbl">First putt distance &mdash; <span class="scoreNow" id="lagVal">&ndash;</span></div>
+    <div class="lbl"><span>First putt distance</span><span class="scoreNow" id="lagVal">&ndash;</span></div>
     <div class="btns" id="lagBtns"></div>
   </div>
 
@@ -121,7 +121,7 @@
   <div class="row">
     <div class="lbl">
       <span>Shot notes</span>
-      <button id="micBtn" class="micBtn" onclick="toggleVoice()">🎙️ Dictate</button>
+      <button id="micBtn" class="micBtn" onclick="toggleVoice()">Dictate</button>
     </div>
     <textarea class="noteBox" id="noteBox" rows="2" placeholder="e.g. Driver left side of fairway, 158 to center"
       oninput="setNote(this.value)"></textarea>
@@ -142,7 +142,7 @@
 
 <div id="trendsView">
   <div class="trendCard">
-    <div class="lbl">📊 Multi-Round Performance Baseline</div>
+    <div class="lbl">Multi-Round Performance Baseline</div>
     <div class="trendGrid">
       <div class="metricBox"><div class="mLbl">Season Low (18)</div><div class="mVal" id="tSeasonLow">&mdash;</div></div>
       <div class="metricBox"><div class="mLbl">Quick 9 Low</div><div class="mVal" id="tNineLow">&mdash;</div></div>
@@ -154,27 +154,27 @@
   </div>
 
   <div class="trendCard">
-    <div class="lbl">🔍 Primary Stroke Leaks & Focus</div>
+    <div class="lbl">Primary Stroke Leaks & Focus</div>
     <div id="leakList" class="leakRank"></div>
   </div>
 
   <div class="trendCard">
-    <div class="lbl">🔥 Hole Hotspots — worst by average strokes over par</div>
+    <div class="lbl">Hole Hotspots — worst by average strokes over par</div>
     <div id="hotspotList" style="font-size:12.5px; line-height:1.55; color:var(--ink);"></div>
   </div>
 
   <div class="trendCard">
-    <div class="lbl">⏱ Segment Split — does the round decay?</div>
+    <div class="lbl">Segment Split — does the round decay?</div>
     <div id="segmentList" style="font-size:12.5px; line-height:1.55; color:var(--ink);"></div>
   </div>
 
   <div class="trendCard">
-    <div class="lbl">⛳ Lag Putting — 3-putt rate by first-putt distance</div>
+    <div class="lbl">Lag Putting — 3-putt rate by first-putt distance</div>
     <div id="lagList" style="font-size:12.5px; line-height:1.55; color:var(--ink);"></div>
   </div>
 
   <div class="trendCard">
-    <div class="lbl">📜 Round History Trajectory</div>
+    <div class="lbl">Round History Trajectory</div>
     <div id="historyList" style="font-size:13px; line-height:1.6; color:var(--ink);"></div>
   </div>
 </div>
