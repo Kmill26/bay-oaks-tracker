@@ -100,7 +100,23 @@ function vibe(ms){try{if(typeof navigator!=='undefined'&&navigator.vibrate)navig
 function applyTheme(isDusk){
   document.body.classList.toggle('dusk',isDusk);
   var btn=document.getElementById('themeToggle');
-  if(btn)btn.textContent=isDusk?'☀️ Daylight':'🌙 Dusk';
+  if(btn)btn.textContent=isDusk?'Daylight':'Dusk';
+  syncStatusBar();
+}
+// The Android status bar is painted from theme-color. It was frozen at the
+// daylight ground, so dusk left a parchment strip above a mahogany app. Read
+// --ground, not the computed background-color: the background is mid-transition
+// when the theme flips, so that would bake in the outgoing colour. Reading the
+// token also keeps every hex in styles.css.
+function syncStatusBar(){
+  try{
+    if(!document.querySelector||typeof getComputedStyle!=='function')return;
+    var meta=document.querySelector('meta[name="theme-color"]');
+    if(!meta)return;
+    var ground=String(getComputedStyle(document.body).getPropertyValue('--ground')||'').trim();
+    if(!/^#[0-9A-Fa-f]{6}$/.test(ground))return;
+    meta.setAttribute('content',ground.toUpperCase());
+  }catch(e){}
 }
 function toggleTheme(){
   vibe(20);
@@ -995,7 +1011,7 @@ function syncVoiceAvailability(){
   }
   if(!isRecording){
     btn.className='micBtn';
-    btn.textContent='\uD83C\uDF99\uFE0F Dictate';
+    btn.textContent='Dictate';
   }
 }
 function toggleVoice(){

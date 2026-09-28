@@ -176,3 +176,58 @@ on-accent/red 9.82:1, warn/ground 7.38:1, warn/panel 5.84:1.
 Slate is non-text: line-strong/panel 6.05:1, line/panel 4.54:1,
 line-soft/panel 3.71:1. Tightest body pair is warn on leather at 5.84:1.
 Parchment ratios are unchanged from the entry above.
+
+---
+
+## Clubhouse all day — v55 onward (logged 2026-09-28)
+
+Kenny picked this from three mockups. It is not a new palette: both grounds,
+both panels, the accent, the muted, the lines, green/red/warn and the brass face
+are the values already logged above. What changes is *where the dark surface
+goes*. The lodge stops being a dusk-only look and becomes the app's structure in
+both themes: the header, the hole panel, the score beam and the footer are one
+leather band with brass trim, and the parchment is reserved for what he reads in
+the sun — the game plan and every answer button.
+
+Two tokens moved and two were added.
+
+| Token | Was (v54) | Now (v55) | Why |
+|---|---|---|---|
+| `--hero` light | `#432B20` | `#3A2117` | The band is now four surfaces, not one panel. Deeper leather so brass trim and cream type both sit up off it. |
+| `--hero` dusk | `#5A3222` | `#1A0D08` | v54's timber was *lighter* than the mahogany floor. A band lighter than the room reads as a raised box; at dusk the clubhouse bands go darker than the floor and the lamp-brass rule draws the edge. |
+| `--hero-muted` | (new) | `#E8D3AE` / `#DCC4A8` | The date/holes line sits on leather now. `--muted` is tuned for parchment and is unreadable there. |
+| `--serif` | (new) | `Georgia,"Noto Serif","Times New Roman",serif` | One numeral face, named once. |
+
+Nothing else was retinted. `--brass` does all the trim work; no second gold was
+added, so the one-accent rule holds.
+
+**Numerals, amending the fixed constraint above.** "Numerals stay monospaced and
+tabular" was written when the only numbers on screen were in the export block.
+Every number the app *shows* — hole number, score, putts, steppers, trend
+metrics, summary values — is now `--serif` with `tabular-nums`, because a serif
+scorecard with a monospace score reads like two documents. The constraint keeps
+its force where it was earned: `pre` / `#exportText` stay on `--numerals`, since
+that block is a log meant to be pasted and its columns have to line up.
+
+Measured contrast, parchment (daylight): hero-ink/hero 13.54:1,
+brass/hero 7.54:1, hero-muted/hero 10.19:1, on-brass/brass 7.93:1,
+brass-edge/brass 5.16:1, ink/panel 14.82:1, ink/ground 12.10:1,
+muted/ground 6.33:1, muted/panel 7.75:1, oxblood/panel 9.64:1,
+oxblood/panel2 7.21:1. Dusk: hero-ink/hero 16.14:1, brass/hero 9.67:1,
+hero-muted/hero 11.32:1, on-brass/brass 7.98:1, brass-edge/brass 5.19:1,
+ink/panel 11.33:1, ink/panel2 9.54:1, ink/ground 14.31:1, muted/ground 10.03:1,
+muted/panel 7.94:1, oxblood/panel 7.05:1, oxblood/panel2 5.94:1. Tightest body
+pair either theme is dusk accent on leather at 5.94:1.
+
+Two non-text separations are deliberately low and the brass rule carries them
+instead. Brass on the parchment ground is 1.53:1, so the band's *outer* edge is
+soft in daylight — it reads against the leather it trims, which is 7.54:1. At
+dusk leather on mahogany is 1.13:1 for the same reason in reverse: the boundary
+is the 2px brass rule, not a luminance step. Both were checked on screen at
+390x844 before being accepted.
+
+Muted is still the token to check first, and it is still the one that moved a
+behaviour: locked rows (Short-sided, Chip) used to be the whole row at 35%
+opacity, which measured 2.04:1 and was simply unreadable in glare. They are now
+full-opacity muted type in a dashed outline — 6.33:1 in daylight, 10.03:1 at
+dusk — and they still read as locked.
