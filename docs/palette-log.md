@@ -231,3 +231,57 @@ behaviour: locked rows (Short-sided, Chip) used to be the whole row at 35%
 opacity, which measured 2.04:1 and was simply unreadable in glare. They are now
 full-opacity muted type in a dashed outline — 6.33:1 in daylight, 10.03:1 at
 dusk — and they still read as locked.
+
+---
+
+## Carbon & Paper — v58 (2026-09-30)
+
+Successor to the unlogged v57 quiet ivory. v57 flattened `--oxblood` to charcoal
+on a warm stone ground, so every selected control and the hole beam went soft.
+This entry is the Grok scoreboard: cool paper, true black ink, hairline sheets,
+no radius, no shadow. Dusk is the same drawing flipped — black floor, white
+board, white selected controls.
+
+One accent. It is the ink. `--oxblood` keeps its name because summary and trend
+markup paint with it; on this palette that accent is black by day and paper by
+dusk, not a second hue. `--brass` is the same ink, so the selected score cell
+matches every other selected control. Green, red, and warn stay semantic and
+do not paint surfaces.
+
+Numerals on screen stay the system grotesque with tabular figures. The export
+log stays `--numerals` (monospace) so pasted columns still line up. No webfont.
+
+| Token | Paper (default) | Dusk |
+|---|---|---|
+| ground | `#F4F4F2` | `#0A0A0A` |
+| panel | `#FFFFFF` | `#141414` |
+| panel2 | `#ECECEA` | `#1C1C1C` |
+| ink | `#111111` | `#F5F5F4` |
+| accent (`--oxblood`) | `#111111` | `#F5F5F4` |
+| muted | `#595957` | `#ABABAA` |
+| line | `#D2D2D0` | `#2A2A2A` |
+| line-strong | `#6E6E6C` | `#6A6A68` |
+| line-soft | `#E4E4E2` | `#222222` |
+| on accent | `#FFFFFF` | `#111111` |
+| brass | `#111111` | `#F5F5F4` |
+| hero | `#111111` | `#F5F5F4` |
+| hero-ink | `#FFFFFF` | `#111111` |
+| hero-muted | `#C6C6C4` | `#4E4E4C` |
+| hero-line | `#6A6A68` | `#111111` |
+| on-brass | `#FFFFFF` | `#111111` |
+| brass-edge | `#111111` | `#D0D0CE` |
+| green | `#0E6A3C` | `#9BE3BC` |
+| red | `#B4232C` | `#FFB4B6` |
+| warn | `#8A4510` | `#F2C48A` |
+
+Measured contrast, paper: ink/ground 17.15:1, ink/panel 18.88:1, ink/panel2 15.96:1,
+muted/ground 6.37:1, muted/panel 7.02:1, muted/panel2 5.93:1, on-accent/accent 18.88:1,
+hero-ink/hero 18.88:1, hero-muted/hero 11.04:1, on-brass/brass 18.88:1,
+green/ground 6.06:1, green/panel 6.68:1, red/ground 5.93:1, red/panel 6.53:1,
+warn/ground 6.49:1, warn/panel 7.14:1.
+Dusk: ink/ground 18.15:1, ink/panel 16.89:1, ink/panel2 15.62:1,
+muted/ground 8.61:1, muted/panel 8.02:1, muted/panel2 7.42:1, on-accent/accent 17.31:1,
+hero-ink/hero 17.31:1, hero-muted/hero 7.64:1, on-brass/brass 17.31:1,
+green/ground 13.30:1, green/panel 12.38:1, red/ground 11.74:1, red/panel 10.93:1,
+warn/ground 12.29:1, warn/panel 11.44:1.
+Tightest text pair is muted on panel2 in daylight at 5.93:1.
