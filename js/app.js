@@ -1187,7 +1187,12 @@ function move(d){
 
 function render(){
   var h=holes[cur], c=COURSE[cur];
-  var hn=document.getElementById('holeNum'); if(hn)hn.textContent=cur+1;
+  var hn=document.getElementById('holeNum');
+  if(hn){
+    hn.textContent=cur+1;
+    var ghost=document.getElementById('holeGhost');
+    if(ghost)ghost.textContent=cur+1;
+  }
   var hm=document.getElementById('holeMeta'); if(hm)hm.textContent=pvMeta(cur);
   var tt=document.getElementById('tipText'); if(tt)tt.textContent=pvTip(cur);
   pinSeg();

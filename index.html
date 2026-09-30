@@ -13,7 +13,7 @@
 <body>
 
 <div class="headerWrap">
-  <div class="brand"><span class="mark" aria-hidden="true"></span><div><span class="eyebrow">Country club</span><h1>Bay Oaks<span class="brandDot" aria-hidden="true">.</span></h1></div></div>
+  <div class="brand"><div class="crest" aria-hidden="true"><span>BO</span></div><div><span class="eyebrow">League City</span><h1>Bay Oaks<span class="brandDot" aria-hidden="true">.</span></h1></div></div>
   <div class="headerActions">
     <button id="installBtn" class="installBtn" hidden onclick="installApp()">Install</button>
     <button id="themeToggle" class="themeToggle" onclick="toggleTheme()">Dusk</button>
@@ -31,10 +31,14 @@
 
 <div id="holeView">
   <div class="beam">
+  <span class="tick tl" aria-hidden="true"></span>
+  <span class="tick tr" aria-hidden="true"></span>
+  <span class="tick bl" aria-hidden="true"></span>
+  <span class="tick br" aria-hidden="true"></span>
   <div class="nav">
     <button aria-label="Previous hole" onclick="move(-1)">&#8592;</button>
     <div class="holeLbl">
-      <div class="num">Hole <span id="holeNum">1</span></div>
+      <div class="num"><span class="ghost" id="holeGhost" aria-hidden="true">1</span><span class="kicker">Hole</span><span id="holeNum">1</span></div>
       <div class="meta" id="holeMeta"></div>
       <div class="done" id="doneLbl"></div>
     </div>

@@ -342,3 +342,19 @@ red/panel 10.25:1, warn/ground 11.86:1, warn/panel 10.73:1, hero-good/hero 10.85
 hero-bad/hero 11.31:1.
 Tightest text pair is accent on the mist ground at 5.83:1.
 
+---
+
+## Plate — v61 (2026-09-30)
+
+Same fairway colors as v60. Nothing was retinted. Three non-text tokens were
+added so the plate can carry a highlight without a new hue.
+
+| Token | Mist | Dusk | Job |
+|---|---|---|---|
+| sheen | `rgba(255,255,255,.5)` | `rgba(255,255,255,.42)` | Top edge on a pressed key |
+| lamp | `rgba(61,220,151,.32)` | `rgba(61,220,151,.2)` | Glow under the lit score |
+| dot | `rgba(16,32,24,.09)` | `rgba(232,244,236,.06)` | Ground grain, not type |
+
+The monogram, crop marks, ghost numeral, and score bug are drawing, not palette.
+
+
