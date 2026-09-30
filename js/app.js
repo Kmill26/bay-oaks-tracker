@@ -104,7 +104,7 @@ function applyTheme(isDusk){
   syncStatusBar();
 }
 // The Android status bar is painted from theme-color. It was frozen at the
-// daylight ground, so dusk left a parchment strip above a mahogany app. Read
+// daylight ground, so dusk left a light strip above the dark app. Read
 // --ground, not the computed background-color: the background is mid-transition
 // when the theme flips, so that would bake in the outgoing colour. Reading the
 // token also keeps every hex in styles.css.
@@ -206,7 +206,8 @@ function setGlobalTee(t){
   vibe(20);
   ensureDate();
   state.tee=t;
-  holes.forEach(function(h){h.tee=t;});
+  // null means inherit the round default. Explicit values are intentional
+  // hole choices, including legacy combo rounds, and must never be overwritten.
   touch();
   render();
 }
@@ -525,6 +526,8 @@ function heldEntryDiff(){
   if(state.mode&&disk.mode&&state.mode!==disk.mode)meta.push('round mode ('+state.mode+' here, '+disk.mode+' there)');
   var mp=state.pin&&state.pin!=='?'?state.pin:null, dp=disk.pin&&disk.pin!=='?'?disk.pin:null;
   if(mp&&dp&&mp!==dp)meta.push('pin ('+mp+' here, '+dp+' there)');
+  var mt=state.tee||'blue', dt=disk.tee||'blue';
+  if(mt!==dt)meta.push('round tees ('+mt+' here, '+dt+' there)');
   if(meta.length)return {ok:false,reason:'meta',meta:meta};
   var mine=state.holes, conflicts=[], applied=[];
   for(var i=0;i<18;i++){
@@ -847,21 +850,42 @@ function recommendClub(dist, holeIdx){
   return {club:last.club, swing:last.swing, carry:last.carry, eff:eff};
 }
 
+function teeName(t){return t==='tips'?'Tips':(t==='white'?'White':'Blue');}
 function renderTeeSelector(){
   var box=document.getElementById('holeTeeBtns');
   if(!box)return;
   box.innerHTML='';
-  var activeT=holeTee(cur);
-  var tees=[
-    {id:'blue', label:'Blue '+COURSE[cur].cy+'y'},
-    {id:'tips', label:'Tips '+PV[cur].by+'y'}
-  ];
+  var roundT=state.tee||'blue', override=holes[cur].tee;
+  var tees=['blue','tips'];
+  // Preserve and explain an existing White round without changing its data.
+  if(roundT==='white')tees.push('white');
   tees.forEach(function(t){
     var btn=document.createElement('button');
-    btn.textContent=t.label;
-    if(activeT===t.id)btn.className='on';
-    btn.onclick=function(){setHoleTee(t.id);};
+    btn.textContent=teeName(t)+' '+holeYardage(cur,t)+'y';
+    btn.ariaPressed=String(roundT===t);
+    if(roundT===t)btn.className='on';
+    btn.onclick=function(){setGlobalTee(t);};
     box.appendChild(btn);
+  });
+  var tag=document.getElementById('roundTeeTag');
+  if(tag)tag.textContent='Whole round';
+  var label=document.getElementById('holeTeeOverrideLabel');
+  if(label)label.textContent=override?'Hole '+(cur+1)+': '+teeName(override)+' override':'Different tee on this hole';
+  var detail=document.getElementById('holeTeeOverride');
+  if(detail)detail.className='teeOverride'+(override?' hasOverride':'');
+  var note=document.getElementById('teeScopeNote');
+  if(note)note.textContent=override?'This hole uses '+teeName(override)+'. Other holes follow '+teeName(roundT)+', unless customized.':'All holes follow '+teeName(roundT)+', unless customized below.';
+  var custom=document.getElementById('holeTeeOverrideBtns');
+  if(!custom)return;
+  custom.innerHTML='';
+  [null,'blue','tips','white'].forEach(function(t){
+    var btn=document.createElement('button');
+    btn.textContent=t?teeName(t):'Round';
+    btn.ariaLabel=t?'Use '+teeName(t)+' on this hole':'Use round tees on this hole';
+    btn.ariaPressed=String((override||null)===t);
+    if((override||null)===t)btn.className='on';
+    btn.onclick=function(){setHoleTee(t);};
+    custom.appendChild(btn);
   });
 }
 
@@ -1121,6 +1145,8 @@ function pinSeg(){
   ['?','A','B','C','D','E'].forEach(function(o){
     var b=document.createElement('button');
     b.textContent=o;
+    b.ariaPressed=String((state.pin||'?')===o);
+    b.ariaLabel=o==='?'?'Pin sheet unknown':'Pin sheet '+o+' for the whole round';
     if((state.pin||'?')===o)b.className='on';
     b.onclick=function(){vibe(15); ensureDate(); state.pin=o; touch(); render();};
     el.appendChild(b);
@@ -1170,7 +1196,10 @@ function render(){
   var m=(state&&state.mode)||'full';
   ['Full','Front','Back'].forEach(function(k){
     var btn=document.getElementById('mode'+k);
-    if(btn)btn.className='modeBtn'+(m===k.toLowerCase()?' on':'');
+    if(btn){
+      btn.className='modeBtn'+(m===k.toLowerCase()?' on':'');
+      btn.ariaPressed=String(m===k.toLowerCase());
+    }
   });
 
   var r=targetHolesRange();
