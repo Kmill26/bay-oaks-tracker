@@ -1224,7 +1224,11 @@ function render(){
   seg('ssBtns',[{label:'Yes',val:true},{label:'No',val:false}],'ss');
   seg('chipBtns',[{label:'≤ 6 ft',val:'in'},{label:'> 6 ft',val:'out'},{label:'n/a',val:'na'}],'chip');
   var sd=h.score===null?null:h.score-c.par;
-  var sv=document.getElementById('scoreVal'); if(sv)sv.textContent=h.score===null?'–':h.score+' ('+(sd===0?'E':(sd>0?'+':'')+sd)+')';
+  var sv=document.getElementById('scoreVal');
+  if(sv){
+    sv.textContent=h.score===null?'–':h.score+' ('+(sd===0?'E':(sd>0?'+':'')+sd)+')';
+    sv.className='scoreNow'+(h.score===null?'':sd<0?' under':sd>0?' over':' even');
+  }
   var pv=document.getElementById('puttsVal'); if(pv)pv.textContent=h.putts===null?'–':h.putts;
   var sa=document.getElementById('sixAttVal'); if(sa)sa.textContent=h.sixAtt;
   var sm=document.getElementById('sixMadeVal'); if(sm)sm.textContent=h.sixMade;

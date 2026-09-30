@@ -285,3 +285,60 @@ hero-ink/hero 17.31:1, hero-muted/hero 7.64:1, on-brass/brass 17.31:1,
 green/ground 13.30:1, green/panel 12.38:1, red/ground 11.74:1, red/panel 10.93:1,
 warn/ground 12.29:1, warn/panel 11.44:1.
 Tightest text pair is muted on panel2 in daylight at 5.93:1.
+
+---
+
+## Fairway — v60 (2026-09-30)
+
+Carbon & Paper read as a blank form. The card goes back to a course: mist paper,
+a dark hole board, one green. Deep green (`--oxblood`) paints the mark, the
+section titles, and every selected answer on the paper, where a light green
+would sit too close to white. The same hue, lamp-bright (`--brass` `#3DDC97`),
+is the stripe on the board and the selected score, with near-black type on it.
+Dusk does not flip the board white. The floor goes to night green and the lamp
+stays the accent, so a selected score still glows.
+
+`--serif` is Georgia / Iowan / Palatino for the name, the hole number, and the
+score. Body stays the system sans. The export log stays `--numerals`. No webfont.
+`--hero-good` and `--hero-bad` are the semantic green and red lifted so they
+read on the dark board. They do not paint surfaces.
+
+| Token | Mist (default) | Dusk |
+|---|---|---|
+| ground | `#EEF3EF` | `#0A100E` |
+| panel | `#FFFFFF` | `#141C18` |
+| panel2 | `#E3EFE7` | `#1E2A24` |
+| ink | `#102018` | `#E8F4EC` |
+| accent (`--oxblood`) | `#0E6B45` | `#3DDC97` |
+| muted | `#3C5246` | `#A9C2B4` |
+| line | `#C5D5CB` | `#2C3D34` |
+| line-strong | `#567066` | `#6E8A7C` |
+| line-soft | `#E4EEE8` | `#24332C` |
+| on accent | `#F4FBF7` | `#062117` |
+| brass | `#3DDC97` | `#3DDC97` |
+| hero | `#0C1612` | `#07110E` |
+| hero-ink | `#F3FAF6` | `#F2FBF6` |
+| hero-muted | `#B4C9BC` | `#9BB5A8` |
+| hero-line | `#2C4036` | `#1C2C24` |
+| hero-good | `#8EE0B4` | `#3DDC97` |
+| hero-bad | `#FFB8B2` | `#FFB4AE` |
+| on-brass | `#062117` | `#062117` |
+| brass-edge | `#062117` | `#062117` |
+| green | `#0E6B45` | `#3DDC97` |
+| red | `#9C2B24` | `#FFB4AE` |
+| warn | `#8A4B12` | `#F0C48A` |
+
+Measured contrast, mist: ink/ground 15.06:1, ink/panel 16.91:1, ink/panel2 14.31:1,
+muted/ground 7.52:1, muted/panel 8.44:1, muted/panel2 7.14:1, accent/ground 5.83:1,
+accent/panel 6.55:1, on-accent/accent 6.23:1, hero-ink/hero 17.40:1,
+hero-muted/hero 10.55:1, on-brass/brass 9.60:1, green/ground 5.83:1, green/panel 6.55:1,
+red/ground 6.72:1, red/panel 7.54:1, warn/ground 6.04:1, warn/panel 6.78:1,
+hero-good/hero 11.83:1, hero-bad/hero 11.19:1.
+Dusk: ink/ground 17.00:1, ink/panel 15.37:1, ink/panel2 13.16:1, muted/ground 10.12:1,
+muted/panel 9.15:1, muted/panel2 7.84:1, accent/ground 10.87:1, accent/panel 9.83:1,
+on-accent/accent 9.60:1, hero-ink/hero 18.17:1, hero-muted/hero 8.73:1,
+on-brass/brass 9.60:1, green/ground 10.87:1, green/panel 9.83:1, red/ground 11.33:1,
+red/panel 10.25:1, warn/ground 11.86:1, warn/panel 10.73:1, hero-good/hero 10.85:1,
+hero-bad/hero 11.31:1.
+Tightest text pair is accent on the mist ground at 5.83:1.
+
