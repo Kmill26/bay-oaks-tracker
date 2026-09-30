@@ -82,8 +82,19 @@ h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-.045em;line-height:1;
 
 .nav{
   display:flex;align-items:center;justify-content:space-between;gap:8px;
-  margin:0;padding:16px 12px 14px;border-radius:0;background:var(--hero);color:var(--hero-ink);
+  margin:0;padding:14px 12px 8px;border-radius:0;background:transparent;color:var(--hero-ink);
 }
+.beam{background:var(--hero);color:var(--hero-ink);}
+.beam .scoreSheet{margin:0;background:transparent;border:0;}
+.beam .scoreCard{padding:4px 14px 16px;border:0;}
+.beam .lbl,.beam .scoreNow{color:var(--hero-ink);}
+.beam .btns button,.beam .mini{
+  background:transparent;color:var(--hero-ink);border-color:var(--hero-line);
+}
+.beam .btns button.on,.beam .scoreCard .btns button.on{
+  background:var(--hero-ink);border-color:var(--hero-ink);color:var(--hero);
+}
+.beam .mini{background:transparent;}
 .nav button{
   flex:0 0 44px;width:44px;height:44px;border:1px solid var(--hero-line);border-radius:0;
   background:transparent;color:var(--hero-ink);font-size:22px;line-height:1;
@@ -95,7 +106,7 @@ h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-.045em;line-height:1;
   font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--hero-muted);
 }
 #holeNum{
-  font-size:84px;font-weight:520;line-height:.82;letter-spacing:-.07em;color:var(--hero-ink);
+  font-size:72px;font-weight:520;line-height:.82;letter-spacing:-.07em;color:var(--hero-ink);
 }
 .holeLbl .meta{margin-top:10px;font-size:12px;font-weight:550;line-height:1.4;color:var(--hero-ink);}
 .holeLbl .done{margin-top:4px;font-size:11px;letter-spacing:.04em;line-height:1.4;color:var(--hero-muted);}
@@ -245,7 +256,7 @@ pre{
   h1{font-size:24px;}
   .btns{gap:4px;}
   .nav{padding-inline:8px;}
-  #holeNum{font-size:68px;}
+  #holeNum{font-size:60px;}
   .holeLbl .meta{font-size:11px;}
   .scoreWrap .btns{min-width:100%;}
   .scoreWrap .mini{flex:1;}

@@ -30,6 +30,7 @@
 <div id="fatigueAlert" class="fatigueBanner"></div>
 
 <div id="holeView">
+  <div class="beam">
   <div class="nav">
     <button aria-label="Previous hole" onclick="move(-1)">&#8592;</button>
     <div class="holeLbl">
@@ -38,6 +39,17 @@
       <div class="done" id="doneLbl"></div>
     </div>
     <button aria-label="Next hole" onclick="move(1)">&#8594;</button>
+  </div>
+  <section class="sheet scoreSheet">
+  <div class="row scoreCard">
+    <div class="lbl"><span>Score</span><span class="scoreNow" id="scoreVal">&ndash;</span></div>
+    <div class="scoreWrap">
+      <div class="btns" id="scoreBtns"></div>
+      <button class="mini" aria-label="Decrease score" onclick="bump('score',-1)">&minus;</button>
+      <button class="mini" aria-label="Increase score" onclick="bump('score',1)">+</button>
+    </div>
+  </div>
+  </section>
   </div>
 
   <div class="tip"><b>Game plan</b><span id="tipText"></span></div>
@@ -60,18 +72,6 @@
   <div class="row">
     <div class="lbl"><span>Today's pin sheet</span><span class="scopeTag">Whole round</span></div>
     <div class="btns" id="pinBtns" role="group" aria-label="Daily pin sheet for the whole round"></div>
-  </div>
-
-  </section>
-  <section class="sheet">
-    <h2 class="sheetTitle">Score</h2>
-  <div class="row scoreCard">
-    <div class="lbl"><span>Score</span><span class="scoreNow" id="scoreVal">&ndash;</span></div>
-    <div class="scoreWrap">
-      <div class="btns" id="scoreBtns"></div>
-      <button class="mini" aria-label="Decrease score" onclick="bump('score',-1)">&minus;</button>
-      <button class="mini" aria-label="Increase score" onclick="bump('score',1)">+</button>
-    </div>
   </div>
 
   </section>
