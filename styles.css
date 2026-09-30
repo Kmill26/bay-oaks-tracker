@@ -1,32 +1,32 @@
-/* v61 Plate. Same fairway colors as v60. The page is a printed card now:
-   monogram, crop marks, a ghost hole number, a score bug. Sheen and lamp
-   are highlights, not new hues. */
+/* v62 Slate. Charcoal board, cool paper, one orange. Deep rust on the
+   paper so small type survives glare. Lamp orange on the board, where it
+   can be bright. Green and red stay on the score only. */
 :root{
   color-scheme:light;
-  --ground:#EEF3EF; --panel:#FFFFFF; --panel2:#E3EFE7;
-  --ink:#102018; --oxblood:#0E6B45; --muted:#3C5246;
-  --line:#C5D5CB; --line-strong:#567066; --line-soft:#E4EEE8;
-  --on-oxblood:#F4FBF7; --green:#0E6B45; --red:#9C2B24; --warn:#8A4B12;
-  --brass:#3DDC97; --hero:#0C1612; --hero-ink:#F3FAF6; --hero-muted:#B4C9BC;
-  --hero-line:#2C4036; --hero-good:#8EE0B4; --hero-bad:#FFB8B2;
-  --on-brass:#062117; --brass-edge:#062117;
-  --accent:#0E6B45; --focus:#0E6B45; --shadow:rgba(12,22,18,.18);
-  --sheen:rgba(255,255,255,.5); --lamp:rgba(61,220,151,.32); --dot:rgba(16,32,24,.09);
+  --ground:#E6E8ED; --panel:#F6F7F9; --panel2:#D9DDE4;
+  --ink:#171A1F; --oxblood:#9A3412; --muted:#4A5160;
+  --line:#C5CAD3; --line-strong:#5C6573; --line-soft:#E2E5EB;
+  --on-oxblood:#FFF7F2; --green:#0E6B45; --red:#B4232C; --warn:#8A4510;
+  --brass:#FF8A3D; --hero:#1B1E24; --hero-ink:#F4F5F7; --hero-muted:#C5CAD3;
+  --hero-line:#3A404A; --hero-good:#8EE0B4; --hero-bad:#FFB4AE;
+  --on-brass:#1A1008; --brass-edge:#1A1008;
+  --accent:#9A3412; --focus:#9A3412; --shadow:rgba(23,26,31,.2);
+  --sheen:rgba(255,255,255,.5); --lamp:rgba(255,138,61,.34); --dot:rgba(23,26,31,.08);
   --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --serif:Georgia,"Iowan Old Style","Palatino Linotype",Palatino,serif;
   --numerals:ui-monospace,"SF Mono","Roboto Mono",monospace;
 }
 body.dusk{
   color-scheme:dark;
-  --ground:#0A100E; --panel:#141C18; --panel2:#1E2A24;
-  --ink:#E8F4EC; --oxblood:#3DDC97; --muted:#A9C2B4;
-  --line:#2C3D34; --line-strong:#6E8A7C; --line-soft:#24332C;
-  --on-oxblood:#062117; --green:#3DDC97; --red:#FFB4AE; --warn:#F0C48A;
-  --brass:#3DDC97; --hero:#07110E; --hero-ink:#F2FBF6; --hero-muted:#9BB5A8;
-  --hero-line:#1C2C24; --hero-good:#3DDC97; --hero-bad:#FFB4AE;
-  --on-brass:#062117; --brass-edge:#062117;
-  --accent:#3DDC97; --focus:#3DDC97; --shadow:rgba(0,0,0,.5);
-  --sheen:rgba(255,255,255,.42); --lamp:rgba(61,220,151,.2); --dot:rgba(232,244,236,.06);
+  --ground:#121418; --panel:#1C1F26; --panel2:#262A33;
+  --ink:#F2F3F5; --oxblood:#FF8A3D; --muted:#B7BDC8;
+  --line:#2E333C; --line-strong:#8B93A1; --line-soft:#262B34;
+  --on-oxblood:#1A1008; --green:#8EE0B4; --red:#FFB4AE; --warn:#F0C48A;
+  --brass:#FF8A3D; --hero:#0E1014; --hero-ink:#F6F7F9; --hero-muted:#B0B6C2;
+  --hero-line:#343A46; --hero-good:#8EE0B4; --hero-bad:#FFB4AE;
+  --on-brass:#1A1008; --brass-edge:#1A1008;
+  --accent:#FF8A3D; --focus:#FF8A3D; --shadow:rgba(0,0,0,.5);
+  --sheen:rgba(255,255,255,.4); --lamp:rgba(255,138,61,.22); --dot:rgba(242,243,245,.055);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html{background:var(--ground);}

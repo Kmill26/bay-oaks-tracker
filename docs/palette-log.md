@@ -357,4 +357,60 @@ added so the plate can carry a highlight without a new hue.
 
 The monogram, crop marks, ghost numeral, and score bug are drawing, not palette.
 
+---
+
+## Slate — v62 (2026-09-30)
+
+Green was the wrong accent. The plate stays. The materials change: cool slate
+paper, a charcoal hole board, one orange. Deep rust (`--oxblood` `#9A3412`) is
+the accent on paper, because a bright orange fails as small type in glare.
+Lamp orange (`--brass` `#FF8A3D`) is the stripe, the arrows, the ghost numeral,
+and the selected score, with near-black type on it. Dusk does not flip the
+board. The floor goes charcoal and the same lamp stays lit.
+
+Green and red are still only the score against par. They do not paint chrome.
+
+| Token | Slate (default) | Dusk |
+|---|---|---|
+| ground | `#E6E8ED` | `#121418` |
+| panel | `#F6F7F9` | `#1C1F26` |
+| panel2 | `#D9DDE4` | `#262A33` |
+| ink | `#171A1F` | `#F2F3F5` |
+| accent (`--oxblood`) | `#9A3412` | `#FF8A3D` |
+| muted | `#4A5160` | `#B7BDC8` |
+| line | `#C5CAD3` | `#2E333C` |
+| line-strong | `#5C6573` | `#8B93A1` |
+| line-soft | `#E2E5EB` | `#262B34` |
+| on accent | `#FFF7F2` | `#1A1008` |
+| brass | `#FF8A3D` | `#FF8A3D` |
+| hero | `#1B1E24` | `#0E1014` |
+| hero-ink | `#F4F5F7` | `#F6F7F9` |
+| hero-muted | `#C5CAD3` | `#B0B6C2` |
+| hero-line | `#3A404A` | `#343A46` |
+| hero-good | `#8EE0B4` | `#8EE0B4` |
+| hero-bad | `#FFB4AE` | `#FFB4AE` |
+| on-brass | `#1A1008` | `#1A1008` |
+| brass-edge | `#1A1008` | `#1A1008` |
+| green | `#0E6B45` | `#8EE0B4` |
+| red | `#B4232C` | `#FFB4AE` |
+| warn | `#8A4510` | `#F0C48A` |
+| sheen | `rgba(255,255,255,.5)` | `rgba(255,255,255,.4)` |
+| lamp | `rgba(255,138,61,.34)` | `rgba(255,138,61,.22)` |
+| dot | `rgba(23,26,31,.08)` | `rgba(242,243,245,.055)` |
+
+Measured contrast, slate: ink/ground 14.23:1, ink/panel 16.27:1, ink/panel2 12.80:1,
+muted/ground 6.50:1, muted/panel 7.43:1, muted/panel2 5.84:1, accent/ground 5.96:1,
+accent/panel 6.82:1, accent/panel2 5.36:1, on-accent/accent 6.90:1, hero-ink/hero 15.31:1,
+hero-muted/hero 10.15:1, on-brass/brass 7.98:1, brass/hero 7.12:1, green/ground 5.34:1,
+green/panel 6.11:1, red/ground 5.32:1, red/panel 6.09:1, warn/ground 5.83:1,
+warn/panel 6.66:1, warn/panel2 5.24:1, hero-good/hero 10.71:1, hero-bad/hero 9.85:1.
+Dusk: ink/ground 16.61:1, ink/panel 14.85:1, ink/panel2 12.94:1, muted/ground 9.77:1,
+muted/panel 8.74:1, muted/panel2 7.61:1, accent/ground 7.86:1, accent/panel 7.03:1,
+on-accent/accent 7.98:1, hero-ink/hero 17.76:1, hero-muted/hero 9.35:1,
+on-brass/brass 7.98:1, green/ground 11.83:1, green/panel 10.58:1, red/ground 10.88:1,
+red/panel 9.73:1, warn/ground 11.39:1, warn/panel 10.18:1, hero-good/hero 12.21:1,
+hero-bad/hero 11.24:1.
+Tightest text pair is warn on panel2 in daylight at 5.24:1.
+
+
 

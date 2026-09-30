@@ -1,9 +1,9 @@
-const C='bayoaks-v61';
+const C='bayoaks-v62';
 // v17.1: the app is no longer one file. Every split asset must be precached or the PWA
 // breaks offline in a way that only shows up on the course with no signal.
 const ASSETS=['./','./index.html','./styles.css','./manifest.json','./icon-192.png','./icon-512.png',
   './js/seed.js','./js/stats.js','./js/course.js','./js/player.js','./js/app.js'];
-// v61: plate, monogram, ghost hole number. Same fairway colors.
+// v62: charcoal board, slate paper, orange lamp. Green was the wrong accent.
 // v54: a new shell waits until this one is closed. Activating it under an open
 // round reloads the hole when the signal blips, which is the failure mode on the back nine.
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(ASSETS)));});
