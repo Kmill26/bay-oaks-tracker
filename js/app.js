@@ -816,6 +816,7 @@ function newRound(){
   }
   state.date=today(); state.holes=mk(); state.dirty=false; state.exported=false;
   state.pin='?'; state.mode=prevMode; state.tee=prevTee;
+  setupForced=false;
   state.roundId=mintRoundId(state.date);   // a new round is a new identity, same day or not
   if(!save()){
     // Put the player back exactly where they were, with everything still exportable.
@@ -851,6 +852,35 @@ function recommendClub(dist, holeIdx){
 }
 
 function teeName(t){return t==='tips'?'Tips':(t==='white'?'White':'Blue');}
+var setupForced=false;
+function toggleSetup(){
+  var pin=state&&state.pin;
+  if(!pin||pin==='?')return;
+  setupForced=!setupForced;
+  render();
+}
+function setupOpen(){
+  var pin=state&&state.pin;
+  if(!pin||pin==='?')return true;
+  return !!setupForced;
+}
+function renderSetup(){
+  var sheet=document.getElementById('setupSheet');
+  var open=setupOpen();
+  if(sheet)sheet.hidden=!open;
+  var bar=document.getElementById('roundBarLabel');
+  var act=document.getElementById('roundBarAct');
+  var roundBtn=document.getElementById('roundBar');
+  if(roundBtn)roundBtn.ariaExpanded=open?'true':'false';
+  if(bar){
+    var tee=teeName((state&&state.tee)||'blue');
+    var pin=state&&state.pin&&state.pin!=='?'?('Pin '+state.pin):'Pin not set';
+    var n=0;
+    if(holes){for(var i=0;i<holes.length;i++){if(holes[i]&&holes[i].tee)n++;}}
+    bar.textContent=tee+' tees · '+pin+(n?(' · '+n+(n===1?' hole override':' hole overrides')):'');
+  }
+  if(act)act.textContent=(!state||!state.pin||state.pin==='?')?'Needed':(open?'Hide':'Change');
+}
 function renderTeeSelector(){
   var box=document.getElementById('holeTeeBtns');
   if(!box)return;
@@ -1148,7 +1178,13 @@ function pinSeg(){
     b.ariaPressed=String((state.pin||'?')===o);
     b.ariaLabel=o==='?'?'Pin sheet unknown':'Pin sheet '+o+' for the whole round';
     if((state.pin||'?')===o)b.className='on';
-    b.onclick=function(){vibe(15); ensureDate(); state.pin=o; touch(); render();};
+    b.onclick=function(){
+      vibe(15); ensureDate();
+      var was=state.pin;
+      state.pin=o;
+      if(o&&o!=='?'&&(!was||was==='?'))setupForced=false;
+      touch(); render();
+    };
     el.appendChild(b);
   });
 }
@@ -1197,6 +1233,7 @@ function render(){
   var tt=document.getElementById('tipText'); if(tt)tt.textContent=pvTip(cur);
   pinSeg();
   renderTeeSelector();
+  renderSetup();
 
   var m=(state&&state.mode)||'full';
   ['Full','Front','Back'].forEach(function(k){
