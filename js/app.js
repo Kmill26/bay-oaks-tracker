@@ -1679,6 +1679,17 @@ function shareExport(){
   copyExport(true);
 }
 
+// v67: the version Kenny can read in the summary; a test keeps it equal to sw.js.
+var APP_VERSION='v67';
+function showAppVersion(){ var v=document.getElementById('appVersion'); if(v) v.textContent='Bay Oaks Tracker '+APP_VERSION; }
+function showUpdateBanner(){ var b=document.getElementById('updateBanner'); if(b) b.hidden=false; }
+// A reload alone cannot swap in a waiting worker; only closing every window of the app does.
+function applyUpdate(){
+  var b=document.getElementById('updateBanner');
+  if(b) b.textContent='To load it: swipe Bay Oaks away in Recents, close any Chrome tab on this site, then reopen.';
+  return false;
+}
+
 // v64: one file holding every round this phone has, so the native app can import the history.
 // It reads the saved store only and changes nothing.
 // v66: Chrome on Android will not share an application/json file, so canShare() said no and
@@ -1744,7 +1755,7 @@ function backupJSON(){
   return backupFallback(payload,base+'.json',why);
 }
 
-load(); render(); electWriter(); showSaveState();
+load(); render(); electWriter(); showSaveState(); showAppVersion();
 // v29: another tab writing the round is a fact this tab needs to know before it tries to
 // write over it. onExternalWrite() lives above so the oracle can drive it directly.
 if(typeof window!=='undefined'&&window.addEventListener){
@@ -1767,8 +1778,17 @@ syncVoiceAvailability();
 readMicPermission();
 // v54: updateViaCache none so GitHub Pages' HTTP cache cannot pin an old shell.
 // No reload when a worker takes control — that reload landed mid-round on a signal blip.
+// v67: a waiting worker is announced, never forced (v54 rule, held by the oracle). The banner
+// tells Kenny how to load it; nothing here activates the new worker or reloads the page.
 if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
   navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(reg){
+    if(reg&&reg.waiting&&navigator.serviceWorker.controller) showUpdateBanner();
+    if(reg&&reg.addEventListener) reg.addEventListener('updatefound',function(){
+      var w=reg.installing; if(!w)return;
+      w.addEventListener('statechange',function(){
+        if(w.state==='installed'&&navigator.serviceWorker.controller) showUpdateBanner();
+      });
+    });
     if(reg&&reg.update) reg.update();
   }).catch(function(){});
 }

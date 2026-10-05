@@ -335,3 +335,10 @@ pre{
   button:active{transform:none;}
   .micBtn.listening{animation:none;}
 }
+
+/* v67: version label in the summary, and the tap-to-update banner (never automatic). */
+.appVersion{margin-top:6px;color:var(--muted);font-size:12px;text-align:center;}
+.updateBanner{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:50;
+  min-height:48px;border:1px solid var(--ink);border-radius:6px;background:var(--panel);color:var(--ink);
+  font-size:15px;font-weight:700;}
+.updateBanner[hidden]{display:none;}

@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
+<button id="updateBanner" class="updateBanner" type="button" hidden onclick="applyUpdate()">Update ready. Tap for how to load it.</button>
 
 <div class="headerWrap">
   <div class="brand"><div class="crest" aria-hidden="true"><span>BO</span></div><div><span class="eyebrow">League City</span><h1>Bay Oaks<span class="brandDot" aria-hidden="true">.</span></h1></div></div>
@@ -166,6 +167,7 @@
     <button class="newRoundBtn" style="margin-top:0; flex:1;" onclick="copyGeminiPrompt()">Copy Prompt</button>
     <button class="newRoundBtn" style="margin-top:0; flex:1;" onclick="backupJSON()">Backup JSON</button>
   </div>
+  <div class="appVersion" id="appVersion"></div>
   <button class="newRoundBtn" onclick="newRound()">Start New Round</button>
 </div>
 

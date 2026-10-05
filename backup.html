@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Bay Oaks backup</title>
+<!-- v67: stand-alone on purpose. Not in sw.js ASSETS and skipped by the SW fetch handler, so
+     it always comes from the network, and it loads nothing from the cached app. It only READS
+     localStorage; it never writes, removes or clears anything. -->
+<style>
+  :root{--ground:#F6F4EF;--ink:#171A1F;--muted:#4A5160;--panel:#FFFFFF;--green:#0E6B45;--red:#B4232C;}
+  @media (prefers-color-scheme:dark){:root{--ground:#101216;--ink:#F2F3F5;--muted:#B7BDC8;--panel:#1A1D23;--green:#8EE0B4;--red:#FFB4AE;}}
+  body{margin:0;padding:20px 16px 40px;background:var(--ground);color:var(--ink);font:16px/1.4 system-ui,sans-serif;}
+  h1{font-size:20px;margin:0 0 4px;} .sub{color:var(--muted);font-size:14px;margin:0 0 16px;}
+  .facts{background:var(--panel);border:1px solid var(--ink);border-radius:6px;padding:12px 14px;margin-bottom:16px;}
+  .facts div{margin:2px 0;}
+  button{display:block;width:100%;min-height:56px;margin:0 0 10px;border:1px solid var(--ink);border-radius:6px;
+    background:var(--panel);color:var(--ink);font-size:17px;font-weight:700;}
+  #result{min-height:24px;margin:6px 0 12px;font-size:15px;font-weight:650;}
+  #result.ok{color:var(--green);} #result.bad{color:var(--red);}
+  textarea{display:none;width:100%;box-sizing:border-box;height:50vh;font:12px/1.35 ui-monospace,monospace;
+    background:var(--panel);color:var(--ink);border:1px solid var(--ink);border-radius:6px;padding:8px;}
+</style>
+</head>
+<body>
+<h1>Bay Oaks backup</h1>
+<p class="sub">Reads the rounds saved on this phone. Changes nothing.</p>
+<div class="facts" id="facts">Reading saved rounds…</div>
+<div id="result" role="status" aria-live="polite"></div>
+<button id="shareBtn" type="button">Share file</button>
+<button id="copyBtn" type="button">Copy to clipboard</button>
+<button id="showBtn" type="button">Show text</button>
+<textarea id="text" readonly spellcheck="false" aria-label="Backup JSON"></textarea>
+<script>
+(function(){
+  var STORE='bayoaks-rounds-v6'; // same key as js/seed.js; a test keeps them equal
+  function errText(e){return (e&&(e.name||e.message))||String(e);}
+  function readStore(){
+    var raw=null;
+    try{ raw=localStorage.getItem(STORE); }catch(e){ return {error:'Could not read saved data ('+errText(e)+').'}; }
+    if(raw==null) return {error:'No saved rounds found in this browser on this phone.'};
+    var data;
+    try{ data=JSON.parse(raw); }catch(e){ return {error:'Saved data is not valid JSON ('+errText(e)+').', raw:raw}; }
+    return {data:data, raw:raw};
+  }
+  function summarize(data){
+    var rounds=(data&&Array.isArray(data.rounds))?data.rounds:[];
+    var newest=null;
+    rounds.forEach(function(r){ if(r&&r.date&&(!newest||r.date>newest)) newest=r.date; });
+    var holes=(data&&Array.isArray(data.holes))?data.holes:[];
+    var scored=holes.filter(function(h){return h&&h.score!=null;}).length;
+    return {rounds:rounds.length, newest:newest, liveDate:(data&&data.date)||null, liveScored:scored};
+  }
+  function buildPayload(data){
+    return JSON.stringify({app:'bay-oaks-tracker',kind:'backup',format:1,store:STORE,
+      exportedAt:new Date().toISOString(),source:'backup.html',data:data});
+  }
+  function fileName(){
+    var d=new Date(), p=function(n){return (n<10?'0':'')+n;};
+    return 'bay-oaks-backup-'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'.txt';
+  }
+  var $=function(id){return document.getElementById(id);};
+  function say(text,ok){ var r=$('result'); r.textContent=text; r.className=ok?'ok':'bad'; }
+
+  var got=readStore(), payload=null;
+  if(got.data!==undefined){
+    var s=summarize(got.data);
+    payload=buildPayload(got.data);
+    $('facts').innerHTML='';
+    [s.rounds+' saved round'+(s.rounds===1?'':'s'),
+     'Newest saved round: '+(s.newest||'none'),
+     'Round on screen: '+(s.liveDate||'none')+', '+s.liveScored+' of 18 holes scored',
+     'Backup size: '+payload.length.toLocaleString()+' characters'
+    ].forEach(function(t){var d=document.createElement('div'); d.textContent=t; $('facts').appendChild(d);});
+  }else{
+    $('facts').textContent=got.error;
+    if(got.raw) payload=got.raw; // still let him copy the raw bytes by hand
+  }
+
+  $('shareBtn').onclick=function(){
+    if(!payload){ say('Nothing to share: '+got.error,false); return; }
+    var f;
+    try{ f=new File([payload],fileName(),{type:'text/plain'}); }catch(e){ say('Could not build the file ('+errText(e)+'). Use Copy or Show text.',false); return; }
+    if(!(navigator.canShare&&navigator.share)){ say('This browser has no file sharing. Use Copy or Show text.',false); return; }
+    var can=false; try{ can=navigator.canShare({files:[f]}); }catch(e){ say('Share check failed ('+errText(e)+'). Use Copy or Show text.',false); return; }
+    if(!can){ say('This browser would not share the file. Use Copy or Show text.',false); return; }
+    navigator.share({files:[f],title:f.name}).then(
+      function(){ say('Shared '+f.name+'.',true); },
+      function(e){ if(e&&e.name==='AbortError') say('Share cancelled. Nothing was sent.',false);
+                   else say('Share failed ('+errText(e)+'). Use Copy or Show text.',false); });
+  };
+  function manualCopy(){
+    var t=$('text'); t.value=payload; t.style.display='block'; t.focus(); t.select();
+    var ok=false; try{ ok=document.execCommand('copy')===true; }catch(e){ ok=false; }
+    return ok;
+  }
+  $('copyBtn').onclick=function(){
+    if(!payload){ say('Nothing to copy: '+got.error,false); return; }
+    var fallback=function(why){
+      if(manualCopy()) say('Copied to clipboard ('+payload.length.toLocaleString()+' characters).',true);
+      else say((why?why+' ':'')+'Copy failed. The text is selected below: long-press it and choose Copy.',false);
+    };
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(payload).then(
+        function(){ say('Copied to clipboard ('+payload.length.toLocaleString()+' characters).',true); },
+        function(e){ fallback('Clipboard refused ('+errText(e)+').'); });
+    }else fallback('');
+  };
+  $('showBtn').onclick=function(){
+    if(!payload){ say('Nothing to show: '+got.error,false); return; }
+    var t=$('text'); t.value=payload; t.style.display='block'; t.focus(); t.select();
+    say('Full backup shown below and selected. Long-press it and choose Copy.',true);
+  };
+  window.__bayOaksBackup={STORE:STORE,readStore:readStore,summarize:summarize,buildPayload:buildPayload,fileName:fileName};
+})();
+</script>
+</body>
+</html>
