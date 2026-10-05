@@ -1681,6 +1681,38 @@ function shareExport(){
 
 // v64: one file holding every round this phone has, so the native app can import the history.
 // It reads the saved store only and changes nothing.
+// v66: Chrome on Android will not share an application/json file, so canShare() said no and
+// v65 fell through to a silent download with every error swallowed: Kenny tapped and saw
+// nothing. Now the file goes out as text/plain (.json name first, .txt if Chrome refuses the
+// name; the native importer reads the JSON body, not the extension), a failed share falls
+// back to a download plus the clipboard, and every path ends in a line he can see.
+var BACKUP_REOPEN_HINT=' If this button acts like the old one, close and reopen the app.';
+function backupStatus(text,keepMs){
+  var msg=document.getElementById('copiedMsg');
+  if(!msg)return;
+  msg.textContent=text;
+  var mine=text;
+  setTimeout(function(){if(msg.textContent===mine)msg.textContent='';},keepMs||8000);
+}
+function backupFallback(payload,fname,why){
+  var said=[];
+  try{
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([payload],{type:'text/plain'}));
+    a.download=fname; document.body.appendChild(a); a.click(); a.remove();
+    said.push('Saved to Downloads as '+fname+'.');
+  }catch(e){ said.push('Download failed ('+(e&&(e.name||e.message)||e)+').'); }
+  function finish(clip){
+    backupStatus((why?why+' ':'')+said.join(' ')+' '+clip+BACKUP_REOPEN_HINT,12000);
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    return navigator.clipboard.writeText(payload).then(
+      function(){finish('Copied to clipboard.');},
+      function(e){finish('Clipboard copy failed ('+(e&&(e.name||e.message)||e)+').');});
+  }
+  finish('Clipboard not available in this browser.');
+  return Promise.resolve();
+}
 function backupJSON(){
   vibe(20);
   var raw=null;
@@ -1689,18 +1721,27 @@ function backupJSON(){
   try{ data=raw?JSON.parse(raw):state; }catch(e){ data=state; }
   var payload=JSON.stringify({app:'bay-oaks-tracker',kind:'backup',format:1,store:STORE,
     exportedAt:new Date().toISOString(),data:data});
-  var fname='bay-oaks-backup-'+today()+'.json';
+  var base='bay-oaks-backup-'+today();
+  var file=null, why='';
   try{
-    if(navigator.canShare&&window.File){
-      var f=new File([payload],fname,{type:'application/json'});
-      if(navigator.canShare({files:[f]})){navigator.share({files:[f],title:fname}).catch(function(){}); return;}
-    }
-  }catch(e){}
-  try{
-    var a=document.createElement('a');
-    a.href=URL.createObjectURL(new Blob([payload],{type:'application/json'}));
-    a.download=fname; document.body.appendChild(a); a.click(); a.remove();
-  }catch(e){}
+    if(navigator.canShare&&typeof File!=='undefined'){
+      var names=[base+'.json',base+'.txt'];
+      for(var i=0;i<names.length&&!file;i++){
+        var f=new File([payload],names[i],{type:'text/plain'});
+        if(navigator.canShare({files:[f]}))file=f;
+      }
+      if(!file)why='This browser would not share the file.';
+    }else why='Sharing is not available here.';
+  }catch(e){ file=null; why='Share check failed ('+(e&&(e.name||e.message)||e)+').'; }
+  if(file&&navigator.share){
+    return navigator.share({files:[file],title:file.name}).then(
+      function(){backupStatus('Shared '+file.name+'.'+BACKUP_REOPEN_HINT);},
+      function(e){
+        if(e&&e.name==='AbortError'){backupStatus('Share cancelled. Nothing was saved.'+BACKUP_REOPEN_HINT);return;}
+        return backupFallback(payload,base+'.json','Share failed ('+(e&&(e.name||e.message)||e)+').');
+      });
+  }
+  return backupFallback(payload,base+'.json',why);
 }
 
 load(); render(); electWriter(); showSaveState();
