@@ -1679,6 +1679,30 @@ function shareExport(){
   copyExport(true);
 }
 
+// v64: one file holding every round this phone has, so the native app can import the history.
+// It reads the saved store only and changes nothing.
+function backupJSON(){
+  vibe(20);
+  var raw=null;
+  try{ raw=localStorage.getItem(STORE); }catch(e){}
+  var data=null;
+  try{ data=raw?JSON.parse(raw):state; }catch(e){ data=state; }
+  var payload=JSON.stringify({app:'bay-oaks-tracker',kind:'backup',format:1,store:STORE,
+    exportedAt:new Date().toISOString(),data:data});
+  var fname='bay-oaks-backup-'+today()+'.json';
+  try{
+    if(navigator.canShare&&window.File){
+      var f=new File([payload],fname,{type:'application/json'});
+      if(navigator.canShare({files:[f]})){navigator.share({files:[f],title:fname}).catch(function(){}); return;}
+    }
+  }catch(e){}
+  try{
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([payload],{type:'application/json'}));
+    a.download=fname; document.body.appendChild(a); a.click(); a.remove();
+  }catch(e){}
+}
+
 load(); render(); electWriter(); showSaveState();
 // v29: another tab writing the round is a fact this tab needs to know before it tries to
 // write over it. onExternalWrite() lives above so the oracle can drive it directly.
