@@ -464,6 +464,49 @@ function clearPersistedDrafts(persistedContent,persistedState){
     }
   }
 }
+// The archive is a copy of one round, not a new round. A draft is contained when it is
+// that same identity and every recorded field it holds is still in the archive. A
+// correction the archive does not have stays offered.
+function pinKey(p){ return (p&&p!=='?')?p:'?'; }
+function archiveContains(archived,draft){
+  if(!archived||!draft||!archived.holes||!draft.holes)return false;
+  if(!archived.roundId||!draft.roundId||archived.roundId!==draft.roundId)return false;
+  if((archived.date||null)!==(draft.date||null))return false;
+  if((archived.tee||'blue')!==(draft.tee||'blue'))return false;
+  if(pinKey(archived.pin)!==pinKey(draft.pin))return false;
+  for(var i=0;i<draft.holes.length;i++){
+    var o=draft.holes[i], nn=archived.holes[i];
+    if(!o)continue;
+    if(!nn){
+      for(var f=0;f<DRAFT_FIELDS.length;f++) if(fieldRecorded(o[DRAFT_FIELDS[f]],DRAFT_FIELDS[f]))return false;
+      continue;
+    }
+    for(var f2=0;f2<DRAFT_FIELDS.length;f2++){
+      var k=DRAFT_FIELDS[f2];
+      if(fieldRecorded(o[k],k)&&o[k]!==nn[k])return false;
+    }
+  }
+  return true;
+}
+function retireContainedDrafts(archived){
+  var box=readDrafts(); if(!box||!archived)return;
+  for(var k in box){
+    if(!box[k]||!box[k].holes)continue;
+    if(archiveContains(archived,box[k]))retireDraft(k,box[k]);
+  }
+}
+// Same roundId replaces. A second Start New Round of a recovered copy must not add a sample.
+function placeArchive(entry){
+  var id=entry.roundId, next=[], placed=false, rounds=state.rounds||[];
+  for(var i=0;i<rounds.length;i++){
+    var r=rounds[i];
+    if(id&&r&&r.roundId===id){
+      if(!placed){ entry.id=r.id||entry.id; next.push(entry); placed=true; }
+    } else next.push(r);
+  }
+  if(!placed)next.push(entry);
+  state.rounds=next;
+}
 function loadRecovery(){
   var box=readDrafts(), mine=draftContent(state), out=[], seen={};
   if(!box)return null;
@@ -490,6 +533,7 @@ function recoverDraft(key){
   var draft=null;
   for(var i=0;i<recovered.length;i++){ if(!key||recovered[i].key===key){draft=recovered[i]; break;} }
   if(!draft)return false;
+  var incoming=draftContent(draft), before=draftContent(state);
   // A swap, not an overwrite -- and if the round on screen cannot be kept, the swap does not
   // happen at all. v33 stashed, ignored the failure, and overwrote anyway, which destroyed
   // the current round to display an older one.
@@ -498,6 +542,8 @@ function recoverDraft(key){
   state.holes=draft.holes; holes=state.holes;
   state.date=draft.date||state.date; state.mode=draft.mode||state.mode;
   state.pin=draft.pin||state.pin; state.tee=draft.tee||state.tee;
+  // The 6 is not the 4 that was copied. An in-flight copy of the 4 must not bless it.
+  if(incoming!==before){ state.exported=false; dataSeq++; }
   // The restored draft stays in the collection until it is actually saved, so a reload right
   // now still finds both it and whatever it displaced.
   recovered=loadRecovery();
@@ -796,6 +842,7 @@ function newRound(){
   // change what is on screen.
   var prevMode=state.mode||'full';
   var prevTee=state.tee||'blue';
+  var archivedRound=null;
   var keep={date:state.date, holes:state.holes, rounds:state.rounds, pin:state.pin,
             dirty:state.dirty, exported:state.exported, roundId:state.roundId, cur:cur};
   if(hasData){
@@ -807,10 +854,12 @@ function newRound(){
     // so nothing a player entered is dropped to make the two agree.
     var inc=includedHoles();
     var archMode=includedMode(inc);
-    state.rounds=state.rounds.concat([{id:'log-'+state.date+'-'+Date.now().toString(36), date:state.date,
+    ensureRoundId();
+    archivedRound={id:'log-'+state.date+'-'+Date.now().toString(36), roundId:state.roundId, date:state.date,
       mode:archMode, tee:prevTee, source:'logged', suspect:false,
       pin:(state.pin&&state.pin!=='?')?state.pin:null,
-      holes:holes.map(function(h,i){return inc.indexOf(i)>-1?Object.assign({},h):null;}), summary:null}]);
+      holes:holes.map(function(h,i){return inc.indexOf(i)>-1?Object.assign({},h):null;}), summary:null};
+    placeArchive(archivedRound);
   }
   state.date=today(); state.holes=mk(); state.dirty=false; state.exported=false;
   state.pin='?'; state.mode=prevMode; state.tee=prevTee;
@@ -824,6 +873,7 @@ function newRound(){
     render(); showView('holeView');
     return false;
   }
+  if(archivedRound){ retireContainedDrafts(archivedRound); recovered=loadRecovery(); }
   holes=state.holes; cur=(prevMode==='back'?9:0); saveCursor();
   render();
   showView('holeView');
@@ -1229,8 +1279,14 @@ function bump(field,d){
 
 function setNote(v){ensureDate(); holes[cur].notes=v; touch(); buildSummary();}
 
+function holeFaceOpen(){
+  var el=document.getElementById('holeView');
+  return !el||el.style.display!=='none';
+}
 function move(d){
   vibe(20);
+  // Summary and Trends keep the footer. Next hole must not change a card that is hidden.
+  if(!holeFaceOpen()){ showView('holeView'); return; }
   var r=targetHolesRange();
   if(cur<r.start||cur>r.end){
     setCur(d<0?r.end:r.start);
@@ -1661,6 +1717,8 @@ function showView(viewId){
   var trendsBtn=document.getElementById('trendsBtn');
   if(tabBtn)tabBtn.textContent=(viewId==='summaryView'?'Holes':'Summary');
   if(trendsBtn)trendsBtn.textContent=(viewId==='trendsView'?'Holes':'Trends');
+  var primary=document.getElementById('footerPrimary');
+  if(primary)primary.textContent=viewId==='holeView'?'Next hole':'Hole';
 }
 
 function toggleView(){
@@ -1766,7 +1824,7 @@ function shareExport(){
 }
 
 // v67: the version Kenny can read in the summary; a test keeps it equal to sw.js.
-var APP_VERSION='v70';
+var APP_VERSION='v71';
 function showAppVersion(){ var v=document.getElementById('appVersion'); if(v) v.textContent='Bay Oaks Tracker '+APP_VERSION; }
 function showUpdateBanner(){ var b=document.getElementById('updateBanner'); if(b) b.hidden=false; }
 // A reload alone cannot swap in a waiting worker; only closing every window of the app does.

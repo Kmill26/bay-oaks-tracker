@@ -23,6 +23,8 @@ function countsFir(h,c){ return !!h && !!c && c.par>3 && !!h.fir; }
 function countsGir(h){ return !!h && h.gir!=null; }
 function countsSs(h){ return !!h && h.gir===false; }
 function countsChip6(h){ return countsSs(h) && (h.chip==='in' || h.chip==='out'); }
+// A chip answer only counts on a missed green. GIR Yes/unknown leaves the old answer behind.
+function chipLeftOut(h){ return countsChip6(h) && h.chip==='out'; }
 function countsPutts(h){ return !!h && h.putts!=null; }
 function hasFirstPutt(h){ return countsPutts(h) && h.putts>0; }
 function threePutt(h){ return countsPutts(h) && h.putts>=3; }
@@ -185,7 +187,7 @@ function rankLeaks(rounds){
         puttHoles++;
         var is3=h.putts>=3;
         if(is3){threeN++; threeByHole[i]++;}
-        if(is3 && h.chip!=='out') extraIsolated+=(h.putts-2);
+        if(is3 && !chipLeftOut(h)) extraIsolated+=(h.putts-2);
         if(is3 && h.gir===true) girThree++;
         if(PV[i] && typeof PV[i].gd==='number'){
           var bucket=PV[i].gd>=DEEP_YD?deep:shallow;
@@ -200,7 +202,7 @@ function rankLeaks(rounds){
           lb.n++;
           if(h.putts>=3){
             lb.three++;
-            if(h.chip!=='out') lb.extra+=(h.putts-2);
+            if(!chipLeftOut(h)) lb.extra+=(h.putts-2);
           }
         }
       }

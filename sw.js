@@ -1,10 +1,11 @@
-const C='bayoaks-v70';
+const C='bayoaks-v71';
 // v17.1: the app is no longer one file. Every split asset must be precached or the PWA
 // breaks offline in a way that only shows up on the course with no signal.
 const ASSETS=['./','./index.html','./styles.css','./manifest.json','./icon-192.png','./icon-512.png',
   './js/seed.js','./js/stats.js','./js/course.js','./js/player.js','./js/app.js'];
 // v67: backup.html is never precached and never runtime-cached: it is the way out when
 // this shell is stale, so it must always come from the network.
+// v71: one round archives once. A recovered score is not the exported one. A stale chip does not hide a putting leak. Next hole does not move a hidden card.
 // v70: one line before the first score, the book's green for today's pin, and where this card broke.
 // v69: the hole face is number, pin, line, miss. Thru replaces the progress meter.
 // v68: the hole is a yardage book. Footer primary is Next hole. Export stays on Summary.

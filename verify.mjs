@@ -2409,7 +2409,7 @@ function recountPutts(rounds){
   rounds.forEach(r=>(r.holes||[]).forEach((h,i)=>{
     if(h.putts==null) return;
     const is3=h.putts>=3;
-    if(is3){ three++; if(h.gir===true) gir3++; if(h.chip!=='out') extra+=h.putts-2; }
+    if(is3){ three++; if(h.gir===true) gir3++; if(!(countsChip6(h)&&h.chip==='out')) extra+=h.putts-2; }
     if(PV[i] && typeof PV[i].gd==='number'){
       if(PV[i].gd>=36){ deepN++; if(is3) deep3++; }
       else { shN++; if(is3) sh3++; }
@@ -2694,6 +2694,101 @@ check('summary: copy actions are still on the page',
   html.indexOf('copyExport()')>-1 && html.indexOf('copyGeminiPrompt()')>-1 && html.indexOf('backupJSON()')>-1, 'a button left');
 globalThis.state=savedState;
 globalThis.holes=savedHoles;
+
+// v71: one round is one archive entry. A recovered copy of a card already archived
+// replaces that entry. A draft the archive does not contain stays offered.
+(() => {
+  const disk={}; const box=session21(disk);
+  globalThis.state={date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'A',
+    dirty:false,exported:true,rev:0};
+  globalThis.holes=globalThis.state.holes; globalThis.cur=0;
+  globalThis.holes[0].score=4; touch();
+  const id=globalThis.state.roundId;
+  box.mode='writethrow';
+  globalThis.holes[0].score=6; touch();
+  box.mode='ok';
+  const six=globalThis.holes[0].score;
+  globalThis.holes[0].score=4; stashRecovery('divergent');
+  globalThis.holes[0].score=six;
+  const rc=global.confirm; global.confirm=()=>true;
+  const ok=newRound();
+  global.confirm=rc;
+  const rounds=globalThis.state.rounds;
+  const offered=loadRecovery()||[];
+  check('archive identity: one played round is one archive entry',
+    ok===true && rounds.length===1 && rounds[0].roundId===id && rounds[0].holes[0].score===6
+    && holeStats(rounds)[0].n===1,
+    'n='+rounds.length+' id='+(rounds[0]&&rounds[0].roundId)+' score='+(rounds[0]&&rounds[0].holes[0].score));
+  check('archive identity: the card just archived is not offered as never saved',
+    !offered.some(d=>d.holes&&d.holes[0]&&d.holes[0].score===6),
+    'offered '+offered.map(d=>d.holes&&d.holes[0]&&d.holes[0].score).join(','));
+  check('archive identity: a divergent kept card stays',
+    offered.some(d=>d.holes&&d.holes[0]&&d.holes[0].score===4),
+    'offered '+offered.map(d=>d.holes&&d.holes[0]&&d.holes[0].score).join(','));
+  recovered=loadRecovery();
+  recoverDraft();
+  const rc2=global.confirm; global.confirm=()=>true; newRound(); global.confirm=rc2;
+  const again=globalThis.state.rounds;
+  check('archive identity: archiving that kept card again does not add a sample',
+    again.length===1 && again[0].roundId===id && again[0].holes[0].score===4 && holeStats(again)[0].n===1,
+    'n='+again.length+' score='+(again[0]&&again[0].holes[0].score)+' samples='+holeStats(again)[0].n);
+})();
+
+// v71: a recovered 6 is not the exported 4. The old copy must not certify it.
+(() => {
+  const disk={}; session21(disk);
+  globalThis.state={date:today(),holes:blank21(),rounds:[],mode:'full',tee:'blue',pin:'?',
+    dirty:false,exported:false,rev:0};
+  globalThis.holes=globalThis.state.holes; globalThis.cur=0;
+  globalThis.holes[0].score=4; save();
+  globalThis.state.exported=true;
+  const seq=dataSeq, token=exportToken();
+  globalThis.holes[0].score=6; stashRecovery();
+  globalThis.holes[0].score=4;
+  recovered=loadRecovery();
+  const restored=recoverDraft();
+  const late=completeExport(token);
+  check('export: adopting a recovered score clears exported',
+    restored===true && globalThis.holes[0].score===6 && globalThis.state.exported===false,
+    'restored='+restored+' score='+globalThis.holes[0].score+' exported='+globalThis.state.exported);
+  check('export: an in-flight copy of the old score cannot mark the new one',
+    late===false && globalThis.state.exported===false && dataSeq!==seq,
+    'late='+late+' exported='+globalThis.state.exported+' seq='+dataSeq+' was='+seq);
+})();
+
+// v71: GIR corrected to Yes leaves chip=out behind. That is not a chip. It must not
+// eat the putting leak. Twelve GIR three-putts, one stale chip answer on each.
+(() => {
+  const rounds=[];
+  for(let i=0;i<12;i++){
+    const holes=blank21();
+    holes[0]={score:4,fir:null,gir:true,ss:null,chip:'out',putts:3,lag:null,sixAtt:0,sixMade:0,pen:0,notes:''};
+    rounds.push({date:'2026-01-02',holes:holes,roundId:'stale-'+i});
+  }
+  const putt=rankLeaks(rounds).ranked.find(L=>L.id==='threePutt');
+  const clean=blank21();
+  clean[0]={score:4,fir:null,gir:true,ss:null,chip:null,putts:3,lag:null,sixAtt:0,sixMade:0,pen:0,notes:''};
+  const cleared=rankLeaks(rounds.map(r=>({date:r.date,roundId:r.roundId,holes:r.holes.map((h,i)=>i===0?clean[0]:h)}))).ranked.find(L=>L.id==='threePutt');
+  check('leaks: a chip left on GIR Yes does not remove the putting leak',
+    !!putt && putt.cost>=1 && !!cleared && putt.cost===cleared.cost,
+    'stale='+(putt&&putt.cost)+' cleared='+(cleared&&cleared.cost));
+})();
+
+// v71: Next hole on Trends opens the hole already chosen. It does not advance a hidden card.
+(() => {
+  const back=globalThis.cur;
+  showView('trendsView');
+  const at=globalThis.cur;
+  move(1);
+  check('nav: Next hole from Trends opens the hole and does not change it',
+    globalThis.cur===at && document.getElementById('holeView').style.display==='block'
+    && document.getElementById('trendsView').style.display==='none'
+    && document.getElementById('footerPrimary').textContent==='Next hole',
+    'cur='+globalThis.cur+' face='+document.getElementById('holeView').style.display+' label='+document.getElementById('footerPrimary').textContent);
+  move(1);
+  check('nav: Next hole on the hole face still advances', globalThis.cur!==at, 'cur='+globalThis.cur);
+  setCur(back); showView('holeView');
+})();
 
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
