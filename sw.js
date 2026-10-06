@@ -1,11 +1,11 @@
-const C='bayoaks-v67';
+const C='bayoaks-v68';
 // v17.1: the app is no longer one file. Every split asset must be precached or the PWA
 // breaks offline in a way that only shows up on the course with no signal.
 const ASSETS=['./','./index.html','./styles.css','./manifest.json','./icon-192.png','./icon-512.png',
   './js/seed.js','./js/stats.js','./js/course.js','./js/player.js','./js/app.js'];
 // v67: backup.html is never precached and never runtime-cached: it is the way out when
 // this shell is stale, so it must always come from the network.
-// v65: Backup JSON moves to the summary view; Export Round keeps the primary footer spot.
+// v68: the hole is a yardage book. Footer primary is Next hole. Export stays on Summary.
 // v64: Backup JSON button shares every saved round as one file.
 // v63: tees and pin leave the hole once they are set. One line remains, not the setup block.
 // v54: a new shell waits until this one is closed. Activating it under an open

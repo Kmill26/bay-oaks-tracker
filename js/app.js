@@ -96,7 +96,7 @@ function setCur(n){cur=clampCur(n); saveCursor(); return cur;}
 
 function vibe(ms){try{if(typeof navigator!=='undefined'&&navigator.vibrate)navigator.vibrate(ms||15);}catch(e){}}
 
-// v21: bone is the default and dusk is the option -- the inverse of v20.
+// v68: dusk is the default. Daylight is remembered only after the toggle.
 function applyTheme(isDusk){
   document.body.classList.toggle('dusk',isDusk);
   var btn=document.getElementById('themeToggle');
@@ -116,25 +116,22 @@ function syncStatusBar(){
     var ground=String(getComputedStyle(document.body).getPropertyValue('--ground')||'').trim();
     if(!/^#[0-9A-Fa-f]{6}$/.test(ground))return;
     meta.setAttribute('content',ground.toUpperCase());
+    var scheme=document.querySelector('meta[name="color-scheme"]');
+    if(scheme)scheme.setAttribute('content',document.body.classList.contains('dusk')?'dark':'light');
   }catch(e){}
 }
 function toggleTheme(){
   vibe(20);
   var isDusk=!document.body.classList.contains('dusk');
   applyTheme(isDusk);
-  try{localStorage.setItem('bayoaks-theme',isDusk?'dusk':'bone');}catch(e){}
+  try{localStorage.setItem('bayoaks-theme-choice',isDusk?'dusk':'bone');}catch(e){}
 }
 function loadTheme(){
   try{
-    // A returning phone still holds a pre-v21 value. 'midnight' was the old dark
-    // default, so it becomes dusk; 'sunlight' was the light exception, which is
-    // now simply the default. Anything else (including null) falls to bone.
-    var th=localStorage.getItem('bayoaks-theme');
-    if(th==='midnight')th='dusk';
-    if(th!=='dusk')th='bone';
-    localStorage.setItem('bayoaks-theme',th);
+    var th=localStorage.getItem('bayoaks-theme-choice');
+    if(th!=='bone'&&th!=='dusk')th='dusk';
     applyTheme(th==='dusk');
-  }catch(e){applyTheme(false);}
+  }catch(e){applyTheme(true);}
 }
 
 function targetHolesRange(){
@@ -886,9 +883,7 @@ function renderTeeSelector(){
   if(!box)return;
   box.innerHTML='';
   var roundT=state.tee||'blue', override=holes[cur].tee;
-  var tees=['blue','tips'];
-  // Preserve and explain an existing White round without changing its data.
-  if(roundT==='white')tees.push('white');
+  var tees=['blue','white','tips'];
   tees.forEach(function(t){
     var btn=document.createElement('button');
     btn.textContent=teeName(t)+' '+holeYardage(cur,t)+'y';
@@ -1163,7 +1158,8 @@ function seg(id,opts,field){
     b.onclick=function(){
       vibe(15);
       ensureDate();
-      holes[cur][field]=(holes[cur][field]===o.val)?null:o.val;
+      if(field==='score') setScoreChoice(o.val);
+      else holes[cur][field]=(holes[cur][field]===o.val)?null:o.val;
       touch(); render();
     };
     el.appendChild(b);
@@ -1187,6 +1183,25 @@ function pinSeg(){
     };
     el.appendChild(b);
   });
+}
+
+function setScoreChoice(val){
+  var h=holes[cur], par=COURSE[cur].par, s=h.score;
+  // The four relative buttons are the only score control. Tap the active
+  // even button to clear. Tap -1 again, or +2 again, to step past those ends.
+  if(val===par-1 && s!=null && s<=par-1){ h.score=s-1<1?null:s-1; return; }
+  if(val===par+2 && s!=null && s>=par+2){ h.score=s+1; return; }
+  h.score=(s===val)?null:val;
+}
+
+function holePlanText(i){
+  var b=pinBucket(i);
+  if(!b)return '';
+  var p=PLAN[i]||{};
+  var bits=[];
+  if(p.line)bits.push(p.line);
+  if(p.miss)bits.push(p.miss);
+  return bits.join('\n');
 }
 
 function bump(field,d){
@@ -1230,7 +1245,10 @@ function render(){
     if(ghost)ghost.textContent=cur+1;
   }
   var hm=document.getElementById('holeMeta'); if(hm)hm.textContent=pvMeta(cur);
-  var tt=document.getElementById('tipText'); if(tt)tt.textContent=pvTip(cur);
+  var planOn=!!pinBucket(cur);
+  var planCard=document.getElementById('planCard'); if(planCard)planCard.hidden=!planOn;
+  var planPin=document.getElementById('planPin'); if(planPin)planPin.textContent=planOn?PINWORD[pinBucket(cur)]:'';
+  var tt=document.getElementById('tipText'); if(tt)tt.textContent=planOn?holePlanText(cur):'';
   pinSeg();
   renderTeeSelector();
   renderSetup();
@@ -1279,6 +1297,7 @@ function render(){
   var missed=(h.gir===false);
   var sr=document.getElementById('ssRow'); if(sr)sr.className='row'+(missed?'':' disabled');
   var cr=document.getElementById('chipRow'); if(cr)cr.className='row'+(missed?'':' disabled');
+  var co=document.getElementById('closeout'); if(co)co.hidden=h.score===null;
   checkFatigue();
   buildSummary();
   buildTrends();
@@ -1382,6 +1401,18 @@ function buildSummary(){
     +' P36:'+made+'/'+att+' PEN:'+tPen+splitScores);
   var et=document.getElementById('exportText'); if(et)et.textContent=lines.join('\n');
   var pct=function(a,b){return b?Math.round(100*a/b)+'%':'–';};
+  var leakPack=rankLeaks([{date:state.date, holes:masked, summary:null}]);
+  var leakTop=leakPack.ranked&&leakPack.ranked[0];
+  var rc=document.getElementById('roundCard');
+  if(rc){
+    var vs=diff===0?'E':((diff>0?'+':'')+diff);
+    var leakName=leakTop?(leakTop.id==='chip6'?'Inside 6 from the fringe':leakTop.label):'Not enough to name one';
+    rc.innerHTML='<div class="rcScore"><b>'+(un.length?tS+'*':tS)+'</b><span>'+vs+'</span></div>'
+      +'<div class="rcRow"><span>Fairways</span><b>'+firHit+'/'+firN+'</b></div>'
+      +'<div class="rcRow"><span>Greens</span><b>'+gir+'/'+girN+'</b></div>'
+      +'<div class="rcRow"><span>Putts</span><b>'+(tP==null?'–':tP)+'</b></div>'
+      +'<div class="rcRow"><span>Leak</span><b>'+leakName+'</b></div>';
+  }
   var st=document.getElementById('stats');
   if(st){
     st.innerHTML=
@@ -1680,7 +1711,7 @@ function shareExport(){
 }
 
 // v67: the version Kenny can read in the summary; a test keeps it equal to sw.js.
-var APP_VERSION='v67';
+var APP_VERSION='v68';
 function showAppVersion(){ var v=document.getElementById('appVersion'); if(v) v.textContent='Bay Oaks Tracker '+APP_VERSION; }
 function showUpdateBanner(){ var b=document.getElementById('updateBanner'); if(b) b.hidden=false; }
 // A reload alone cannot swap in a waiting worker; only closing every window of the app does.

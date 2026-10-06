@@ -3,28 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#E6E8ED">
-<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#121418">
+<meta name="color-scheme" content="dark">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="icon-192.png">
 <title>Bay Oaks — Round Tracker</title>
 <link rel="stylesheet" href="./styles.css">
 </head>
-<body>
+<body class="dusk">
 <button id="updateBanner" class="updateBanner" type="button" hidden onclick="applyUpdate()">Update ready. Tap for how to load it.</button>
 
 <div class="headerWrap">
   <div class="brand"><div class="crest" aria-hidden="true"><span>BO</span></div><div><span class="eyebrow">League City</span><h1>Bay Oaks<span class="brandDot" aria-hidden="true">.</span></h1></div></div>
   <div class="headerActions">
     <button id="installBtn" class="installBtn" hidden onclick="installApp()">Install</button>
-    <button id="themeToggle" class="themeToggle" onclick="toggleTheme()">Dusk</button>
+    <button id="themeToggle" class="themeToggle" onclick="toggleTheme()">Daylight</button>
   </div>
-</div>
-
-<div class="modeWrap">
-  <button id="modeFull" class="modeBtn on" onclick="setMode('full')">Full 18</button>
-  <button id="modeFront" class="modeBtn" onclick="setMode('front')">Front 9 (1–9)</button>
-  <button id="modeBack" class="modeBtn" onclick="setMode('back')">Back 9 (10–18)</button>
 </div>
 
 <div id="saveAlert" class="fatigueBanner saveBanner"></div>
@@ -50,14 +44,14 @@
     <div class="lbl"><span>Score</span><span class="scoreNow" id="scoreVal">&ndash;</span></div>
     <div class="scoreWrap">
       <div class="btns" id="scoreBtns"></div>
-      <button class="mini" aria-label="Decrease score" onclick="bump('score',-1)">&minus;</button>
-      <button class="mini" aria-label="Increase score" onclick="bump('score',1)">+</button>
     </div>
   </div>
   </section>
   </div>
 
-  <div class="tip"><b>Game plan</b><span id="tipText"></span></div>
+  <div class="tip" id="planCard" hidden>
+    <b id="planPin"></b><span id="tipText"></span>
+  </div>
 
   <button type="button" id="roundBar" class="roundBar" onclick="toggleSetup()">
     <span id="roundBarLabel">Tees and pin</span>
@@ -65,6 +59,11 @@
   </button>
   <section class="sheet" id="setupSheet">
     <h2 class="sheetTitle">Setup</h2>
+  <div class="modeWrap">
+    <button id="modeFull" class="modeBtn on" onclick="setMode('full')">Full 18</button>
+    <button id="modeFront" class="modeBtn" onclick="setMode('front')">Front 9 (1–9)</button>
+    <button id="modeBack" class="modeBtn" onclick="setMode('back')">Back 9 (10–18)</button>
+  </div>
   <div class="row">
     <div class="lbl">
       <span>Round tees</span>
@@ -85,45 +84,42 @@
 
   </section>
   <section class="sheet">
+    <h2 class="sheetTitle">This hole</h2>
+  <div class="row" id="firRow">
+    <div class="lbl">Fairway? (tee shot, par 4/5)</div>
+    <div class="btns" id="firBtns"></div>
+  </div>
+  <div class="row">
+    <div class="lbl"><span>Total putts</span><span class="scoreNow" id="puttsVal">&ndash;</span></div>
+    <div class="btns" id="puttBtns"></div>
+  </div>
+  </section>
+  <div id="closeout" hidden>
+  <section class="sheet">
     <h2 class="sheetTitle">Approach</h2>
   <div class="row">
     <div class="lbl">Penalty strokes</div>
     <div class="btns" id="penBtns"></div>
   </div>
-
-  <div class="row" id="firRow">
-    <div class="lbl">Fairway? (tee shot, par 4/5)</div>
-    <div class="btns" id="firBtns"></div>
-  </div>
-
   <div class="row">
     <div class="lbl">Green in regulation?</div>
     <div class="btns" id="girBtns"></div>
   </div>
-
   <div class="row" id="ssRow">
     <div class="lbl">Short-sided? (missed on the side the pin is on)</div>
     <div class="btns" id="ssBtns"></div>
   </div>
-
   <div class="row" id="chipRow">
     <div class="lbl">First greenside shot finished inside 6 ft?</div>
     <div class="btns" id="chipBtns"></div>
   </div>
-
   </section>
   <section class="sheet">
     <h2 class="sheetTitle">Putting</h2>
-  <div class="row">
-    <div class="lbl"><span>Total putts</span><span class="scoreNow" id="puttsVal">&ndash;</span></div>
-    <div class="btns" id="puttBtns"></div>
-  </div>
-
   <div class="row" id="lagRow">
     <div class="lbl"><span>First putt distance</span><span class="scoreNow" id="lagVal">&ndash;</span></div>
     <div class="btns" id="lagBtns"></div>
   </div>
-
   <div class="inlineWrap">
     <div class="row">
       <div class="lbl">Putts faced 3&ndash;6 ft</div>
@@ -142,7 +138,6 @@
       </div>
     </div>
   </div>
-
   </section>
   <section class="sheet">
     <h2 class="sheetTitle">Notes</h2>
@@ -151,21 +146,27 @@
       <span>Shot notes</span>
       <button id="micBtn" class="micBtn" onclick="toggleVoice()">Dictate</button>
     </div>
-    <textarea class="noteBox" id="noteBox" rows="2" placeholder="e.g. Driver left side of fairway, 158 to center"
+    <textarea class="noteBox" id="noteBox" rows="2" placeholder="e.g. left side of the fairway, center of the green"
       oninput="setNote(this.value)"></textarea>
     <div id="noteStatus" class="noteStatus" aria-live="polite"></div>
   </div>
   </section>
+  </div>
 </div>
 
 <div id="summaryView">
-  <div id="stats"></div>
-  <pre id="exportText"></pre>
+  <div id="roundCard" class="roundCard"></div>
+  <details class="moreStats">
+    <summary>More</summary>
+    <div id="stats"></div>
+    <pre id="exportText"></pre>
+  </details>
   <div class="copied" id="copiedMsg"></div>
   <div style="display:flex; gap:8px; margin-top:8px;">
     <button class="newRoundBtn" style="margin-top:0; flex:1;" onclick="copyExport()">Copy Log</button>
     <button class="newRoundBtn" style="margin-top:0; flex:1;" onclick="copyGeminiPrompt()">Copy Prompt</button>
     <button class="newRoundBtn" style="margin-top:0; flex:1;" onclick="backupJSON()">Backup JSON</button>
+    <button class="newRoundBtn" style="margin-top:0; flex:1;" onclick="shareExport()">Export Round</button>
   </div>
   <div class="appVersion" id="appVersion"></div>
   <button class="newRoundBtn" onclick="newRound()">Start New Round</button>
@@ -179,8 +180,8 @@
       <div class="metricBox"><div class="mLbl">Quick 9 Low</div><div class="mVal" id="tNineLow">&mdash;</div></div>
       <div class="metricBox"><div class="mLbl">Fairways (FIR)</div><div class="mVal" id="tFirPct">&mdash;</div></div>
       <div class="metricBox"><div class="mLbl">Greens (GIR)</div><div class="mVal" id="tGirPct">&mdash;</div></div>
-      <div class="metricBox"><div class="mLbl">CHIP6 Proximity</div><div class="mVal" id="tChipPct">&mdash;</div></div>
-      <div class="metricBox"><div class="mLbl">P36 Make Rate</div><div class="mVal" id="tP36Pct">&mdash;</div></div>
+      <div class="metricBox"><div class="mLbl">Inside 6 from the fringe</div><div class="mVal" id="tChipPct">&mdash;</div></div>
+      <div class="metricBox"><div class="mLbl">3–6 footers</div><div class="mVal" id="tP36Pct">&mdash;</div></div>
     </div>
   </div>
 
@@ -213,7 +214,7 @@
 <div class="footer">
   <button id="tabBtn" onclick="toggleView()">Summary</button>
   <button id="trendsBtn" onclick="toggleTrends()">Trends</button>
-  <button onclick="shareExport()">Export Round</button>
+  <button id="footerPrimary" onclick="move(1)">Next hole</button>
 </div>
 
 <script src="./js/seed.js"></script>

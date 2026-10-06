@@ -1,4 +1,11 @@
 // Bay Oaks course facts: pars, yardages, PuttView data, pin positions.
+// White is COURSE[i].ry. Hole yardages match the published White card
+// (69.7/128, 6,092 yards) on GolfLink and The Social Golfer:
+// 362, 367, 166, 401, 492, 371, 447, 154, 388, 356, 465, 141, 335, 125, 300, 491, 350, 381.
+// https://www.golflink.com/golf-courses/tx/houston/bay-oaks-country-club
+// https://www.thesocialgolfer.com/golf-courses/united-states/texas/bay-oaks-country-club/scorecard/bay-oaks-country-club-white-tee-scorecard
+// Forward is omitted. Golfify and Grassy disagree (hole 9 is 341 or 342, hole 15 is 262 or 263)
+// and the GolfLink card has no Forward row. Uncertain yardages are not entered.
 var COURSE=[
  {par:4,hcp:13,cy:387,ry:362,tip:"Driver up the left side. No cut to play for now -- pick the line and commit. Smooth PW from ~117. Clean par start -- don't chase a pin cold.",
   tipsTip:"TIPS: 402y. Driver up the left side leaves ~132. Full stock PW or smooth 9i to center. Clean par start."},
@@ -80,3 +87,27 @@ var PINS=[
  {A:'F',B:'M',C:'F',D:'B',E:'B'}
 ];
 var PINWORD={F:'front',M:'middle',B:'back'};
+
+// line and miss are the non-club split of the existing tip and book note.
+// Nothing here is a new strategy. Club sentences stay in tip and tipsTip.
+// A blank string means that source had no line or no miss.
+var PLAN=[
+ {line:'Left side. No cut — commit.', miss:"Don't chase a pin cold."},
+ {line:'Left side, to the fat side.', miss:''},
+ {line:'Center of the green.', miss:''},
+ {line:'Left edge.', miss:''},
+ {line:'Lake is right on every shot.', miss:'The risk is the babied swing.'},
+ {line:'Draw to the fairway turn.', miss:'Running through.'},
+ {line:"Don't chase it.", miss:''},
+ {line:'Middle tier, always.', miss:'Wrong tier is 3-putt land.'},
+ {line:'', miss:''},
+ {line:"Pin's tier, not the sprinkler number.", miss:''},
+ {line:'', miss:''},
+ {line:'Dead center, never at the pin.', miss:'Never chase a back pin.'},
+ {line:'Left side.', miss:"Don't short-side it."},
+ {line:'', miss:''},
+ {line:'Center-right.', miss:'Never long-left.'},
+ {line:'Left edge.', miss:''},
+ {line:'Left half, then the right-mid pocket.', miss:"Right of the pocket is wet. Don't chase a pin past it."},
+ {line:'Center.', miss:'Right is safe. Water is left.'}
+];
