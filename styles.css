@@ -150,18 +150,34 @@ h1{margin:0;font-size:30px;font-weight:500;letter-spacing:-.03em;line-height:.95
 }
 .holeLbl .meta{margin-top:8px;font-size:13px;font-weight:600;line-height:1.35;color:var(--hero-ink);letter-spacing:.01em;}
 .holeLbl .done{margin-top:3px;font-size:11px;letter-spacing:.03em;line-height:1.4;color:var(--hero-muted);}
+.beam > .done{margin:0 18px 8px;text-align:center;font-size:13px;font-weight:600;letter-spacing:.04em;color:var(--hero-muted);}
+.beam > .done:empty{display:none;}
+#holeMeta:empty{display:none;}
 
 .tip{
   position:relative;padding:16px 16px 16px 18px;margin:14px 0 0;
   border:1px solid var(--ink);border-radius:6px;background:var(--panel);
   font-size:15.5px;line-height:1.5;
 }
+.beam .tip{
+  margin:0 18px 6px;padding:0 8px 4px;border:0;background:transparent;
+  color:var(--hero-ink);text-align:center;
+}
 .tip b{
   display:block;margin-bottom:6px;color:var(--oxblood);
   font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
 }
+.beam .tip b{color:var(--brass);}
 #tipText{display:block;white-space:pre-line;}
-#planCard[hidden],#closeout[hidden]{display:none;}
+#tipText:empty,#planMiss:empty{display:none;}
+#planMiss{display:block;}
+.beam #planMiss.mark{color:var(--hero-bad);font-weight:700;}
+#planCard[hidden],#closeout[hidden],#scoreExtras[hidden]{display:none;}
+#closeout{margin-top:8px;}
+#closeout > summary{
+  cursor:pointer;padding:12px 2px;color:var(--muted);
+  font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+}
 .roundCard{
   margin-top:4px;background:var(--hero);color:var(--hero-ink);
   border-radius:8px;overflow:hidden;

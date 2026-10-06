@@ -870,11 +870,11 @@ function renderSetup(){
   var roundBtn=document.getElementById('roundBar');
   if(roundBtn)roundBtn.ariaExpanded=open?'true':'false';
   if(bar){
-    var tee=teeName((state&&state.tee)||'blue');
+    var tee=teeName(holeTee(cur));
     var pin=state&&state.pin&&state.pin!=='?'?('Pin '+state.pin):'Pin not set';
     var n=0;
     if(holes){for(var i=0;i<holes.length;i++){if(holes[i]&&holes[i].tee)n++;}}
-    bar.textContent=tee+' tees · '+pin+(n?(' · '+n+(n===1?' hole override':' hole overrides')):'');
+    bar.textContent=tee+' tees · '+holeYardage(cur)+'y · '+pin+(n?(' · '+n+(n===1?' hole override':' hole overrides')):'');
   }
   if(act)act.textContent=(!state||!state.pin||state.pin==='?')?'Needed':(open?'Hide':'Change');
 }
@@ -1194,6 +1194,11 @@ function setScoreChoice(val){
   h.score=(s===val)?null:val;
 }
 
+function holePlanParts(i){
+  var p=PLAN[i]||{};
+  return {line:p.line||'', miss:p.miss||''};
+}
+
 function holePlanText(i){
   var b=pinBucket(i);
   if(!b)return '';
@@ -1244,11 +1249,17 @@ function render(){
     var ghost=document.getElementById('holeGhost');
     if(ghost)ghost.textContent=cur+1;
   }
-  var hm=document.getElementById('holeMeta'); if(hm)hm.textContent=pvMeta(cur);
+  var hm=document.getElementById('holeMeta'); if(hm)hm.textContent='';
   var planOn=!!pinBucket(cur);
+  var parts=holePlanParts(cur);
   var planCard=document.getElementById('planCard'); if(planCard)planCard.hidden=!planOn;
   var planPin=document.getElementById('planPin'); if(planPin)planPin.textContent=planOn?PINWORD[pinBucket(cur)]:'';
-  var tt=document.getElementById('tipText'); if(tt)tt.textContent=planOn?holePlanText(cur):'';
+  var tt=document.getElementById('tipText'); if(tt)tt.textContent=planOn?parts.line:'';
+  var pm=document.getElementById('planMiss');
+  if(pm){
+    pm.textContent=planOn?parts.miss:'';
+    pm.className=(planOn&&parts.miss&&(cur===4||cur===16))?'mark':'';
+  }
   pinSeg();
   renderTeeSelector();
   renderSetup();
@@ -1262,12 +1273,22 @@ function render(){
     }
   });
 
-  var r=targetHolesRange();
-  var done=0;
-  for(var i=r.start; i<=r.end; i++){if(holes[i].score!==null)done++;}
+  var incRun=includedHoles();
+  var maskedRun=holes.map(function(h,i){return incRun.indexOf(i)>-1?h:null;});
+  var runS=roundStats({holes:maskedRun,summary:null});
+  var run='';
+  if(runS.played){
+    var runDiff=runS.score-runS.par;
+    run='Thru '+runS.played+' · '+(runDiff===0?'E':((runDiff>0?'+':'')+runDiff));
+  }
   var dl=document.getElementById('doneLbl');
-  if(dl)dl.textContent=state.date+' · '+done+'/'+r.count+' holes ('+r.label+')'
-    +(strayHoles().length?' · Also recorded: H'+strayHoles().join(', H'):'');
+  if(dl){
+    var stray=strayHoles();
+    var bits=[];
+    if(run)bits.push(run);
+    if(stray.length)bits.push('Also recorded: H'+stray.join(', H'));
+    dl.textContent=bits.join(' · ');
+  }
 
   seg('scoreBtns',[{label:'-1',val:c.par-1},{label:'E',val:c.par},{label:'+1',val:c.par+1},{label:'+2',val:c.par+2}],'score');
   seg('penBtns',[{label:'0',val:0},{label:'1',val:1},{label:'2',val:2},{label:'3',val:3}],'pen');
@@ -1298,6 +1319,7 @@ function render(){
   var sr=document.getElementById('ssRow'); if(sr)sr.className='row'+(missed?'':' disabled');
   var cr=document.getElementById('chipRow'); if(cr)cr.className='row'+(missed?'':' disabled');
   var co=document.getElementById('closeout'); if(co)co.hidden=h.score===null;
+  var extras=document.getElementById('scoreExtras'); if(extras)extras.hidden=h.score===null;
   checkFatigue();
   buildSummary();
   buildTrends();
@@ -1423,7 +1445,7 @@ function buildSummary(){
           :'<div class="stat">Back 9 Score <b>'+tS+' (IN: '+in9+')</b></div>'))
       +'<div class="stat">Score vs Par <b>'+tS+' ('+(diff>=0?'+':'')+diff+')</b></div>'
       +'<div class="stat">Fairways <b>'+firHit+'/'+firN+' (L:'+firL+' R:'+firR+')</b></div>'
-      +'<div class="stat">GIR <b>'+gir+'/'+girN+'</b></div>'
+      +'<div class="stat">Greens <b>'+gir+'/'+girN+'</b></div>'
       +'<div class="stat">First chip inside 6 ft <b>'+chipIn+'/'+chipTried+' ('+pct(chipIn,chipTried)+')</b></div>'
       +'<div class="stat">Short-sided on missed greens <b>'+ss+'/'+missed+'</b>'
         +(ssA<missed?' <span class="warn">'+ssA+' of '+missed+' answered</span>':'')+'</div>'
@@ -1474,7 +1496,7 @@ function buildTrends(){
     return '<div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid var(--line-soft);">'
       +'<b>'+r.date+'</b> ('+(r.label||s.type)+' &middot; '+(r.tee||'blue')+(r.pin?' &middot; Pin '+r.pin:'')+'): '
       +scoreCell+' &middot; '
-      +'FIR '+frac(s.fir)+' &middot; GIR '+frac(s.gir)+' &middot; Putts '+s.putts+' &middot; P36 '+frac(s.p36)
+      +'Fairways '+frac(s.fir)+' · Greens '+frac(s.gir)+' · Putts '+s.putts+' · 3–6 ft '+frac(s.p36)
       +(r.suspect?' <span title="logged while quick presets fabricated data (v14-v16a)">\u26a0</span>':'')
       +'</div>';
   }).join('');
@@ -1501,8 +1523,8 @@ function buildHotspots(rounds){
     }
     if(o.threePutts)bits.push(o.threePutts+' three-putt'+(o.threePutts>1?'s':''));
     if(o.pen)bits.push(o.pen+' pen');
-    if(o.gir.d)bits.push('GIR '+o.gir.n+'/'+o.gir.d);
-    if(o.chip6.d)bits.push('CHIP6 '+o.chip6.n+'/'+o.chip6.d);
+    if(o.gir.d)bits.push('Greens '+o.gir.n+'/'+o.gir.d);
+    if(o.chip6.d)bits.push('Inside 6 '+o.chip6.n+'/'+o.chip6.d);
     return '<div style="margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid var(--line-soft);">'
       +'<b>H'+o.hole+'</b> (par '+o.par+', hcp '+o.hcp+') <b style="color:var(--oxblood)">+'
       +o.avgOver.toFixed(2)+'</b>/rd &middot; avg '+o.avg.toFixed(1)+' <span style="color:var(--muted)">(n='+o.n+')</span>'
@@ -1574,9 +1596,12 @@ function buildLag(rounds){
   el.innerHTML=rows;
 }
 
-// v53: the leak card is rankLeaks(), not a written #1/#2/#3. Order follows cost.
-// A thin sample is named and not prescribed. The CHIP6 percent span stays tied
-// to the aggregate metric via chipPct.
+function leakFace(id, label){
+  if(id==='chip6') return 'Inside 6 from the fringe';
+  return label;
+}
+
+// v69: one sentence. The rank and the counts stay in rankLeaks. The card says the cue.
 function buildLeaks(rounds, chipPct){
   var el=document.getElementById('leakList'); if(!el)return;
   var R=rankLeaks(rounds||[]);
@@ -1584,15 +1609,17 @@ function buildLeaks(rounds, chipPct){
     el.innerHTML='<i>Not enough hole data to rank a leak.</i>';
     return;
   }
-  var html=R.ranked.map(function(L,i){
-    var detail=L.detail;
-    if(L.id==='chip6' && chipPct) detail=detail.replace(/\(\d+%\)/, '(<span id="tLeakChip">'+chipPct+'</span>)');
-    var cue=L.cue?' <b style="color:var(--oxblood)">'+L.cue+'</b>':'';
-    return '<div><b>#'+(i+1)+' '+L.label+':</b> '+detail+cue+'</div>';
-  }).join('');
+  var html='';
+  var top=null;
+  for(var i=0;i<R.ranked.length;i++){ if(R.ranked[i].cue){ top=R.ranked[i]; break; } }
+  if(!top && R.ranked.length) top=R.ranked[0];
+  if(top){
+    html='<div class="leakSay">'+(top.cue||leakFace(top.id, top.label))+'</div>';
+  }
+  html+='<span id="tLeakChip" hidden>'+(chipPct||'')+'</span>';
   if(R.quiet.length){
     html+='<div class="leakThin">Too thin to rank: '+R.quiet.map(function(q){
-      return q.label+' ('+(q.d?q.n+'/'+q.d:'n='+q.n)+')';
+      return leakFace(q.id, q.label)+' ('+(q.d?q.n+'/'+q.d:'n='+q.n)+')';
     }).join(', ')+'</div>';
   }
   el.innerHTML=html;
@@ -1711,7 +1738,7 @@ function shareExport(){
 }
 
 // v67: the version Kenny can read in the summary; a test keeps it equal to sw.js.
-var APP_VERSION='v68';
+var APP_VERSION='v69';
 function showAppVersion(){ var v=document.getElementById('appVersion'); if(v) v.textContent='Bay Oaks Tracker '+APP_VERSION; }
 function showUpdateBanner(){ var b=document.getElementById('updateBanner'); if(b) b.hidden=false; }
 // A reload alone cannot swap in a waiting worker; only closing every window of the app does.

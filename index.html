@@ -35,10 +35,13 @@
     <div class="holeLbl">
       <div class="num"><span class="ghost" id="holeGhost" aria-hidden="true">1</span><span class="kicker">Hole</span><span id="holeNum">1</span></div>
       <div class="meta" id="holeMeta"></div>
-      <div class="done" id="doneLbl"></div>
     </div>
     <button aria-label="Next hole" onclick="move(1)">&#8594;</button>
   </div>
+  <div class="tip" id="planCard" hidden>
+    <b id="planPin"></b><span id="tipText"></span><span id="planMiss"></span>
+  </div>
+  <div class="done" id="doneLbl"></div>
   <section class="sheet scoreSheet">
   <div class="row scoreCard">
     <div class="lbl"><span>Score</span><span class="scoreNow" id="scoreVal">&ndash;</span></div>
@@ -47,10 +50,6 @@
     </div>
   </div>
   </section>
-  </div>
-
-  <div class="tip" id="planCard" hidden>
-    <b id="planPin"></b><span id="tipText"></span>
   </div>
 
   <button type="button" id="roundBar" class="roundBar" onclick="toggleSetup()">
@@ -83,8 +82,8 @@
   </div>
 
   </section>
+  <div id="scoreExtras" hidden>
   <section class="sheet">
-    <h2 class="sheetTitle">This hole</h2>
   <div class="row" id="firRow">
     <div class="lbl">Fairway? (tee shot, par 4/5)</div>
     <div class="btns" id="firBtns"></div>
@@ -94,7 +93,9 @@
     <div class="btns" id="puttBtns"></div>
   </div>
   </section>
-  <div id="closeout" hidden>
+  </div>
+  <details id="closeout" hidden>
+  <summary>Closed hole</summary>
   <section class="sheet">
     <h2 class="sheetTitle">Approach</h2>
   <div class="row">
@@ -151,7 +152,7 @@
     <div id="noteStatus" class="noteStatus" aria-live="polite"></div>
   </div>
   </section>
-  </div>
+  </details>
 </div>
 
 <div id="summaryView">
@@ -178,8 +179,8 @@
     <div class="trendGrid">
       <div class="metricBox"><div class="mLbl">Season Low (18)</div><div class="mVal" id="tSeasonLow">&mdash;</div></div>
       <div class="metricBox"><div class="mLbl">Quick 9 Low</div><div class="mVal" id="tNineLow">&mdash;</div></div>
-      <div class="metricBox"><div class="mLbl">Fairways (FIR)</div><div class="mVal" id="tFirPct">&mdash;</div></div>
-      <div class="metricBox"><div class="mLbl">Greens (GIR)</div><div class="mVal" id="tGirPct">&mdash;</div></div>
+      <div class="metricBox"><div class="mLbl">Fairways</div><div class="mVal" id="tFirPct">&mdash;</div></div>
+      <div class="metricBox"><div class="mLbl">Greens</div><div class="mVal" id="tGirPct">&mdash;</div></div>
       <div class="metricBox"><div class="mLbl">Inside 6 from the fringe</div><div class="mVal" id="tChipPct">&mdash;</div></div>
       <div class="metricBox"><div class="mLbl">3–6 footers</div><div class="mVal" id="tP36Pct">&mdash;</div></div>
     </div>

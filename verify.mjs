@@ -2451,10 +2451,14 @@ globalThis.state.rounds = allRounds;
 buildTrends();
 check('leaks: the card renders that order and the live CHIP6 percent', (function(){
   const card=els['leakList'].innerHTML;
-  return card.indexOf('#1 Chipping proximity (CHIP6)')>-1
-    && card.indexOf('#1')<card.indexOf('#2 3-putts')
-    && card.indexOf('#2')<card.indexOf('#3 Late left miss')
-    && card.indexOf('After H12, aim right of your usual miss.')>-1
+  const top=seedRank.ranked[0];
+  // v69: the card is the top cue, one sentence. Rank order stays on rankLeaks.
+  return top.cue && card.indexOf(top.cue)>-1
+    && card.indexOf('#2')===-1
+    && card.indexOf('CHIP6')===-1
+    && card.indexOf('P36')===-1
+    && card.indexOf('FIR')===-1
+    && card.indexOf('GIR')===-1
     && card.indexOf('id="tLeakChip"')>-1
     && els['tLeakChip'].textContent===els['tChipPct'].textContent
     && els['tChipPct'].textContent==='18%'
@@ -2572,7 +2576,7 @@ globalThis.state.rounds=thinChip;
 buildTrends();
 check('leaks: the card says the sample is thin and does not prescribe the chip',
   els['leakList'].innerHTML.indexOf('Too thin to rank')>-1
-  && els['leakList'].innerHTML.indexOf('Chipping proximity (CHIP6) (0/3)')>-1
+  && els['leakList'].innerHTML.indexOf('Inside 6 from the fringe (0/3)')>-1
   && els['leakList'].innerHTML.indexOf('land the first chip')===-1
   && els['leakList'].innerHTML.indexOf('Miss to the fat side')===-1,
   els['leakList'].innerHTML);
