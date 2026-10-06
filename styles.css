@@ -169,8 +169,9 @@ h1{margin:0;font-size:30px;font-weight:500;letter-spacing:-.03em;line-height:.95
 }
 .beam .tip b{color:var(--brass);}
 #tipText{display:block;white-space:pre-line;}
-#tipText:empty,#planMiss:empty{display:none;}
+#tipText:empty,#planMiss:empty,#planGreen:empty{display:none;}
 #planMiss{display:block;}
+#planGreen{display:block;margin-top:6px;}
 .beam #planMiss.mark{color:var(--hero-bad);font-weight:700;}
 #planCard[hidden],#closeout[hidden],#scoreExtras[hidden]{display:none;}
 #closeout{margin-top:8px;}
@@ -186,6 +187,7 @@ h1{margin:0;font-size:30px;font-weight:500;letter-spacing:-.03em;line-height:.95
 .rcScore{display:flex;align-items:baseline;gap:12px;padding:18px 16px 8px;}
 .rcScore b{font-family:var(--serif);font-size:64px;font-weight:500;line-height:.9;letter-spacing:-.04em;}
 .rcScore span{font-family:var(--serif);font-size:28px;color:var(--brass);}
+.rcArc{padding:0 16px 14px;font-size:15px;line-height:1.4;color:var(--hero-ink);}
 .rcRow{display:flex;justify-content:space-between;gap:12px;padding:10px 16px;border-top:1px solid var(--hero-line);font-size:15px;}
 .rcRow b{font-variant-numeric:tabular-nums;}
 .moreStats{margin-top:12px;color:var(--muted);font-size:13px;}
@@ -207,6 +209,12 @@ h1{margin:0;font-size:30px;font-weight:500;letter-spacing:-.03em;line-height:.95
   border-radius:6px;overflow:hidden;
 }
 #holeView{counter-reset:sheet;}
+.preBrief{
+  display:block;width:100%;margin:0 0 10px;padding:12px 14px;min-height:44px;
+  border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);
+  font-size:15px;font-weight:650;line-height:1.4;text-align:left;
+}
+#preBrief[hidden]{display:none;}
 .sheetTitle{
   margin:0;padding:13px 14px 4px;border-bottom:0;
   color:var(--oxblood);font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;line-height:1.4;

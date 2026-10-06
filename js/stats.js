@@ -328,6 +328,38 @@ function rankLeaks(rounds){
   return {ranked:ranked, quiet:quiet};
 }
 
+// One sentence before the round. Hole names come from holeStats and only
+// when n>=3. The late-left sentence is lateLeftDrift's cue, and only when
+// that function already returned one. rankLeaks is what decides the cue is
+// the same line the leak rank already computed. Nothing else gets a sentence.
+function preRoundLine(rounds){
+  var rs=rounds||[];
+  var stats=holeStats(rs);
+  var leaks=rankLeaks(rs);
+  var drift=lateLeftDrift(rs);
+  var parts=[];
+  var eligible=stats.filter(function(o){return o.n>=3 && o.avgOver>0;});
+  if(eligible.length){
+    eligible.sort(function(a,b){return b.avgOver-a.avgOver || a.hole-b.hole;});
+    var worst=eligible[0].avgOver;
+    var nums=eligible.filter(function(o){return o.avgOver===worst;}).map(function(o){return o.hole;});
+    var list=nums.length===1?String(nums[0])
+      :nums.length===2?nums[0]+' and '+nums[1]
+      :nums.slice(0,-1).join(', ')+', and '+nums[nums.length-1];
+    parts.push(list+(nums.length===1?' is the leak.':' are the leaks.'));
+  } else if(stats.some(function(o){return o.n>0 && o.n<3;})){
+    parts.push('Too thin to name a hole.');
+  }
+  if(drift && drift.cue){
+    var cue=drift.cue;
+    for(var i=0;i<(leaks.ranked||[]).length;i++){
+      if(leaks.ranked[i].id==='lateLeft' && leaks.ranked[i].cue) cue=leaks.ranked[i].cue;
+    }
+    parts.push(cue);
+  }
+  return parts.join(' ');
+}
+
 function nineSplit(rounds){
   var out={front:{n:0,over:0},back:{n:0,over:0}};
   (rounds||[]).forEach(function(r){
@@ -339,6 +371,48 @@ function nineSplit(rounds){
     });
   });
   return out;
+}
+
+// Where this card broke. Front versus back from the holes scored in this
+// round, not a standing list. A hole is named only as the stroke on this
+// card. History with n under 3 is called thin, not a law.
+function roundArc(holeList, rounds){
+  var front={n:0,over:0}, back={n:0,over:0}, rows=[];
+  var list=holeList||[];
+  for(var i=0;i<list.length && i<18;i++){
+    var h=list[i], c=COURSE[i];
+    if(!countsScore(h)||!c) continue;
+    var over=h.score-c.par;
+    var side=i<9?'front':'back';
+    var box=side==='front'?front:back;
+    box.n++; box.over+=over;
+    rows.push({hole:i+1, over:over, side:side});
+  }
+  if(!front.n && !back.n) return '';
+  var sideName='', sideKey='', sideOver=0, otherOpen=false;
+  if(front.n && back.n){
+    if(front.over===back.over) return front.over>0?'Neither nine cost more.':'';
+    if(back.over>front.over){sideName='Back'; sideKey='back'; sideOver=back.over;}
+    else {sideName='Front'; sideKey='front'; sideOver=front.over;}
+    if(sideOver<=0) return '';
+  } else {
+    var onlyFront=!!front.n;
+    sideOver=onlyFront?front.over:back.over;
+    if(sideOver<=0) return '';
+    sideName=onlyFront?'Front':'Back';
+    sideKey=onlyFront?'front':'back';
+    otherOpen=true;
+  }
+  var mine=rows.filter(function(r){return r.side===sideKey && r.over>0;});
+  mine.sort(function(a,b){return b.over-a.over || a.hole-b.hole;});
+  var holeBit='';
+  if(mine.length && (mine.length===1 || mine[0].over>mine[1].over)){
+    var hn=mine[0].hole;
+    var hist=holeStats(rounds||[]);
+    var n=hist[hn-1]?hist[hn-1].n:0;
+    holeBit=' On '+hn+'.'+(n<3?' The sample is thin.':'');
+  }
+  return sideName+' cost the strokes'+(otherOpen?' so far. The other nine is not scored.':'.')+holeBit;
 }
 
 // v19: first-putt distance buckets. Standing prescription #2 says the 3-putts come from

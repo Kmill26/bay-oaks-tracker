@@ -2595,6 +2595,106 @@ check('leaks: tee-miss hotspots and the late-left segment cue still render',
   && els['segmentList'].innerHTML.indexOf(lateLeftDrift(allRounds).cue)>-1,
   'surfaces dropped');
 
+// v70: the pre-round line, the green sentence, and this card's arc.
+const seedRounds=SEED_ROUNDS.map(seedToRound);
+const brief=preRoundLine(seedRounds);
+check('brief: seed names the tied worst holes and the drift cue',
+  brief==='12, 13, and 18 are the leaks. After H12, aim right of your usual miss.', brief);
+check('brief: not a practice list and not a club call',
+  brief.indexOf('Next session')===-1 && brief.indexOf('CHIP6')===-1
+  && !/\b(driver|iron|wedge|pw|hybrid|wood|club)\b/i.test(brief), brief);
+const oneRound=[{date:'2026-01-01', summary:null, holes:COURSE.map((c,i)=>{
+  const h=blank(); if(i===0) h.score=c.par+2; return h;
+})}];
+check('brief: one round does not name a hole',
+  preRoundLine(oneRound)==='Too thin to name a hole.', preRoundLine(oneRound));
+check('brief: empty history says nothing', preRoundLine([])==='', preRoundLine([]));
+check('brief: no late-left cue unless lateLeftDrift returns one',
+  lateLeftDrift(oneRound)===null && preRoundLine(oneRound).indexOf('After H12')===-1, preRoundLine(oneRound));
+
+const mem={};
+const oldLS=global.localStorage;
+global.localStorage={getItem:k=>mem[k]==null?null:mem[k], setItem:(k,v)=>{mem[k]=String(v);}};
+const savedState=globalThis.state;
+const savedHoles=globalThis.holes;
+globalThis.state={date:'2026-10-06', rounds:seedRounds, pin:'?', mode:'full', tee:'blue', holes:[]};
+globalThis.holes=mk();
+globalThis.state.holes=globalThis.holes;
+renderBrief();
+check('brief: shown before a score',
+  els['preBrief'].hidden===false && els['preBrief'].textContent===brief, els['preBrief'].textContent);
+dismissBrief();
+check('brief: tap remembers this round date', mem['bayoaks-brief-dismiss']==='2026-10-06', mem['bayoaks-brief-dismiss']);
+renderBrief();
+check('brief: dismissed stays dismissed', els['preBrief'].hidden===true && els['preBrief'].textContent==='', els['preBrief'].textContent);
+delete mem['bayoaks-brief-dismiss'];
+globalThis.holes[0].score=4;
+renderBrief();
+check('brief: a scored hole does not bring it back', els['preBrief'].hidden===true, String(els['preBrief'].hidden));
+global.localStorage=oldLS;
+globalThis.state=savedState;
+globalThis.holes=savedHoles;
+
+function noClubYard(s){return !/\b(driver|iron|wedge|pw|sw|gw|hybrid|wood|club)\b/i.test(s) && !/\d/.test(s);}
+[7,9,11,13,14,16,17].forEach(i=>{
+  ['F','M','B'].forEach(b=>{
+    const g=greenLine(i,b);
+    check('green: H'+(i+1)+' '+b+' is a book line with no club or yardage', !!g && noClubYard(g), g);
+  });
+});
+check('green: other holes stay blank',
+  [0,1,2,3,4,5,6,8,10,12,15].every(i=>greenLine(i,'F')==='' && greenLine(i,'M')==='' && greenLine(i,'B')===''),
+  'a hole grew a sentence');
+check('green: hole 8 stays middle tier on a back pin', greenLine(7,'B')==='Middle tier.', greenLine(7,'B'));
+check('green: hole 12 is the front tier and does not chase a back pin',
+  greenLine(11,'B')==="Front tier. Don't chase a back pin.", greenLine(11,'B'));
+check('green: hole 10 names the pin tier without a club count',
+  greenLine(9,'F')==='Front tier, not the sprinkler number.' && greenLine(9,'B')==='Back tier, not the sprinkler number.',
+  greenLine(9,'F')+' | '+greenLine(9,'B'));
+check('green: hole 14 names the pin tier', greenLine(13,'M')==='Middle tier.', greenLine(13,'M'));
+check('green: hole 15 is never long-left', greenLine(14,'F')==='Never long-left.', greenLine(14,'F'));
+check('green: hole 17 is the pocket and the wet',
+  greenLine(16,'A'&&'M')==='Right-mid pocket. Right of it is wet.', greenLine(16,'M'));
+check('green: hole 18 is water left, miss right', greenLine(17,'B')==='Water left. Miss right.', greenLine(17,'B'));
+check('green: no pin, no line', greenLine(16,null)==='', greenLine(16,null));
+
+function arcCard(pairs){
+  const hs=mk();
+  pairs.forEach(function(p){hs[p[0]].score=COURSE[p[0]].par+p[1];});
+  return hs;
+}
+check('arc: the back names the hole when the history is thick enough',
+  roundArc(arcCard([[0,0],[9,0],[16,2]]), seedRounds)==='Back cost the strokes. On 17.',
+  roundArc(arcCard([[0,0],[9,0],[16,2]]), seedRounds));
+check('arc: a thin history says so and does not state a law',
+  roundArc(arcCard([[0,0],[9,0],[16,2]]), [])==='Back cost the strokes. On 17. The sample is thin.'
+  && !/\/hole|average|always/i.test(roundArc(arcCard([[16,2],[0,0],[9,0]]), [])),
+  roundArc(arcCard([[0,0],[9,0],[16,2]]), []));
+check('arc: the front is the stretch when it cost the strokes',
+  roundArc(arcCard([[1,3],[10,1]]), seedRounds)==='Front cost the strokes. On 2.',
+  roundArc(arcCard([[1,3],[10,1]]), seedRounds));
+check('arc: equal nines do not invent a side',
+  roundArc(arcCard([[0,1],[1,1],[10,1],[11,1]]), seedRounds)==='Neither nine cost more.',
+  roundArc(arcCard([[0,1],[1,1],[10,1],[11,1]]), seedRounds));
+check('arc: an unscored nine is not called even',
+  roundArc(arcCard([[3,2]]), [])==='Front cost the strokes so far. The other nine is not scored. On 4. The sample is thin.',
+  roundArc(arcCard([[3,2]]), []));
+check('arc: no scores, no arc', roundArc(mk(), seedRounds)==='', roundArc(mk(), seedRounds));
+
+globalThis.holes=arcCard([[0,0],[9,0],[16,2]]);
+globalThis.state={date:'2026-10-06', rounds:seedRounds, pin:'A', mode:'full', tee:'blue', holes:globalThis.holes};
+buildSummary();
+const rc=els['roundCard'].innerHTML;
+check('arc: sits after the score and before the rows',
+  rc.indexOf('rcScore')>-1 && rc.indexOf('rcArc')>rc.indexOf('rcScore')
+  && rc.indexOf('rcRow')>rc.indexOf('rcArc')
+  && rc.indexOf('Back cost the strokes. On 17.')>-1, rc.slice(0,500));
+check('arc: the export line is untouched', els['exportText'].textContent.indexOf('Back cost')===-1, 'export changed');
+check('summary: copy actions are still on the page',
+  html.indexOf('copyExport()')>-1 && html.indexOf('copyGeminiPrompt()')>-1 && html.indexOf('backupJSON()')>-1, 'a button left');
+globalThis.state=savedState;
+globalThis.holes=savedHoles;
+
 console.log(fails ? 'RESULT: FAIL ('+fails+')' : 'RESULT: ALL PASS');
 process.exit(fails?1:0);
 

@@ -111,3 +111,24 @@ var PLAN=[
  {line:'Left half, then the right-mid pocket.', miss:"Right of the pocket is wet. Don't chase a pin past it."},
  {line:'Center.', miss:'Right is safe. Water is left.'}
 ];
+
+// Today's pin on the green. Only the holes whose book note already says
+// something about the green. The bucket is front / middle / back.
+// No club and no yardage. Every other hole stays blank.
+function greenLine(i, bucket){
+  if(!bucket) return '';
+  if(i===7) return 'Middle tier.';
+  if(i===9){
+    var tier=bucket==='F'?'Front tier':bucket==='M'?'Middle tier':'Back tier';
+    return tier+', not the sprinkler number.';
+  }
+  if(i===11) return "Front tier. Don't chase a back pin.";
+  if(i===13){
+    var tier=bucket==='F'?'Front tier':bucket==='M'?'Middle tier':'Back tier';
+    return tier+'.';
+  }
+  if(i===14) return 'Never long-left.';
+  if(i===16) return 'Right-mid pocket. Right of it is wet.';
+  if(i===17) return 'Water left. Miss right.';
+  return '';
+}

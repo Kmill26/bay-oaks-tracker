@@ -25,6 +25,7 @@
 <div id="fatigueAlert" class="fatigueBanner"></div>
 
 <div id="holeView">
+  <button type="button" id="preBrief" class="preBrief" hidden onclick="dismissBrief()"></button>
   <div class="beam">
   <span class="tick tl" aria-hidden="true"></span>
   <span class="tick tr" aria-hidden="true"></span>
@@ -39,7 +40,7 @@
     <button aria-label="Next hole" onclick="move(1)">&#8594;</button>
   </div>
   <div class="tip" id="planCard" hidden>
-    <b id="planPin"></b><span id="tipText"></span><span id="planMiss"></span>
+    <b id="planPin"></b><span id="tipText"></span><span id="planMiss"></span><span id="planGreen"></span>
   </div>
   <div class="done" id="doneLbl"></div>
   <section class="sheet scoreSheet">

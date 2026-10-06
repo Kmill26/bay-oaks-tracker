@@ -86,6 +86,7 @@ function clampCur(c){
 // over a newer one by navigating -- losing scores that were never touched. Navigation must
 // never write the round. Keyed to the date so yesterday's cursor cannot land on today.
 var CURKEY='bayoaks-cursor-v1';
+var BRIEFKEY='bayoaks-brief-dismiss';
 function saveCursor(){try{localStorage.setItem(CURKEY,JSON.stringify({date:state&&state.date,cur:cur}));}catch(e){}}
 function loadCursor(){
   try{var c=JSON.parse(localStorage.getItem(CURKEY));
@@ -1260,6 +1261,8 @@ function render(){
     pm.textContent=planOn?parts.miss:'';
     pm.className=(planOn&&parts.miss&&(cur===4||cur===16))?'mark':'';
   }
+  var pg=document.getElementById('planGreen');
+  if(pg) pg.textContent=planOn?greenLine(cur, pinBucket(cur)):'';
   pinSeg();
   renderTeeSelector();
   renderSetup();
@@ -1323,6 +1326,7 @@ function render(){
   checkFatigue();
   buildSummary();
   buildTrends();
+  renderBrief();
 }
 
 function fmt(v,y,n){return v===null?'?':(v===true?y:(v===false?n:v));}
@@ -1357,6 +1361,28 @@ function getTeeProfile(){
     label='Combo ('+parts.join(' / ')+')';
   }
   return {tips:tips, blue:blue, white:white, yds:yds, label:label};
+}
+
+function esc(s){
+  return String(s).replace(/&/g,'\u0026amp;').replace(/</g,'\u0026lt;').replace(/>/g,'\u0026gt;');
+}
+
+function roundHasScore(){return !!(holes&&holes.some(function(h){return h&&h.score!=null;}));}
+
+function renderBrief(){
+  var el=document.getElementById('preBrief'); if(!el)return;
+  var stored='';
+  try{stored=localStorage.getItem(BRIEFKEY)||'';}catch(e){}
+  var dismissed=!!(state&&stored===state.date);
+  var line=(!roundHasScore() && !dismissed)?preRoundLine(state&&state.rounds):'';
+  el.textContent=line;
+  el.hidden=!line;
+}
+
+function dismissBrief(){
+  vibe(15);
+  try{if(state&&state.date)localStorage.setItem(BRIEFKEY, state.date);}catch(e){}
+  renderBrief();
 }
 
 function buildSummary(){
@@ -1429,7 +1455,9 @@ function buildSummary(){
   if(rc){
     var vs=diff===0?'E':((diff>0?'+':'')+diff);
     var leakName=leakTop?(leakTop.id==='chip6'?'Inside 6 from the fringe':leakTop.label):'Not enough to name one';
+    var arc=roundArc(holes, (state&&state.rounds)||[]);
     rc.innerHTML='<div class="rcScore"><b>'+(un.length?tS+'*':tS)+'</b><span>'+vs+'</span></div>'
+      +(arc?'<div class="rcArc">'+esc(arc)+'</div>':'')
       +'<div class="rcRow"><span>Fairways</span><b>'+firHit+'/'+firN+'</b></div>'
       +'<div class="rcRow"><span>Greens</span><b>'+gir+'/'+girN+'</b></div>'
       +'<div class="rcRow"><span>Putts</span><b>'+(tP==null?'–':tP)+'</b></div>'
@@ -1738,7 +1766,7 @@ function shareExport(){
 }
 
 // v67: the version Kenny can read in the summary; a test keeps it equal to sw.js.
-var APP_VERSION='v69';
+var APP_VERSION='v70';
 function showAppVersion(){ var v=document.getElementById('appVersion'); if(v) v.textContent='Bay Oaks Tracker '+APP_VERSION; }
 function showUpdateBanner(){ var b=document.getElementById('updateBanner'); if(b) b.hidden=false; }
 // A reload alone cannot swap in a waiting worker; only closing every window of the app does.
