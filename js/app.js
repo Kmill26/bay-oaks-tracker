@@ -808,7 +808,7 @@ function showSaveState(){
 // a round of notes and putts with no score was deleted silently on Start New Round.
 function holeHasData(h){
   return !!h&&(h.score!==null||h.putts!==null||h.fir!==null||h.gir!==null||h.ss!==null
-    ||h.chip!==null||h.lag!=null||(h.sixAtt||0)>0||(h.sixMade||0)>0||(h.pen||0)>0
+    ||h.chip!==null||h.chipIn===true||h.lag!=null||(h.sixAtt||0)>0||(h.sixMade||0)>0||(h.pen||0)>0
     ||!!(h.notes&&h.notes.trim()));
 }
 function roundHasData(){return holes.some(holeHasData);}
@@ -1240,9 +1240,25 @@ function setScoreChoice(val){
   var h=holes[cur], par=COURSE[cur].par, s=h.score;
   // The four relative buttons are the only score control. Tap the active
   // even button to clear. Tap -1 again, or +2 again, to step past those ends.
-  if(val===par-1 && s!=null && s<=par-1){ h.score=s-1<1?null:s-1; return; }
+  // Strokes stop at 1. They do not blank, and they do not store a 0.
+  if(val===par-1 && s!=null && s<=par-1){ h.score=s-1<1?1:s-1; return; }
   if(val===par+2 && s!=null && s>=par+2){ h.score=s+1; return; }
   h.score=(s===val)?null:val;
+}
+
+function stepStrokes(score,d){
+  // A blank hole is not a stroke. Plus commits 1. Minus on a blank hole stays blank.
+  // A saved stroke never goes below 1.
+  if(score==null) return d>0?1:null;
+  var next=score+d;
+  return next<1?1:next;
+}
+function stepPutts(putts,d){
+  // A blank hole shows 1 and is not entered. Plus commits 1. Minus commits 0,
+  // the chip-in fallback, and stays there.
+  if(putts==null) return d>0?1:0;
+  var next=putts+d;
+  return next<0?0:next;
 }
 
 function holePlanParts(i){
@@ -1265,12 +1281,14 @@ function bump(field,d){
   ensureDate();
   var h=holes[cur];
   if(field==='score'){
-    // A mis-tap has to be clearable mid-round. Minus from 1 blanks the hole
-    // (null, the same as never entered — not 0, which would still be a stroke).
-    // Minus on a blank hole stays blank. Plus on a blank hole still seeds par.
-    var next=h.score===null?(d>0?COURSE[cur].par:null):(h.score+d<1?null:h.score+d);
+    var next=stepStrokes(h.score,d);
     if(next===h.score)return;
     h.score=next;
+  }
+  else if(field==='putts'){
+    var np=stepPutts(h.putts,d);
+    if(np===h.putts)return;
+    h.putts=np;
   }
   else if(field==='sixAtt'){h.sixAtt=Math.max(0,h.sixAtt+d); if(h.sixMade>h.sixAtt)h.sixMade=h.sixAtt;}
   else if(field==='sixMade'){h.sixMade=Math.min(h.sixAtt,Math.max(0,h.sixMade+d));}
@@ -1352,6 +1370,7 @@ function render(){
   seg('scoreBtns',[{label:'-1',val:c.par-1},{label:'E',val:c.par},{label:'+1',val:c.par+1},{label:'+2',val:c.par+2}],'score');
   seg('penBtns',[{label:'0',val:0},{label:'1',val:1},{label:'2',val:2},{label:'3',val:3}],'pen');
   seg('puttBtns',[{label:'0',val:0},{label:'1',val:1},{label:'2',val:2},{label:'3',val:3},{label:'4',val:4},{label:'5',val:5}],'putts');
+  renderChipIn();
   // v19: first-putt distance bucket. The single datum that separates "the approach
   // left a 50-footer" from "the short putt missed". rankLeaks will not prescribe a
   // distance until these tags exist. One tap, only shown when a putt was actually hit.
@@ -1366,10 +1385,24 @@ function render(){
   var sd=h.score===null?null:h.score-c.par;
   var sv=document.getElementById('scoreVal');
   if(sv){
-    sv.textContent=h.score===null?'–':h.score+' ('+(sd===0?'E':(sd>0?'+':'')+sd)+')';
-    sv.className='scoreNow'+(h.score===null?'':sd<0?' under':sd>0?' over':' even');
+    if(h.score===null){
+      sv.textContent='1';
+      sv.className='scoreNow start';
+    } else {
+      sv.textContent=h.score+' ('+(sd===0?'E':(sd>0?'+':'')+sd)+')';
+      sv.className='scoreNow'+(sd<0?' under':sd>0?' over':' even');
+    }
   }
-  var pv=document.getElementById('puttsVal'); if(pv)pv.textContent=h.putts===null?'–':h.putts;
+  var pv=document.getElementById('puttsVal');
+  if(pv){
+    pv.textContent=h.putts===null?'1':String(h.putts);
+    pv.className='scoreNow'+(h.putts===null?' start':'');
+  }
+  var ps=document.getElementById('puttsStep');
+  if(ps){
+    ps.textContent=h.putts===null?'1':String(h.putts);
+    ps.className='val'+(h.putts===null?' start':'');
+  }
   var sa=document.getElementById('sixAttVal'); if(sa)sa.textContent=h.sixAtt;
   var sm=document.getElementById('sixMadeVal'); if(sm)sm.textContent=h.sixMade;
   var nb=document.getElementById('noteBox');
@@ -1383,6 +1416,23 @@ function render(){
   buildSummary();
   buildTrends();
   renderBrief();
+}
+
+function renderChipIn(){
+  var el=document.getElementById('chipInBtns'); if(!el)return; el.innerHTML='';
+  var b=document.createElement('button');
+  b.type='button';
+  b.textContent='Chip-in';
+  var on=holes[cur].chipIn===true;
+  if(on)b.className='on';
+  b.ariaPressed=on?'true':'false';
+  b.onclick=function(){
+    vibe(15);
+    ensureDate();
+    holes[cur].chipIn=holes[cur].chipIn===true?false:true;
+    touch(); render();
+  };
+  el.appendChild(b);
 }
 
 function fmt(v,y,n){return v===null?'?':(v===true?y:(v===false?n:v));}
@@ -1517,6 +1567,7 @@ function buildSummary(){
       +'<div class="rcRow"><span>Fairways</span><b>'+firHit+'/'+firN+'</b></div>'
       +'<div class="rcRow"><span>Greens</span><b>'+gir+'/'+girN+'</b></div>'
       +'<div class="rcRow"><span>Putts</span><b>'+(tP==null?'–':tP)+'</b></div>'
+      +'<div class="rcRow"><span>Chip-ins</span><b>'+(S.chipIns||0)+'</b></div>'
       +'<div class="rcRow"><span>Leak</span><b>'+leakName+'</b></div>';
   }
   var st=document.getElementById('stats');
@@ -1534,6 +1585,7 @@ function buildSummary(){
       +'<div class="stat">Short-sided on missed greens <b>'+ss+'/'+missed+'</b>'
         +(ssA<missed?' <span class="warn">'+ssA+' of '+missed+' answered</span>':'')+'</div>'
       +'<div class="stat">Total putts <b>'+tP+'</b></div>'
+      +'<div class="stat">Chip-ins <b>'+(S.chipIns||0)+'</b></div>'
       +'<div class="stat">3–6 ft putts made <b>'+made+'/'+att+' ('+pct(made,att)+')</b></div>'
       +'<div class="stat">Penalty strokes <b>'+tPen+'</b></div>';
   }
@@ -1824,7 +1876,7 @@ function shareExport(){
 }
 
 // v67: the version Kenny can read in the summary; a test keeps it equal to sw.js.
-var APP_VERSION='v71';
+var APP_VERSION='v72';
 function showAppVersion(){ var v=document.getElementById('appVersion'); if(v) v.textContent='Bay Oaks Tracker '+APP_VERSION; }
 function showUpdateBanner(){ var b=document.getElementById('updateBanner'); if(b) b.hidden=false; }
 // A reload alone cannot swap in a waiting worker; only closing every window of the app does.
@@ -1868,14 +1920,40 @@ function backupFallback(payload,fname,why){
   finish('Clipboard not available in this browser.');
   return Promise.resolve();
 }
+function stampChipIn(data){
+  var copy;
+  try{ copy=JSON.parse(JSON.stringify(data)); }catch(e){ return data; }
+  function mark(list){
+    if(!list||!list.forEach)return;
+    list.forEach(function(h){
+      if(h&&typeof h==='object') h.chipIn=h.chipIn===true;
+    });
+  }
+  if(copy){
+    mark(copy.holes);
+    if(copy.rounds&&copy.rounds.forEach) copy.rounds.forEach(function(r){ if(r) mark(r.holes); });
+  }
+  return copy;
+}
+function backupPayload(data){
+  return {app:'bay-oaks-tracker',kind:'backup',format:2,store:STORE,
+    exportedAt:new Date().toISOString(),data:stampChipIn(data)};
+}
+function importBackup(text){
+  var root=JSON.parse(text);
+  if(!root||root.app!=='bay-oaks-tracker'||root.kind!=='backup') throw Error('not a Bay Oaks backup');
+  var format=root.format;
+  if(format!==1&&format!==2) throw Error('unsupported backup format '+format);
+  if(!root.data||typeof root.data!=='object') throw Error('backup has no data');
+  return {format:format, store:root.store, data:stampChipIn(root.data)};
+}
 function backupJSON(){
   vibe(20);
   var raw=null;
   try{ raw=localStorage.getItem(STORE); }catch(e){}
   var data=null;
   try{ data=raw?JSON.parse(raw):state; }catch(e){ data=state; }
-  var payload=JSON.stringify({app:'bay-oaks-tracker',kind:'backup',format:1,store:STORE,
-    exportedAt:new Date().toISOString(),data:data});
+  var payload=JSON.stringify(backupPayload(data));
   var base='bay-oaks-backup-'+today();
   var file=null, why='';
   try{

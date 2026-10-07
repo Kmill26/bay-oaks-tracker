@@ -260,7 +260,7 @@ test('New Round archives combination tees and pin; next round inherits default b
   const archive = a.state.rounds.at(-1);
   assert.equal(archive.tee, 'tips'); assert.equal(archive.pin, 'B');
   assert.equal(archive.holes[9].tee, 'white');
-  assert.equal(archive.holes[9].score, a.COURSE[9].par);
+  assert.equal(archive.holes[9].score, 1);
   assert.ok(archive.holes.slice(0,9).every(hole => hole === null));
 });
 
@@ -297,7 +297,7 @@ test('refused save retains tee/pin changes as a recoverable draft without touchi
   assert.equal(a.recoverDraft(), true);
   assert.equal(a.state.mode, 'back'); assert.equal(a.state.tee, 'white');
   assert.equal(a.state.pin, 'D'); assert.equal(a.holes[9].tee, 'white');
-  assert.equal(a.holes[9].score, a.COURSE[9].par);
+  assert.equal(a.holes[9].score, 1);
   assert.equal(h.storage.getItem(a.STORE), raw, 'viewing recovery must not overwrite the newer round');
 });
 
@@ -343,7 +343,7 @@ test('offline entry, setup, overrides, and Back 9 reload do not depend on a conn
   assert.equal(a.cur, 10); assert.equal(a.state.mode, 'back');
   assert.equal(a.state.tee, 'tips'); assert.equal(a.state.pin, 'E');
   assert.equal(a.holes[9].tee, 'white'); assert.equal(a.holes[9].notes, 'offline observation');
-  assert.equal(a.holes[9].score, a.COURSE[9].par);
+  assert.equal(a.holes[9].score, 1);
 });
 
 test('offline shell still precaches every script and stylesheet used by the app', () => {

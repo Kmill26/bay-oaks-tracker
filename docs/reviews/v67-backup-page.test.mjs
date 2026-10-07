@@ -58,8 +58,14 @@ test('backup.html shows round count, newest date, and builds the importer envelo
   const newest = backup.data.rounds.map(r => r.date).sort().pop();
   assert.equal(facts[1], 'Newest saved round: ' + newest);
   const p = JSON.parse(api.buildPayload(backup.data));
-  assert.equal(p.kind, 'backup'); assert.equal(p.app, 'bay-oaks-tracker'); assert.equal(p.format, 1);
-  assert.deepEqual(p.data, backup.data);
+  assert.equal(p.kind, 'backup'); assert.equal(p.app, 'bay-oaks-tracker'); assert.equal(p.format, 2);
+  assert.equal(p.data.holes[0].score, 4);
+  assert.equal(p.data.holes[0].putts, null);
+  assert.equal(p.data.holes[0].chipIn, false);
+  assert.equal(p.data.holes[3].score, null);
+  assert.equal(p.data.rounds[0].holes[0].score, 5);
+  assert.equal(p.data.rounds[0].holes[0].chipIn, false);
+  assert.equal(p.store, backup.store);
   assert.match(api.fileName(), /^bay-oaks-backup-\d{4}-\d{2}-\d{2}\.txt$/);
   assert.deepEqual(writes, []);
 });

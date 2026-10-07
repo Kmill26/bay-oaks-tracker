@@ -45,7 +45,7 @@
   <div class="done" id="doneLbl"></div>
   <section class="sheet scoreSheet">
   <div class="row scoreCard">
-    <div class="lbl"><span>Score</span><span class="scoreNow" id="scoreVal">&ndash;</span></div>
+    <div class="lbl"><span>Score</span><span class="scoreNow start" id="scoreVal">1</span></div>
     <div class="scoreWrap">
       <div class="btns" id="scoreBtns"></div>
     </div>
@@ -90,8 +90,17 @@
     <div class="btns" id="firBtns"></div>
   </div>
   <div class="row">
-    <div class="lbl"><span>Total putts</span><span class="scoreNow" id="puttsVal">&ndash;</span></div>
+    <div class="lbl"><span>Total putts</span><span class="scoreNow start" id="puttsVal">1</span></div>
+    <div class="stepper">
+      <button type="button" onclick="bump('putts',-1)" aria-label="Putts minus one">&minus;</button>
+      <div class="val" id="puttsStep">1</div>
+      <button type="button" onclick="bump('putts',1)" aria-label="Putts plus one">+</button>
+    </div>
     <div class="btns" id="puttBtns"></div>
+  </div>
+  <div class="row" id="chipInRow">
+    <div class="lbl">Chip-in</div>
+    <div class="btns" id="chipInBtns"></div>
   </div>
   </section>
   </div>

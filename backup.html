@@ -52,9 +52,22 @@
     var scored=holes.filter(function(h){return h&&h.score!=null;}).length;
     return {rounds:rounds.length, newest:newest, liveDate:(data&&data.date)||null, liveScored:scored};
   }
+  function stampChipIn(data){
+    var copy;
+    try{ copy=JSON.parse(JSON.stringify(data)); }catch(e){ return data; }
+    function mark(list){
+      if(!list||!list.forEach) return;
+      list.forEach(function(h){ if(h&&typeof h==='object') h.chipIn=h.chipIn===true; });
+    }
+    if(copy){
+      mark(copy.holes);
+      if(copy.rounds&&copy.rounds.forEach) copy.rounds.forEach(function(r){ if(r) mark(r.holes); });
+    }
+    return copy;
+  }
   function buildPayload(data){
-    return JSON.stringify({app:'bay-oaks-tracker',kind:'backup',format:1,store:STORE,
-      exportedAt:new Date().toISOString(),source:'backup.html',data:data});
+    return JSON.stringify({app:'bay-oaks-tracker',kind:'backup',format:2,store:STORE,
+      exportedAt:new Date().toISOString(),source:'backup.html',data:stampChipIn(data)});
   }
   function fileName(){
     var d=new Date(), p=function(n){return (n<10?'0':'')+n;};

@@ -28,6 +28,13 @@ function chipLeftOut(h){ return countsChip6(h) && h.chip==='out'; }
 function countsPutts(h){ return !!h && h.putts!=null; }
 function hasFirstPutt(h){ return countsPutts(h) && h.putts>0; }
 function threePutt(h){ return countsPutts(h) && h.putts>=3; }
+// Chip-in is a flag the player sets. A saved 0 putts still counts when that flag was never on.
+// Flag and 0 putts on the same hole count once.
+function countsChipIn(h){
+  if(!h) return false;
+  if(h.chipIn===true) return true;
+  return h.putts===0;
+}
 
 // ---- v17: per-hole and segment analytics, all derived from rounds[] ------------------
 // Sample sizes are tiny (n<=5 per hole), so every figure ships with its n and the UI
@@ -480,8 +487,9 @@ function roundStats(r){
     var sss=s.ss&&{n:s.ss.n,d:s.ss.d,a:s.ss.a==null?s.ss.d:s.ss.a};
     return {score:s.score,par:s.par,played:s.played,fir:sf,gir:s.gir,putts:s.putts,
       chip6:s.chip6,ss:sss,p36:s.p36,pen:s.pen,out:s.out,inn:s.inn,
+      chipIns:s.chipIns||0,
       type:s.type||(s.played+' Holes')};}
-  var hs=(r&&r.holes)||[], score=0,par=0,played=0,putts=0,pen=0,out=0,inn=0;
+  var hs=(r&&r.holes)||[], score=0,par=0,played=0,putts=0,pen=0,out=0,inn=0,chipIns=0;
   var fir={n:0,d:0,l:0,r:0},gir={n:0,d:0},chip6={n:0,d:0},ss={n:0,d:0,a:0},p36={n:0,d:0};
   hs.forEach(function(h,i){
     var c=COURSE[i]; if(!c||!h)return;
@@ -495,6 +503,7 @@ function roundStats(r){
       if(i<9)out+=h.score; else inn+=h.score;
     }
     putts+=h.putts||0; pen+=h.pen||0;
+    if(countsChipIn(h)) chipIns++;
     if(countsFir(h,c)){fir.d++; if(h.fir==='y')fir.n++; else if(h.fir==='l')fir.l++; else if(h.fir==='r')fir.r++;}
     if(countsGir(h)){gir.d++; if(h.gir)gir.n++;}
     // CHIP6 is the first greenside shot after MISSING the green -- the UI only enables the
@@ -512,7 +521,7 @@ function roundStats(r){
     p36.n+=h.sixMade||0; p36.d+=h.sixAtt||0;
   });
   return {score:score,par:par,played:played,fir:fir,gir:gir,putts:putts,chip6:chip6,
-    ss:ss,p36:p36,pen:pen,out:out,inn:inn,type:played+' Holes'};
+    ss:ss,p36:p36,pen:pen,out:out,inn:inn,chipIns:chipIns,type:played+' Holes'};
 }
 
 // One-way migration. Legacy state.history is converted, then retained as _legacyHistory
